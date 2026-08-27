@@ -52,7 +52,7 @@ const App = () => {
   if (isLoading) return <PageLoader />;
 
   return (
-    <div className="h-screen" data-theme={theme}>
+    <div className="h-[100dvh]" data-theme={theme}>
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route
@@ -63,7 +63,9 @@ const App = () => {
                   <HomePage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
               )
             }
           />
@@ -96,7 +98,11 @@ const App = () => {
             path="/verify-email"
             element={
               isAuthenticated ? (
-                isEmailVerified ? <Navigate to={authenticatedRedirect} /> : <VerifyEmailPage />
+                isEmailVerified ? (
+                  <Navigate to={authenticatedRedirect} />
+                ) : (
+                  <VerifyEmailPage />
+                )
               ) : (
                 <Navigate to="/login" />
               )
@@ -110,7 +116,9 @@ const App = () => {
                   <NotificationsPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
               )
             }
           />
@@ -122,7 +130,9 @@ const App = () => {
                   <ProfilePage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
               )
             }
           />
@@ -134,7 +144,9 @@ const App = () => {
                   <FriendsPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
               )
             }
           />
@@ -146,7 +158,9 @@ const App = () => {
                   <FriendsPage initialTab="discover" />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
               )
             }
           />
@@ -158,7 +172,9 @@ const App = () => {
                   <StoriesPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
               )
             }
           />
@@ -170,7 +186,9 @@ const App = () => {
                   <CommunitiesPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
               )
             }
           />
@@ -183,7 +201,9 @@ const App = () => {
                   <CommunityChatPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
               )
             }
           />
@@ -198,7 +218,9 @@ const App = () => {
                   />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
               )
             }
           />
@@ -210,7 +232,9 @@ const App = () => {
                   <CallsPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
               )
             }
           />
@@ -222,7 +246,9 @@ const App = () => {
                   <SettingsPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
               )
             }
           />
@@ -232,7 +258,9 @@ const App = () => {
               isAuthenticated && isEmailVerified && isOnboarded ? (
                 <CallPage />
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
               )
             }
           />
@@ -244,7 +272,9 @@ const App = () => {
                   <ChatsPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
               )
             }
           />
@@ -256,7 +286,9 @@ const App = () => {
                   <ChatPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
               )
             }
           />
@@ -287,7 +319,10 @@ const App = () => {
           role="alert"
           className="alert alert-warning fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-lg shadow-lg sm:left-auto sm:right-6 sm:w-auto"
         >
-          <span>You&apos;ve been inactive for a while. You&apos;ll be logged out soon.</span>
+          <span>
+            You&apos;ve been inactive for a while. You&apos;ll be logged out
+            soon.
+          </span>
           <button type="button" className="btn btn-sm" onClick={stayActive}>
             Stay signed in
           </button>

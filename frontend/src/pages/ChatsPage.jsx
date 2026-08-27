@@ -118,7 +118,7 @@ const ChatsPage = () => {
   if (friendsLoading || tokenLoading) return <ChatLoader />;
 
   return (
-    <div className="min-h-full w-full bg-base-100 px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-0 w-full overflow-y-auto bg-base-100 px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
       <div className="mx-auto w-full max-w-4xl">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary">

@@ -165,7 +165,8 @@ export async function sendVerificationOTP(req, res) {
     }
     if (user.emailVerificationResendCount >= MAX_EMAIL_VERIFICATION_RESENDS) {
       return res.status(429).json({
-        message: "Verification code request limit reached. Please try again later",
+        message:
+          "Verification code request limit reached. Please try again later",
       });
     }
 
@@ -174,7 +175,9 @@ export async function sendVerificationOTP(req, res) {
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error("Send verification email error", error.message);
-    return res.status(500).json({ message: "Unable to send verification email" });
+    return res
+      .status(500)
+      .json({ message: "Unable to send verification email" });
   }
 }
 
@@ -185,7 +188,9 @@ export async function resendVerificationOTP(req, res) {
 export async function verifyEmailOTP(req, res) {
   const otp = typeof req.body?.otp === "string" ? req.body.otp.trim() : "";
   if (!/^\d{6}$/.test(otp)) {
-    return res.status(400).json({ message: "Enter the 6-digit verification code" });
+    return res
+      .status(400)
+      .json({ message: "Enter the 6-digit verification code" });
   }
 
   try {
@@ -199,10 +204,14 @@ export async function verifyEmailOTP(req, res) {
       !user.emailVerificationExpiresAt ||
       user.emailVerificationExpiresAt <= new Date()
     ) {
-      return res.status(400).json({ message: "Verification code expired. Request a new code" });
+      return res
+        .status(400)
+        .json({ message: "Verification code expired. Request a new code" });
     }
     if (user.emailVerificationAttempts >= MAX_EMAIL_VERIFICATION_ATTEMPTS) {
-      return res.status(429).json({ message: "Too many attempts. Request a new code" });
+      return res
+        .status(429)
+        .json({ message: "Too many attempts. Request a new code" });
     }
 
     user.emailVerificationAttempts += 1;
@@ -370,7 +379,9 @@ export async function logout(req, res) {
 export async function onboard(req, res) {
   try {
     if (!req.user.emailVerified) {
-      return res.status(403).json({ message: "Verify your email before onboarding" });
+      return res
+        .status(403)
+        .json({ message: "Verify your email before onboarding" });
     }
     const userId = req.user._id;
     const { fullName, bio, nativeLanguage, learningLanguage, location } =

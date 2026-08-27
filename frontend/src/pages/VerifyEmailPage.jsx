@@ -27,11 +27,22 @@ const VerifyEmailPage = () => {
     mutationFn: verifyEmailOTP,
     onSuccess: (data) => {
       setStatus("verified");
-      queryClient.setQueryData(["authUser"], { success: true, user: data.user });
-      setTimeout(() => navigate(data.user.isOnboarded ? "/" : "/onboarding"), 700);
+      queryClient.setQueryData(["authUser"], {
+        success: true,
+        user: data.user,
+      });
+      setTimeout(
+        () => navigate(data.user.isOnboarded ? "/" : "/onboarding"),
+        700,
+      );
     },
     onError: (error) => {
-      setStatus(error.response?.status === 400 && error.response?.data?.message?.includes("expired") ? "expired" : "invalid");
+      setStatus(
+        error.response?.status === 400 &&
+          error.response?.data?.message?.includes("expired")
+          ? "expired"
+          : "invalid",
+      );
     },
   });
 
@@ -56,7 +67,8 @@ const VerifyEmailPage = () => {
       inputsRef.current[0]?.focus();
     },
     onError: (error) => {
-      if (error.response?.status === 429) setSecondsLeft(RESEND_COOLDOWN_SECONDS);
+      if (error.response?.status === 429)
+        setSecondsLeft(RESEND_COOLDOWN_SECONDS);
       setStatus("server-error");
     },
   });
@@ -70,7 +82,10 @@ const VerifyEmailPage = () => {
 
   useEffect(() => {
     if (!secondsLeft) return undefined;
-    const timer = setInterval(() => setSecondsLeft((value) => Math.max(0, value - 1)), 1000);
+    const timer = setInterval(
+      () => setSecondsLeft((value) => Math.max(0, value - 1)),
+      1000,
+    );
     return () => clearInterval(timer);
   }, [secondsLeft]);
 
@@ -85,9 +100,15 @@ const VerifyEmailPage = () => {
 
   const handlePaste = (event) => {
     event.preventDefault();
-    const pasted = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, CODE_LENGTH);
+    const pasted = event.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, CODE_LENGTH);
     if (!pasted) return;
-    const nextCode = Array.from({ length: CODE_LENGTH }, (_, index) => pasted[index] || "");
+    const nextCode = Array.from(
+      { length: CODE_LENGTH },
+      (_, index) => pasted[index] || "",
+    );
     setCode(nextCode);
     inputsRef.current[Math.min(pasted.length, CODE_LENGTH) - 1]?.focus();
     if (pasted.length === CODE_LENGTH) verifyMutation.mutate(pasted);
@@ -97,31 +118,42 @@ const VerifyEmailPage = () => {
     if (event.key === "Backspace" && !code[index] && index > 0) {
       inputsRef.current[index - 1]?.focus();
     }
-    if (event.key === "ArrowLeft" && index > 0) inputsRef.current[index - 1]?.focus();
-    if (event.key === "ArrowRight" && index < CODE_LENGTH - 1) inputsRef.current[index + 1]?.focus();
+    if (event.key === "ArrowLeft" && index > 0)
+      inputsRef.current[index - 1]?.focus();
+    if (event.key === "ArrowRight" && index < CODE_LENGTH - 1)
+      inputsRef.current[index + 1]?.focus();
   };
 
   if (isAuthLoading) return null;
   if (!authUser) return <Navigate to="/login" replace />;
-  if (authUser.emailVerified) return <Navigate to={authUser.isOnboarded ? "/" : "/onboarding"} replace />;
+  if (authUser.emailVerified)
+    return <Navigate to={authUser.isOnboarded ? "/" : "/onboarding"} replace />;
 
-  const isBusy = verifyMutation.isPending || resendMutation.isPending || sendMutation.isPending;
-  const message = status === "verified"
-    ? "Email verified. Taking you to onboarding..."
-    : status === "expired"
-      ? "That code has expired. Request a new one."
-      : status === "invalid"
-        ? verifyMutation.error?.response?.data?.message || "That code is not valid. Try again."
-        : status === "sent"
-          ? "A new verification code has been sent."
+  const isBusy =
+    verifyMutation.isPending ||
+    resendMutation.isPending ||
+    sendMutation.isPending;
+  const message =
+    status === "verified"
+      ? "Email verified. Taking you to onboarding..."
+      : status === "expired"
+        ? "That code has expired. Request a new one."
+        : status === "invalid"
+          ? verifyMutation.error?.response?.data?.message ||
+            "That code is not valid. Try again."
+          : status === "sent"
+            ? "A new verification code has been sent."
             : status === "cooldown"
               ? "A verification code was sent. You can request another code when the countdown ends."
-          : status === "server-error"
-            ? "We could not complete that request. Please try again."
-            : "Enter the six-digit code we sent to your inbox.";
+              : status === "server-error"
+                ? "We could not complete that request. Please try again."
+                : "Enter the six-digit code we sent to your inbox.";
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4" data-theme={theme}>
+    <main
+      className="min-h-screen flex items-center justify-center p-4"
+      data-theme={theme}
+    >
       <section className="card w-full max-w-md bg-base-100 border border-primary/20 shadow-xl">
         <div className="card-body p-6 sm:p-8">
           <div className="flex items-center gap-2 text-primary mb-8">
@@ -129,21 +161,34 @@ const VerifyEmailPage = () => {
             <span className="text-3xl font-bold font-mono">HyeChat</span>
           </div>
           <div className="mb-6">
-            <MailCheck className="size-10 text-primary mb-3" aria-hidden="true" />
+            <MailCheck
+              className="size-10 text-primary mb-3"
+              aria-hidden="true"
+            />
             <h1 className="text-2xl font-bold">Verify your email</h1>
             <p className="text-sm opacity-70 mt-2">
               We sent a six-digit code to <strong>{authUser.email}</strong>.
             </p>
           </div>
 
-          <form onSubmit={(event) => { event.preventDefault(); verifyMutation.mutate(code.join("")); }}>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              verifyMutation.mutate(code.join(""));
+            }}
+          >
             <fieldset disabled={isBusy || status === "verified"}>
               <legend className="sr-only">Email verification code</legend>
-              <div className="flex justify-between gap-2 mb-5" onPaste={handlePaste}>
+              <div
+                className="flex justify-between gap-2 mb-5"
+                onPaste={handlePaste}
+              >
                 {code.map((digit, index) => (
                   <input
                     key={index}
-                    ref={(element) => { inputsRef.current[index] = element; }}
+                    ref={(element) => {
+                      inputsRef.current[index] = element;
+                    }}
                     value={digit}
                     onChange={(event) => updateCode(index, event.target.value)}
                     onKeyDown={(event) => handleKeyDown(event, index)}
@@ -156,13 +201,27 @@ const VerifyEmailPage = () => {
                   />
                 ))}
               </div>
-              <button className="btn btn-primary w-full" type="submit" disabled={code.join("").length !== CODE_LENGTH}>
-                {verifyMutation.isPending ? <><span className="loading loading-spinner loading-xs" /> Verifying...</> : "Verify email"}
+              <button
+                className="btn btn-primary w-full"
+                type="submit"
+                disabled={code.join("").length !== CODE_LENGTH}
+              >
+                {verifyMutation.isPending ? (
+                  <>
+                    <span className="loading loading-spinner loading-xs" />{" "}
+                    Verifying...
+                  </>
+                ) : (
+                  "Verify email"
+                )}
               </button>
             </fieldset>
           </form>
 
-          <p role="status" className={`text-sm mt-4 ${status === "verified" ? "text-success" : "text-error"}`}>
+          <p
+            role="status"
+            className={`text-sm mt-4 ${status === "verified" ? "text-success" : "text-error"}`}
+          >
             {message}
           </p>
           <button
@@ -172,7 +231,11 @@ const VerifyEmailPage = () => {
             onClick={() => resendMutation.mutate()}
           >
             <RefreshCw className="size-4" aria-hidden="true" />
-            {resendMutation.isPending ? "Sending..." : secondsLeft > 0 ? `Resend code in ${secondsLeft}s` : "Resend code"}
+            {resendMutation.isPending
+              ? "Sending..."
+              : secondsLeft > 0
+                ? `Resend code in ${secondsLeft}s`
+                : "Resend code"}
           </button>
         </div>
       </section>

@@ -9,10 +9,14 @@ const ACTIVITY_THROTTLE_MS = 1000;
 const LOGOUT_CHANNEL_NAME = "hyechat-auth";
 
 const configuredTimeout = Number(import.meta.env.VITE_INACTIVITY_TIMEOUT_MS);
-const INACTIVITY_TIMEOUT_MS = Number.isFinite(configuredTimeout) && configuredTimeout > 0
-  ? configuredTimeout
-  : DEFAULT_INACTIVITY_TIMEOUT_MS;
-const WARNING_TIMEOUT_MS = Math.min(WARNING_DURATION_MS, INACTIVITY_TIMEOUT_MS / 2);
+const INACTIVITY_TIMEOUT_MS =
+  Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? configuredTimeout
+    : DEFAULT_INACTIVITY_TIMEOUT_MS;
+const WARNING_TIMEOUT_MS = Math.min(
+  WARNING_DURATION_MS,
+  INACTIVITY_TIMEOUT_MS / 2,
+);
 
 const useInactivityLogout = ({ enabled }) => {
   const queryClient = useQueryClient();
@@ -95,7 +99,9 @@ const useInactivityLogout = ({ enabled }) => {
       "pointerdown",
     ];
     activityEvents.forEach((eventName) =>
-      window.addEventListener(eventName, resetInactivityTimer, { passive: true }),
+      window.addEventListener(eventName, resetInactivityTimer, {
+        passive: true,
+      }),
     );
     resetInactivityTimer();
 

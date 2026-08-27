@@ -37,9 +37,24 @@ router.post("/login", login);
 router.post("/logout", logout);
 router.post("/forgot-password", forgotPasswordLimiter, forgotPassword);
 router.post("/reset-password/:token", resetPassword);
-router.post("/verify-email/send", protectRoute, verificationLimiter, sendVerificationOTP);
-router.post("/verify-email/resend", protectRoute, verificationLimiter, resendVerificationOTP);
-router.post("/verify-email/verify", protectRoute, verificationLimiter, verifyEmailOTP);
+router.post(
+  "/verify-email/send",
+  protectRoute,
+  verificationLimiter,
+  sendVerificationOTP,
+);
+router.post(
+  "/verify-email/resend",
+  protectRoute,
+  verificationLimiter,
+  resendVerificationOTP,
+);
+router.post(
+  "/verify-email/verify",
+  protectRoute,
+  verificationLimiter,
+  verifyEmailOTP,
+);
 
 router.post("/onboarding", protectRoute, onboard);
 

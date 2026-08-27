@@ -10,7 +10,7 @@ const Layout = ({ children, showSidebar = false }) => {
   useNotificationSocket();
 
   return (
-    <div className="h-screen overflow-hidden">
+    <div className="h-[100dvh] min-h-0 overflow-hidden">
       <IncomingCallOverlay />
       <div className="flex h-full">
         {showSidebar && (

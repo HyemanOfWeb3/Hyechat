@@ -73,7 +73,7 @@ const ChatListItem = ({ channel, currentUserId, friendById }) => {
           : `/chat/${userId}`
       }
       aria-label={`Open chat with ${name}`}
-      className="flex items-center gap-3 border-b border-base-300 px-4 py-4 transition-colors last:border-b-0 hover:bg-base-300/60"
+      className="flex min-w-0 items-center gap-3 border-b border-base-300 px-4 py-4 transition-colors last:border-b-0 hover:bg-base-300/60 active:bg-base-300/80"
     >
       <div className="relative shrink-0">
         <div className="avatar">
