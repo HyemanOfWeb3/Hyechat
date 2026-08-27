@@ -1,5 +1,11 @@
 # React + Vite
 
+## Session inactivity
+
+Set `VITE_INACTIVITY_TIMEOUT_MS` to configure the client inactivity timeout. If
+it is not set, the application logs out after 30 minutes of inactivity and
+shows a warning during the final minute.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

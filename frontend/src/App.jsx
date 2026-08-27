@@ -5,6 +5,7 @@ import PageLoader from "./components/PageLoader.jsx";
 import useAuthUser from "./hooks/useAuthUser.js";
 import Layout from "./components/Layout.jsx";
 import { useThemeStore } from "./store/useThemeStore.js";
+import useInactivityLogout from "./hooks/useInactivityLogout.js";
 
 const HomePage = lazy(() => import("./pages/HomePage.jsx"));
 const SignUpPage = lazy(() => import("./pages/SignUpPage.jsx"));
@@ -44,6 +45,9 @@ const App = () => {
     : isOnboarded
       ? "/"
       : "/onboarding";
+  const { showWarning, stayActive } = useInactivityLogout({
+    enabled: isAuthenticated,
+  });
 
   if (isLoading) return <PageLoader />;
 
@@ -277,6 +281,18 @@ const App = () => {
           <Route path="/testing" element={<TestingPage />} />
         </Routes>
       </Suspense>
+
+      {showWarning && (
+        <div
+          role="alert"
+          className="alert alert-warning fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-lg shadow-lg sm:left-auto sm:right-6 sm:w-auto"
+        >
+          <span>You&apos;ve been inactive for a while. You&apos;ll be logged out soon.</span>
+          <button type="button" className="btn btn-sm" onClick={stayActive}>
+            Stay signed in
+          </button>
+        </div>
+      )}
 
       <Toaster />
     </div>
