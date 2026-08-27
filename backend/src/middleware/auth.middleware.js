@@ -21,7 +21,9 @@ export const protectRoute = async (req, res, next) => {
         .json({ message: "Unauthorized - Invalid or expired token" });
     }
 
-    const user = await User.findById(decoded.userId).select("-password");
+    const user = await User.findById(decoded.userId).select(
+      "-password -emailVerificationOTPHash -emailVerificationExpiresAt -emailVerificationAttempts -emailVerificationLastSentAt -emailVerificationResendCount -resetPasswordToken -resetPasswordExpires",
+    );
 
     if (!user) {
       return res.status(401).json({ message: "Unauthorized - User not found" });

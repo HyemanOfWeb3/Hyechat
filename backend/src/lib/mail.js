@@ -58,6 +58,32 @@ export async function sendPasswordResetEmail({ email, fullName, resetToken }) {
   });
 }
 
+export async function sendEmailVerificationEmail({ email, fullName, otp }) {
+  const safeName = escapeHtml(fullName || "there");
+  await sendMail({
+    from: `HyeChat <${process.env.EMAIL}>`,
+    to: email,
+    subject: "Verify your HyeChat email",
+    text: [
+      `Hi ${fullName || "there"},`,
+      "",
+      `Your HyeChat verification code is: ${otp}`,
+      "This code expires in 10 minutes and can only be used once.",
+      "If you did not create this account, you can safely ignore this email.",
+    ].join("\n"),
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937;">
+        <h2>Verify your HyeChat email</h2>
+        <p>Hi ${safeName},</p>
+        <p>Enter this code in HyeChat to verify your email address:</p>
+        <p style="font-size: 30px; font-weight: 700; letter-spacing: 8px;">${otp}</p>
+        <p>This code expires in 10 minutes and can only be used once.</p>
+        <p>If you did not create this account, you can safely ignore this email.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendMail(mailOptions) {
   const transporter = getTransporter();
   await transporter.sendMail(mailOptions);

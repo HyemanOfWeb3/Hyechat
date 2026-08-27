@@ -41,6 +41,30 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    emailVerified: {
+      type: Boolean,
+      default: true,
+    },
+    emailVerificationOTPHash: {
+      type: String,
+      default: null,
+    },
+    emailVerificationExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    emailVerificationAttempts: {
+      type: Number,
+      default: 0,
+    },
+    emailVerificationLastSentAt: {
+      type: Date,
+      default: null,
+    },
+    emailVerificationResendCount: {
+      type: Number,
+      default: 0,
+    },
     friends: [
       {
         type: mongoose.Schema.Types.ObjectId,

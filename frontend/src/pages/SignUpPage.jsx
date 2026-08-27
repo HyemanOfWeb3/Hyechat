@@ -24,10 +24,11 @@ const SignUpPage = () => {
     error,
   } = useMutation({
     mutationFn: signup,
-    onSuccess: () => {
+    onSuccess: (data) => {
       // Invalidate authUser query to refetch user data after successful signup
+      queryClient.setQueryData(["authUser"], data);
       queryClient.invalidateQueries({ queryKey: ["authUser"] });
-      navigate("/");
+      navigate("/verify-email");
     },
   });
 
@@ -86,7 +87,7 @@ const SignUpPage = () => {
                     </label>
                     <input
                       type="text"
-                      placeholder="HyeChat"
+                      placeholder="Hye Chat"
                       className="input input-bordered w-full"
                       value={signupData.fullName}
                       onChange={(e) =>
@@ -107,7 +108,7 @@ const SignUpPage = () => {
                     </label>
                     <input
                       type="email"
-                      placeholder="hyemanofweb3@gmail.com"
+                      placeholder="hello@hyechat.com"
                       className="input input-bordered w-full"
                       value={signupData.email}
                       onChange={(e) =>

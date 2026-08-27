@@ -1,5 +1,8 @@
 import { upsertStreamUser } from "../lib/stream.js";
-import { sendPasswordResetEmail } from "../lib/mail.js";
+import {
+  sendEmailVerificationEmail,
+  sendPasswordResetEmail,
+} from "../lib/mail.js";
 import User from "../models/User.js";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
@@ -7,12 +10,52 @@ import jwt from "jsonwebtoken";
 const PASSWORD_RESET_MESSAGE =
   "If an account with that email exists, a password reset link has been sent.";
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000;
+const EMAIL_VERIFICATION_COOLDOWN_MS = 60 * 1000;
+const MAX_EMAIL_VERIFICATION_ATTEMPTS = 5;
+const MAX_EMAIL_VERIFICATION_RESENDS = 5;
+
+const hashVerificationOTP = (otp) =>
+  crypto.createHash("sha256").update(otp).digest("hex");
+
+const createVerificationOTP = () =>
+  crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+
+const issueVerificationOTP = async (user) => {
+  const otp = createVerificationOTP();
+  user.emailVerificationOTPHash = hashVerificationOTP(otp);
+  user.emailVerificationExpiresAt = new Date(
+    Date.now() + EMAIL_VERIFICATION_TTL_MS,
+  );
+  user.emailVerificationAttempts = 0;
+  user.emailVerificationLastSentAt = new Date();
+  await user.save();
+
+  try {
+    await sendEmailVerificationEmail({
+      email: user.email,
+      fullName: user.fullName,
+      otp,
+    });
+  } catch (error) {
+    user.emailVerificationOTPHash = null;
+    user.emailVerificationExpiresAt = null;
+    user.emailVerificationLastSentAt = null;
+    await user.save();
+    throw error;
+  }
+};
 
 const publicUser = (user) => {
   const data = user.toObject ? user.toObject() : { ...user };
   delete data.password;
   delete data.resetPasswordToken;
   delete data.resetPasswordExpires;
+  delete data.emailVerificationOTPHash;
+  delete data.emailVerificationExpiresAt;
+  delete data.emailVerificationAttempts;
+  delete data.emailVerificationLastSentAt;
+  delete data.emailVerificationResendCount;
   return data;
 };
 
@@ -56,7 +99,14 @@ export async function signup(req, res) {
       fullName,
       password,
       profilePic: randomAvatar,
+      emailVerified: false,
     });
+
+    try {
+      await issueVerificationOTP(newUser);
+    } catch (error) {
+      console.error("Email verification delivery failed", error.message);
+    }
 
     // TODO : CREATE THE USER IN STREAM AS WELL
 
@@ -92,6 +142,91 @@ export async function signup(req, res) {
   } catch (error) {
     console.log("Error in signup controller", error);
     res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+export async function sendVerificationOTP(req, res) {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+    if (user.emailVerified) {
+      return res.status(200).json({ success: true, alreadyVerified: true });
+    }
+
+    const now = Date.now();
+    if (
+      user.emailVerificationLastSentAt &&
+      now - user.emailVerificationLastSentAt.getTime() <
+        EMAIL_VERIFICATION_COOLDOWN_MS
+    ) {
+      return res.status(429).json({
+        message: "Please wait before requesting another verification code",
+      });
+    }
+    if (user.emailVerificationResendCount >= MAX_EMAIL_VERIFICATION_RESENDS) {
+      return res.status(429).json({
+        message: "Verification code request limit reached. Please try again later",
+      });
+    }
+
+    user.emailVerificationResendCount += 1;
+    await issueVerificationOTP(user);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("Send verification email error", error.message);
+    return res.status(500).json({ message: "Unable to send verification email" });
+  }
+}
+
+export async function resendVerificationOTP(req, res) {
+  return sendVerificationOTP(req, res);
+}
+
+export async function verifyEmailOTP(req, res) {
+  const otp = typeof req.body?.otp === "string" ? req.body.otp.trim() : "";
+  if (!/^\d{6}$/.test(otp)) {
+    return res.status(400).json({ message: "Enter the 6-digit verification code" });
+  }
+
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+    if (user.emailVerified) {
+      return res.status(200).json({ success: true, user: publicUser(user) });
+    }
+    if (
+      !user.emailVerificationOTPHash ||
+      !user.emailVerificationExpiresAt ||
+      user.emailVerificationExpiresAt <= new Date()
+    ) {
+      return res.status(400).json({ message: "Verification code expired. Request a new code" });
+    }
+    if (user.emailVerificationAttempts >= MAX_EMAIL_VERIFICATION_ATTEMPTS) {
+      return res.status(429).json({ message: "Too many attempts. Request a new code" });
+    }
+
+    user.emailVerificationAttempts += 1;
+    const submittedHash = Buffer.from(hashVerificationOTP(otp), "hex");
+    const storedHash = Buffer.from(user.emailVerificationOTPHash, "hex");
+    const matches =
+      submittedHash.length === storedHash.length &&
+      crypto.timingSafeEqual(submittedHash, storedHash);
+    if (!matches) {
+      await user.save();
+      return res.status(400).json({ message: "Invalid verification code" });
+    }
+
+    user.emailVerified = true;
+    user.emailVerificationOTPHash = null;
+    user.emailVerificationExpiresAt = null;
+    user.emailVerificationAttempts = 0;
+    user.emailVerificationLastSentAt = null;
+    user.emailVerificationResendCount = 0;
+    await user.save();
+    return res.status(200).json({ success: true, user: publicUser(user) });
+  } catch (error) {
+    console.error("Verify email error", error.message);
+    return res.status(500).json({ message: "Unable to verify email" });
   }
 }
 
@@ -234,6 +369,9 @@ export async function logout(req, res) {
 
 export async function onboard(req, res) {
   try {
+    if (!req.user.emailVerified) {
+      return res.status(403).json({ message: "Verify your email before onboarding" });
+    }
     const userId = req.user._id;
     const { fullName, bio, nativeLanguage, learningLanguage, location } =
       req.body;

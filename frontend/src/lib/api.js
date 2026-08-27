@@ -10,6 +10,21 @@ export const login = async (loginData) => {
   return res.data;
 };
 
+export const sendVerificationOTP = async () => {
+  const res = await axiosInstance.post("/auth/verify-email/send");
+  return res.data;
+};
+
+export const resendVerificationOTP = async () => {
+  const res = await axiosInstance.post("/auth/verify-email/resend");
+  return res.data;
+};
+
+export const verifyEmailOTP = async (otp) => {
+  const res = await axiosInstance.post("/auth/verify-email/verify", { otp });
+  return res.data;
+};
+
 export const forgotPassword = async (email) => {
   const res = await axiosInstance.post("/auth/forgot-password", { email });
   return res.data;

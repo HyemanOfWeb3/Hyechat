@@ -22,6 +22,11 @@ const publicUser = (user) => {
   delete data.password;
   delete data.resetPasswordToken;
   delete data.resetPasswordExpires;
+  delete data.emailVerificationOTPHash;
+  delete data.emailVerificationExpiresAt;
+  delete data.emailVerificationAttempts;
+  delete data.emailVerificationLastSentAt;
+  delete data.emailVerificationResendCount;
   return data;
 };
 

@@ -11,6 +11,7 @@ const SignUpPage = lazy(() => import("./pages/SignUpPage.jsx"));
 const LoginPage = lazy(() => import("./pages/LoginPage.jsx"));
 const ForgetPasswordPage = lazy(() => import("./pages/ForgetPassword.jsx"));
 const ResetPasswordPage = lazy(() => import("./pages/ResetPassword.jsx"));
+const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage.jsx"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage.jsx"));
 const CallPage = lazy(() => import("./pages/CallPage.jsx"));
 const CallsPage = lazy(() => import("./pages/CallsPage.jsx"));
@@ -36,7 +37,13 @@ const App = () => {
   const { theme } = useThemeStore();
 
   const isAuthenticated = Boolean(authUser);
+  const isEmailVerified = authUser?.emailVerified;
   const isOnboarded = authUser?.isOnboarded;
+  const authenticatedRedirect = !isEmailVerified
+    ? "/verify-email"
+    : isOnboarded
+      ? "/"
+      : "/onboarding";
 
   if (isLoading) return <PageLoader />;
 
@@ -47,12 +54,12 @@ const App = () => {
           <Route
             path="/"
             element={
-              isAuthenticated && isOnboarded ? (
+              isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
                   <HomePage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
               )
             }
           />
@@ -62,7 +69,7 @@ const App = () => {
               !isAuthenticated ? (
                 <SignUpPage />
               ) : (
-                <Navigate to={isOnboarded ? "/" : "/onboarding"} />
+                <Navigate to={authenticatedRedirect} />
               )
             }
           />
@@ -72,7 +79,7 @@ const App = () => {
               !isAuthenticated ? (
                 <LoginPage />
               ) : (
-                <Navigate to={isOnboarded ? "/" : "/onboarding"} />
+                <Navigate to={authenticatedRedirect} />
               )
             }
           />
@@ -82,74 +89,84 @@ const App = () => {
             element={<ResetPasswordPage />}
           />
           <Route
+            path="/verify-email"
+            element={
+              isAuthenticated ? (
+                isEmailVerified ? <Navigate to={authenticatedRedirect} /> : <VerifyEmailPage />
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
+          <Route
             path="/notifications"
             element={
-              isAuthenticated && isOnboarded ? (
+              isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
                   <NotificationsPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
               )
             }
           />
           <Route
             path="/profile"
             element={
-              isAuthenticated && isOnboarded ? (
+              isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
                   <ProfilePage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
               )
             }
           />
           <Route
             path="/friends"
             element={
-              isAuthenticated && isOnboarded ? (
+              isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
                   <FriendsPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
               )
             }
           />
           <Route
             path="/discover"
             element={
-              isAuthenticated && isOnboarded ? (
+              isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
                   <FriendsPage initialTab="discover" />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
               )
             }
           />
           <Route
             path="/stories"
             element={
-              isAuthenticated && isOnboarded ? (
+              isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
                   <StoriesPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
               )
             }
           />
           <Route
             path="/communities"
             element={
-              isAuthenticated && isOnboarded ? (
+              isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
                   <CommunitiesPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
               )
             }
           />
@@ -157,19 +174,19 @@ const App = () => {
           <Route
             path="/communities/:id"
             element={
-              isAuthenticated && isOnboarded ? (
+              isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
                   <CommunityChatPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
               )
             }
           />
           <Route
             path="/saved"
             element={
-              isAuthenticated && isOnboarded ? (
+              isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
                   <FeatureFoundationPage
                     title="Saved"
@@ -177,65 +194,65 @@ const App = () => {
                   />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
               )
             }
           />
           <Route
             path="/calls"
             element={
-              isAuthenticated && isOnboarded ? (
+              isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
                   <CallsPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
               )
             }
           />
           <Route
             path="/settings"
             element={
-              isAuthenticated && isOnboarded ? (
+              isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
                   <SettingsPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
               )
             }
           />
           <Route
             path="/call/:id"
             element={
-              isAuthenticated && isOnboarded ? (
+              isAuthenticated && isEmailVerified && isOnboarded ? (
                 <CallPage />
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
               )
             }
           />
           <Route
             path="/chat"
             element={
-              isAuthenticated && isOnboarded ? (
+              isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
                   <ChatsPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
               )
             }
           />
           <Route
             path="/chat/:id"
             element={
-              isAuthenticated && isOnboarded ? (
+              isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={false}>
                   <ChatPage />
                 </Layout>
               ) : (
-                <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+                <Navigate to={!isAuthenticated ? "/login" : authenticatedRedirect} />
               )
             }
           />
@@ -245,7 +262,9 @@ const App = () => {
             path="/onboarding"
             element={
               isAuthenticated ? (
-                !isOnboarded ? (
+                !isEmailVerified ? (
+                  <Navigate to="/verify-email" />
+                ) : !isOnboarded ? (
                   <OnboardingPage />
                 ) : (
                   <Navigate to="/" />
