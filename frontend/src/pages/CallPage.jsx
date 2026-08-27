@@ -305,7 +305,7 @@ const CallPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-base-200 p-3 lg:p-4">
+    <div className="min-h-[100dvh] overflow-y-auto bg-base-200 p-3 pb-[calc(1rem+env(safe-area-inset-bottom))] lg:p-4">
       <div className="mx-auto flex max-w-7xl flex-col gap-3">
         <div className="rounded-3xl border border-base-300 bg-gradient-to-br from-base-100 via-base-100 to-primary/10 p-4 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

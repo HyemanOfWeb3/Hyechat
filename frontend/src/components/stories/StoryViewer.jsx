@@ -517,7 +517,7 @@ const StoryViewer = ({
         if (event.target === event.currentTarget) closeViewer();
       }}
     >
-      <div className="relative flex h-[min(760px,calc(100vh-1.5rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-2xl sm:h-[min(760px,calc(100vh-3rem))]">
+      <div className="relative flex h-[min(760px,calc(100dvh-1.5rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-2xl sm:h-[min(760px,calc(100dvh-3rem))]">
         <div className="absolute left-0 right-0 top-0 z-20 flex gap-1 p-3">
           {currentGroup.stories.map((story, index) => (
             <div
@@ -570,7 +570,7 @@ const StoryViewer = ({
           <button
             type="button"
             onClick={closeViewer}
-            className="btn btn-circle btn-sm border-0 bg-black/30 text-white hover:bg-black/50"
+            className="btn btn-circle btn-sm min-h-11 min-w-11 border-0 bg-black/30 text-white hover:bg-black/50"
             aria-label="Close Story viewer"
           >
             <X className="size-5" />
@@ -642,7 +642,7 @@ const StoryViewer = ({
           <button
             type="button"
             onClick={moveToPrevious}
-            className="btn btn-circle btn-sm absolute left-3 top-1/2 border-0 bg-black/30 text-white hover:bg-black/50 sm:left-5"
+            className="btn btn-circle btn-sm min-h-11 min-w-11 absolute left-3 top-1/2 border-0 bg-black/30 text-white hover:bg-black/50 sm:left-5"
             aria-label="Previous Story"
           >
             <ArrowLeft className="size-5" />
@@ -650,7 +650,7 @@ const StoryViewer = ({
           <button
             type="button"
             onClick={moveToNext}
-            className="btn btn-circle btn-sm absolute right-3 top-1/2 border-0 bg-black/30 text-white hover:bg-black/50 sm:right-5"
+            className="btn btn-circle btn-sm min-h-11 min-w-11 absolute right-3 top-1/2 border-0 bg-black/30 text-white hover:bg-black/50 sm:right-5"
             aria-label="Next Story"
           >
             <ArrowRight className="size-5" />

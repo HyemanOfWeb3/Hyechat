@@ -37,7 +37,7 @@ const LoginPage = () => {
 
   return (
     <div
-      className="h-screen flex items-center justify-center p-4 sm:p-6 md:p-8"
+      className="min-h-[100dvh] overflow-y-auto flex items-center justify-center p-4 sm:p-6 md:p-8"
       data-theme={theme}
     >
       <div className="border border-primary/25 flex flex-col lg:flex-row w-full max-w-5xl mx-auto bg-base-100 rounded-xl shadow-lg overflow-hidden">
@@ -114,7 +114,7 @@ const LoginPage = () => {
                         className="text-primary hover:underline"
                         to="/forget-password"
                       >
-                    Reset
+                        Reset
                       </Link>
                     </p>
                   </div>

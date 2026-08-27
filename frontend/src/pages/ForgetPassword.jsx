@@ -22,7 +22,7 @@ const ForgetPassword = () => {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center p-4 sm:p-6 md:p-8"
+      className="min-h-[100dvh] overflow-y-auto flex items-center justify-center p-4 sm:p-6 md:p-8"
       data-theme={theme}
     >
       <div className="border border-primary/25 w-full max-w-md bg-base-100 rounded-xl shadow-lg p-6 sm:p-8">

@@ -66,7 +66,8 @@ const NotificationsPage = () => {
     refetch,
   } = useInfiniteQuery({
     queryKey: notificationsKey,
-    queryFn: ({ pageParam }) => getNotifications({ page: pageParam, limit: 20 }),
+    queryFn: ({ pageParam }) =>
+      getNotifications({ page: pageParam, limit: 20 }),
     initialPageParam: 1,
     getNextPageParam: (lastPage) =>
       lastPage.pagination?.hasMore ? lastPage.pagination.page + 1 : undefined,
@@ -79,18 +80,24 @@ const NotificationsPage = () => {
   const markAsReadMutation = useMutation({
     mutationFn: markNotificationAsRead,
     onSuccess: (_, notificationId) => {
-      const notification = notifications.find((item) => item._id === notificationId);
+      const notification = notifications.find(
+        (item) => item._id === notificationId,
+      );
       updateLoadedNotifications(queryClient, (item) =>
         item._id === notificationId ? { ...item, read: true } : item,
       );
-      if (notification?.read === false) setUnreadCount(queryClient, (count) => count - 1);
+      if (notification?.read === false)
+        setUnreadCount(queryClient, (count) => count - 1);
     },
   });
 
   const markAllAsReadMutation = useMutation({
     mutationFn: markAllNotificationsAsRead,
     onSuccess: () => {
-      updateLoadedNotifications(queryClient, (item) => ({ ...item, read: true }));
+      updateLoadedNotifications(queryClient, (item) => ({
+        ...item,
+        read: true,
+      }));
       setUnreadCount(queryClient, () => 0);
     },
   });
@@ -98,11 +105,14 @@ const NotificationsPage = () => {
   const deleteMutation = useMutation({
     mutationFn: deleteNotification,
     onSuccess: (_, notificationId) => {
-      const notification = notifications.find((item) => item._id === notificationId);
+      const notification = notifications.find(
+        (item) => item._id === notificationId,
+      );
       updateLoadedNotifications(queryClient, (item) =>
         item._id === notificationId ? null : item,
       );
-      if (notification?.read === false) setUnreadCount(queryClient, (count) => count - 1);
+      if (notification?.read === false)
+        setUnreadCount(queryClient, (count) => count - 1);
     },
   });
 
@@ -130,7 +140,7 @@ const NotificationsPage = () => {
   }
 
   return (
-    <div className="w-full p-4 sm:p-6 lg:p-8">
+    <div className="w-full overflow-y-auto p-3 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-6 lg:p-8">
       <div className="container mx-auto max-w-4xl space-y-6">
         <NotificationsHeader
           unreadCount={unreadCount}
