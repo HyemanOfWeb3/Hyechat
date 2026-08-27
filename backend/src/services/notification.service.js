@@ -1,5 +1,5 @@
 import Notification from "../models/Notification.js";
-import { emitNotificationCreated } from "../lib/notificationStream.js";
+import { publishNotification } from "../lib/ably.js";
 
 const notificationActorProjection =
   "_id fullName profilePic nativeLanguage learningLanguage";
@@ -11,7 +11,7 @@ const emitPersistedNotification = async (notification) => {
       .lean();
 
     if (populatedNotification) {
-      emitNotificationCreated(populatedNotification.recipient, {
+      await publishNotification(populatedNotification.recipient, {
         _id: populatedNotification._id,
         actor: populatedNotification.actor,
         type: populatedNotification.type,
@@ -23,7 +23,7 @@ const emitPersistedNotification = async (notification) => {
       });
     }
   } catch (error) {
-    console.error("Error emitting notification event", error.message);
+    console.error("Error publishing notification event", error.message);
   }
 
   return notification;

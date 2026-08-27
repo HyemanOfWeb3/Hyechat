@@ -83,8 +83,9 @@ export async function signup(req, res) {
     res.cookie("jwt", token, {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
+      path: "/",
     });
 
     res.status(201).json({ success: true, user: publicUser(newUser) });
@@ -118,8 +119,9 @@ export async function login(req, res) {
     res.cookie("jwt", token, {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
+      path: "/",
     });
 
     res.status(200).json({ success: true, user: publicUser(user) });
@@ -224,7 +226,7 @@ export async function resetPassword(req, res) {
 //LOGOUT AUTHENTICATION
 
 export async function logout(req, res) {
-  res.clearCookie("jwt");
+  res.clearCookie("jwt", { httpOnly: true, sameSite: "lax", path: "/" });
   res.status(200).json({ success: true, message: "Logout successful" });
 }
 

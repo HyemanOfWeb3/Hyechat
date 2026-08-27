@@ -6,13 +6,13 @@ import {
   markAllAsRead,
   deleteNotification,
 } from "../controllers/notification.controller.js";
-import { streamNotifications } from "../controllers/notificationStream.controller.js";
+import { createAblyTokenRequest } from "../controllers/ably.controller.js";
 
 const router = express.Router();
 
 router.use(protectRoute);
 
-router.get("/stream", streamNotifications);
+router.post("/ably-token", createAblyTokenRequest);
 router.get("/", getNotifications);
 router.patch("/read-all", markAllAsRead);
 router.patch("/:id/read", markAsRead);

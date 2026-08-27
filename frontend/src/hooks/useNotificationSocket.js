@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import * as Ably from "ably";
 import useAuthUser from "./useAuthUser.js";
 
 const notificationsKey = ["notifications"];
@@ -11,8 +12,6 @@ const relationshipNotificationTypes = new Set([
   "friend_cancelled",
   "friend_removed",
 ]);
-const apiOrigin = import.meta.env.VITE_BACKEND_URL || "http://localhost:5001";
-
 const addNotificationToCache = (queryClient, notification) => {
   let alreadyCached = false;
 
@@ -68,46 +67,46 @@ const useNotificationSocket = () => {
   useEffect(() => {
     if (!authUser?._id) return undefined;
 
-    const eventSource = new EventSource(
-      `${apiOrigin}/api/notifications/stream`,
-      { withCredentials: true },
-    );
-
-    const handleOpen = () => {
+    const refetchNotifications = () => {
       queryClient.invalidateQueries({ queryKey: notificationsKey });
+      queryClient.invalidateQueries({ queryKey: unreadCountKey });
     };
-    const handleNotification = (event) => {
-      try {
-        const { notification } = JSON.parse(event.data);
-        if (notification?._id) {
-          addNotificationToCache(queryClient, notification);
-          if (relationshipNotificationTypes.has(notification.type)) {
-            queryClient.invalidateQueries({ queryKey: ["friendsPage"] });
-            queryClient.invalidateQueries({ queryKey: ["userDiscovery"] });
-            queryClient.invalidateQueries({
-              queryKey: ["relationshipRequests"],
-            });
-            queryClient.invalidateQueries({ queryKey: ["friends"] });
-            queryClient.invalidateQueries({
-              queryKey: ["incomingFriendRequestCount"],
-            });
-          }
+    const ably = new Ably.Realtime({
+      authUrl: "/api/notifications/ably-token",
+      authMethod: "POST",
+      withCredentials: true,
+    });
+    const channel = ably.channels.get(`notifications:user:${authUser._id}`);
+
+    const handleNotification = (message) => {
+      const notification = message.data;
+      if (notification?._id) {
+        addNotificationToCache(queryClient, notification);
+        if (relationshipNotificationTypes.has(notification.type)) {
+          queryClient.invalidateQueries({ queryKey: ["friendsPage"] });
+          queryClient.invalidateQueries({ queryKey: ["userDiscovery"] });
+          queryClient.invalidateQueries({ queryKey: ["relationshipRequests"] });
+          queryClient.invalidateQueries({ queryKey: ["friends"] });
+          queryClient.invalidateQueries({
+            queryKey: ["incomingFriendRequestCount"],
+          });
         }
-      } catch (error) {
-        console.error("Error handling notification event", error);
       }
     };
 
-    eventSource.addEventListener("open", handleOpen);
-    eventSource.addEventListener("notification.created", handleNotification);
+    const handleConnectionChange = ({ current }) => {
+      if (current === "connected") refetchNotifications();
+    };
+
+    channel.subscribe("notification.created", handleNotification);
+    ably.connection.on(handleConnectionChange);
+    window.addEventListener("focus", refetchNotifications);
 
     return () => {
-      eventSource.removeEventListener("open", handleOpen);
-      eventSource.removeEventListener(
-        "notification.created",
-        handleNotification,
-      );
-      eventSource.close();
+      channel.unsubscribe("notification.created", handleNotification);
+      ably.connection.off(handleConnectionChange);
+      window.removeEventListener("focus", refetchNotifications);
+      ably.close();
     };
   }, [authUser?._id, queryClient]);
 };
