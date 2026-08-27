@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  min-height: 100%;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overscroll-behavior-y: auto;
+}
+
+.str-chat__channel,
+.str-chat__container,
+.str-chat__list,
+.str-chat__window,
+.str-chat__message-list,
+.str-chat__message-list-scroll,
+.str-chat__chat-view,
+.str-chat__chat-view__channels {
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: auto !important;
+}
+
+.str-chat__channel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  background: linear-gradient(to bottom, #c9e8c9, #b7e7bb);
+  min-height: 100%;
+}
+
+.str-chat__container {
+  max-width: none;
+  width: 100%;
+  min-height: 0 !important;
+  height: 100% !important;
+  margin: 0 auto !important;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.str-chat__list {
+  background-color: #ffffff;
+  padding: 12px;
+}
+
+.str-chat__list-notifications {
+  display: none;
+}
+
+.str-chat__message-input {
+  border-top: 1px solid #ddd;
+}
+
+.community-chat {
+  --community-chat-bg: hsl(var(--b1));
+}
+
+.community-chat-stream .str-chat__channel {
+  align-items: stretch;
+  background: var(--community-chat-bg);
+}
+
+.community-chat-stream .str-chat__container {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.community-chat-stream .str-chat__list {
+  background: var(--community-chat-bg);
+  padding: 1rem clamp(0.75rem, 3vw, 2.25rem);
+}
+
+.community-chat-stream .str-chat__message-input {
+  border: 0;
+  background: var(--community-chat-bg);
+  padding: 0.75rem clamp(0.75rem, 3vw, 2.25rem) 1rem;
+}
+
+.community-chat-stream .str-chat__message-input-inner {
+  border: 1px solid hsl(var(--b3));
+  border-radius: 1rem;
+  background: hsl(var(--b2));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.06);
+}
+
+.community-drawer-layer {
+  animation: community-drawer-fade 160ms ease-out;
+}
+
+.community-info-drawer {
+  animation: community-drawer-slide 180ms ease-out;
+}
+
+@keyframes community-drawer-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes community-drawer-slide {
+  from { transform: translateX(1rem); opacity: 0.7; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@media (max-width: 640px) {
+  .community-info-drawer {
+    top: auto;
+    bottom: 0;
+    height: min(92dvh, 720px);
+    max-width: none;
+    border-radius: 1.25rem 1.25rem 0 0;
+    animation-name: community-drawer-sheet;
+  }
+}
+
+@keyframes community-drawer-sheet {
+  from { transform: translateY(1rem); opacity: 0.7; }
+  to { transform: translateY(0); opacity: 1; }
+}

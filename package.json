@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "@tanstack/react-query": "^5.100.5",
+    "lucide-react": "^1.11.0",
+    "nodemailer": "^9.0.5"
+  },
+  "scripts": {
+    "build" : "npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend",
+    "start": "npm run start --prefix backend"
+  }
+}
