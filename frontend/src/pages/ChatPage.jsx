@@ -35,6 +35,8 @@ import {
 import { StreamChat } from "stream-chat";
 import ChatLoader from "../components/ChatLoader.jsx";
 import CallButton from "../components/CallButton.jsx";
+import HyeChatCallCard from "../components/HyeChatCallCard.jsx";
+import { getHyeChatCallDetails } from "../lib/hyeChatCall.js";
 import StoryReplyPreview from "../components/stories/StoryReplyPreview.jsx";
 import { buildChatChannelId } from "../lib/utils.js";
 import { getStreamVideoClient } from "../lib/streamVideoClient.js";
@@ -140,6 +142,17 @@ const UnreadMessagesShortcut = () => {
 
 const StoryReplyMessage = () => {
   const { message } = useMessageContext();
+  const callDetails = getHyeChatCallDetails(message.text);
+
+  if (callDetails) {
+    return (
+      <HyeChatCallCard
+        {...callDetails}
+        createdBy={message.user?.name || message.user?.id}
+      />
+    );
+  }
+
   return (
     <div>
       {message.story_id && (
@@ -685,8 +698,8 @@ const ChatPage = () => {
               </div>
             </div>
 
-            <div className="relative min-h-0 flex-1 bg-slate-50">
-              <div className="chat-window-shell flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="relative flex min-h-0 flex-1 flex-col bg-slate-50">
+              <div className="chat-window-shell flex h-full min-h-0 flex-1 flex-col overflow-hidden">
                 <Window>
                   <MessageList
                     highlightedMessageId={highlightedMessageId}
