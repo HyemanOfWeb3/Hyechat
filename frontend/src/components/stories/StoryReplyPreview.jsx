@@ -19,18 +19,18 @@ const StoryReplyPreview = ({
   const [imgError, setImgError] = useState(false);
 
   const wrapperCls = isDark
-    ? "border-slate-700 bg-slate-800/60"
-    : "border-base-300 bg-base-200/60";
+    ? "border-slate-600/70 bg-slate-800/60"
+    : "border-base-300 bg-base-200/70";
 
   const labelCls = isDark ? "text-slate-400" : "text-base-content/50";
 
   return (
     <div
-      className={`mb-1.5 flex items-center gap-2 rounded-xl border px-2 py-1.5 ${wrapperCls}`}
+      className={`mb-1.5 flex min-w-0 items-center gap-2 rounded-lg border-l-4 border-y-0 border-r-0 px-2 py-1.5 ${wrapperCls}`}
       aria-label="Story reply preview"
     >
       {/* Thumbnail */}
-      <div className="size-10 shrink-0 overflow-hidden rounded-lg bg-base-300">
+      <div className="size-9 shrink-0 overflow-hidden rounded-md bg-base-300">
         {storyMediaType === "image" && storyMediaUrl && !imgError ? (
           <img
             src={storyMediaUrl}
@@ -46,10 +46,13 @@ const StoryReplyPreview = ({
       </div>
 
       {/* Label */}
-      <div className={`min-w-0 text-[11px] font-medium leading-tight ${labelCls}`}>
+      <div
+        className={`min-w-0 text-[11px] font-medium leading-tight ${labelCls}`}
+      >
         <p>Story</p>
         <p className="mt-0.5 truncate font-normal opacity-80">
-          {storyText?.trim() || (storyMediaType === "video" ? "Video" : "Photo")}
+          {storyText?.trim() ||
+            (storyMediaType === "video" ? "Video" : "Photo")}
         </p>
       </div>
     </div>
