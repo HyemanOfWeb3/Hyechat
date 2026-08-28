@@ -24,7 +24,11 @@ select {
 }
 
 .chat-page-shell {
-  height: min(100%, var(--chat-visual-viewport-height, 100dvh));
+  height: 100%;
+}
+
+.app-shell {
+  height: min(100dvh, var(--chat-visual-viewport-height, 100dvh));
 }
 
 .chat-page-shell > .str-chat,

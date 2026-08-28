@@ -52,7 +52,7 @@ const App = () => {
   if (isLoading) return <PageLoader />;
 
   return (
-    <div className="h-[100dvh]" data-theme={theme}>
+    <div className="app-shell h-[100dvh]" data-theme={theme}>
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route

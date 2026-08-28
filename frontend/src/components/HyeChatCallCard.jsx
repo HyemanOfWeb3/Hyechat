@@ -1,8 +1,6 @@
 import { Mic, Video } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 const HyeChatCallCard = ({ callType, createdBy, url }) => {
-  const navigate = useNavigate();
   const isVideoCall = callType === "video";
   const CallIcon = isVideoCall ? Video : Mic;
   const callLabel = isVideoCall ? "Video call" : "Voice call";
@@ -25,18 +23,20 @@ const HyeChatCallCard = ({ callType, createdBy, url }) => {
             Started by {createdBy || "a HyeChat user"}
           </p>
           <p className="mt-1 flex items-center gap-2 font-medium text-success">
-            <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden="true" />
+            <span
+              className="size-2 shrink-0 rounded-full bg-success"
+              aria-hidden="true"
+            />
             Ready to join
           </p>
         </div>
-        <button
-          type="button"
+        <a
+          href={url}
           className="btn btn-primary min-h-11 shrink-0 px-4"
-          onClick={() => navigate(url)}
           aria-label={`Join HyeChat ${isVideoCall ? "video" : "voice"} call`}
         >
           {joinLabel}
-        </button>
+        </a>
       </div>
     </div>
   );

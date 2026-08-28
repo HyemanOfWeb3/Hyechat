@@ -705,6 +705,7 @@ const ChatPage = () => {
                     highlightedMessageId={highlightedMessageId}
                     className="bg-slate-50 px-4 py-3"
                     showUnreadNotificationAlways
+                    Message={StoryReplyMessage}
                   />
                   <div className="chat-composer relative border-t border-slate-200 bg-white px-3 py-2 shadow-[0_-4px_12px_rgba(15,23,42,0.04)]">
                     {voiceUrl ? (
@@ -784,7 +785,11 @@ const ChatPage = () => {
                         <SmilePlus className="h-4 w-4" />
                       </button>
                       <div className="flex-1">
-                        <MessageComposer />
+                        <MessageComposer
+                          shouldSubmit={() => false}
+                          minRows={1}
+                          maxRows={6}
+                        />
                       </div>
                       <button
                         type="button"
