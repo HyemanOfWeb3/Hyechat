@@ -442,7 +442,7 @@ const FriendsPage = ({ initialTab = "friends" }) => {
   };
 
   return (
-    <div className="w-full overflow-y-auto bg-base-100 px-4 py-6 sm:px-6 lg:px-10">
+    <div className="min-h-0 w-full flex-1 overflow-y-auto bg-base-100 px-4 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-10">
       <div className="mx-auto max-w-6xl space-y-6">
         <header className="flex flex-col gap-4 border-b border-base-300 pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>

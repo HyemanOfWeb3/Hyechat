@@ -482,10 +482,15 @@ const StoryViewer = ({
         story_owner_id: String(storyOwnerId),
         story_media_url: currentStory.mediaUrl,
         story_media_type: currentStory.mediaType,
+        story_text: currentStory.text || "",
       });
       setReplyText("");
     } catch (err) {
-      setReplyError(err?.message || "Could not send reply. Please try again.");
+      setReplyError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Could not send reply. Please try again.",
+      );
     } finally {
       setIsSendingReply(false);
     }
@@ -517,7 +522,7 @@ const StoryViewer = ({
         if (event.target === event.currentTarget) closeViewer();
       }}
     >
-      <div className="relative flex h-[min(760px,calc(100dvh-1.5rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-2xl sm:h-[min(760px,calc(100dvh-3rem))]">
+      <div className="relative flex h-[min(760px,calc(100dvh-1.5rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-base-300 bg-base-100 pb-[env(safe-area-inset-bottom)] shadow-2xl sm:h-[min(760px,calc(100dvh-3rem))]">
         <div className="absolute left-0 right-0 top-0 z-20 flex gap-1 p-3">
           {currentGroup.stories.map((story, index) => (
             <div
@@ -711,29 +716,24 @@ const StoryViewer = ({
           {/* Reply composer — non-owners only */}
           {!isOwner && chatClient && (
             <div className="flex items-center gap-2 border-t border-base-300 px-3 py-2">
-              <input
+              <textarea
                 ref={replyInputRef}
-                type="text"
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
                 onFocus={() => setPauseReason("reply-input", true)}
                 onBlur={() => setPauseReason("reply-input", false)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendReply();
-                  }
-                }}
                 placeholder="Reply to story..."
                 disabled={isSendingReply}
-                className="input input-sm flex-1 rounded-full border-base-300 bg-base-200 text-sm focus:outline-none focus:border-primary"
+                rows={1}
+                className="textarea textarea-sm max-h-32 min-h-11 flex-1 resize-none overflow-y-auto rounded-2xl border-base-300 bg-base-200 py-2 text-sm focus:border-primary focus:outline-none"
                 aria-label="Reply to story"
+                aria-multiline="true"
               />
               <button
                 type="button"
                 onClick={handleSendReply}
                 disabled={isSendingReply || !replyText.trim()}
-                className="btn btn-primary btn-sm rounded-full px-4 disabled:opacity-50"
+                className="btn btn-primary btn-sm min-h-11 rounded-full px-4 disabled:opacity-50"
                 aria-label="Send reply"
               >
                 {isSendingReply ? (

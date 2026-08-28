@@ -159,6 +159,7 @@ const StoryReplyMessage = () => {
         <StoryReplyPreview
           storyMediaUrl={message.story_media_url}
           storyMediaType={message.story_media_type}
+          storyText={message.story_text}
           isDark={false}
         />
       )}

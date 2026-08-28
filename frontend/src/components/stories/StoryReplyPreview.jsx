@@ -13,6 +13,7 @@ import { useState } from "react";
 const StoryReplyPreview = ({
   storyMediaUrl,
   storyMediaType,
+  storyText,
   isDark = false,
 }) => {
   const [imgError, setImgError] = useState(false);
@@ -45,9 +46,12 @@ const StoryReplyPreview = ({
       </div>
 
       {/* Label */}
-      <p className={`text-[11px] font-medium leading-tight ${labelCls}`}>
-        Story reply
-      </p>
+      <div className={`min-w-0 text-[11px] font-medium leading-tight ${labelCls}`}>
+        <p>Story</p>
+        <p className="mt-0.5 truncate font-normal opacity-80">
+          {storyText?.trim() || (storyMediaType === "video" ? "Video" : "Photo")}
+        </p>
+      </div>
     </div>
   );
 };
