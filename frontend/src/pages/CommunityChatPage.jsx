@@ -9,11 +9,10 @@ import {
   Thread,
   Window,
 } from "stream-chat-react";
-import { StreamChat } from "stream-chat";
+import useStreamClient from "../hooks/useStreamClient.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getCommunity,
-  getStreamToken,
   deleteCommunity,
   leaveCommunity,
   regenerateCommunityInvite,
@@ -28,8 +27,6 @@ import ChatLoader from "../components/ChatLoader.jsx";
 import CommunityChatHeader from "../components/CommunityChatHeader.jsx";
 import CommunityInfoDrawer from "../components/CommunityInfoDrawer.jsx";
 import { useThemeStore } from "../store/useThemeStore.js";
-
-const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
 const CommunityChatPage = () => {
   const { id } = useParams();
@@ -51,11 +48,10 @@ const CommunityChatPage = () => {
     queryFn: () => getCommunity(id),
     enabled: Boolean(id),
   });
-  const { data: tokenData, isLoading: tokenLoading } = useQuery({
-    queryKey: ["streamToken"],
-    queryFn: getStreamToken,
-    enabled: Boolean(authUser),
-  });
+
+  // Use persistent shared Stream client
+  const { client: streamClient, connectionState } = useStreamClient();
+
   const community = communityData?.community;
   const currentMember = community?.members?.find(
     (member) => (member.user?._id || member.user)?.toString() === authUser?._id,
@@ -155,24 +151,13 @@ const CommunityChatPage = () => {
     if (
       !authUser ||
       !communityData?.community ||
-      !tokenData?.token ||
-      !STREAM_API_KEY
+      !streamClient ||
+      connectionState !== "connected"
     )
       return undefined;
     let active = true;
     const connect = async () => {
       try {
-        const streamClient = StreamChat.getInstance(STREAM_API_KEY);
-        if (streamClient.userID !== authUser._id) {
-          await streamClient.connectUser(
-            {
-              id: authUser._id,
-              name: authUser.fullName,
-              image: authUser.profilePic,
-            },
-            tokenData.token,
-          );
-        }
         const streamChannel = streamClient.channel(
           "messaging",
           communityData.community.streamChannelId,
@@ -191,7 +176,7 @@ const CommunityChatPage = () => {
     return () => {
       active = false;
     };
-  }, [authUser, communityData, tokenData]);
+  }, [authUser, communityData, streamClient, connectionState]);
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -221,7 +206,7 @@ const CommunityChatPage = () => {
     };
   }, [channel, client, searchQuery]);
 
-  if (communityLoading || tokenLoading) return <ChatLoader />;
+  if (communityLoading) return <ChatLoader />;
   if (error || !communityData?.community)
     return (
       <div className="flex w-full items-center justify-center p-8">

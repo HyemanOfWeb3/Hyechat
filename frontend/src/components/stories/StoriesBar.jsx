@@ -109,22 +109,37 @@ const StoriesBar = ({ chatClient }) => {
     );
   };
 
+  const getLatestStory = (group) => {
+    if (!group?.stories?.length) return null;
+
+    return group.stories.reduce((latest, story) => {
+      if (!latest) return story;
+      return new Date(story.createdAt || story.created_at || 0) >
+        new Date(latest.createdAt || latest.created_at || 0)
+        ? story
+        : latest;
+    }, null);
+  };
+
   const { mutate: createStoryMutation, isPending } = useMutation({
     mutationFn: async (file) => {
       if (!chatClient)
         throw new Error("Chat is still loading. Please try again.");
 
-      const uploadResponse = await chatClient.uploadImage(
+      const isVideo = file.type.startsWith("video/");
+      const uploadResponse = await chatClient.uploadFile(
         file,
         file.name,
         file.type,
       );
 
       if (!uploadResponse?.file) {
-        throw new Error("Stream did not return an image URL");
+        throw new Error(
+          `Stream did not return a ${isVideo ? "video" : "image"} URL`,
+        );
       }
 
-      return createStory(uploadResponse.file, "image");
+      return createStory(uploadResponse.file, isVideo ? "video" : "image");
     },
     onSuccess: async () => {
       setErrorMessage("");
@@ -148,12 +163,12 @@ const StoriesBar = ({ chatClient }) => {
     setSuccessMessage("");
 
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setErrorMessage("Please select an image file.");
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+      setErrorMessage("Please select an image or video file.");
       return;
     }
     if (file.size > MAX_STORY_SIZE) {
-      setErrorMessage("Story images must be smaller than 10 MB.");
+      setErrorMessage("Stories must be smaller than 10 MB.");
       return;
     }
 
@@ -161,7 +176,8 @@ const StoriesBar = ({ chatClient }) => {
   };
 
   const ownAvatar = authUser?.profilePic;
-  const ownStoryImage = ownGroup?.stories[0]?.mediaUrl;
+  const latestOwnStory = getLatestStory(ownGroup);
+  const ownStoryImage = latestOwnStory?.mediaUrl || ownAvatar;
 
   const openStoryGroup = (group) => {
     const groupIndex = viewerGroups.indexOf(group);
@@ -218,9 +234,9 @@ const StoriesBar = ({ chatClient }) => {
               </button>
             ) : (
               <label className="block size-full cursor-pointer overflow-hidden rounded-full bg-base-300">
-                {ownAvatar ? (
+                {ownStoryImage ? (
                   <img
-                    src={ownAvatar}
+                    src={ownStoryImage}
                     alt={getUserName(authUser, "Your Story")}
                     className="size-full object-cover"
                   />
@@ -232,7 +248,7 @@ const StoriesBar = ({ chatClient }) => {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,video/*"
                   onChange={handleFileChange}
                   className="hidden"
                   disabled={isPending || !chatClient}
@@ -254,7 +270,7 @@ const StoriesBar = ({ chatClient }) => {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,video/*"
                 onChange={handleFileChange}
                 className="hidden"
                 disabled={isPending || !chatClient}
@@ -267,6 +283,8 @@ const StoriesBar = ({ chatClient }) => {
           const user = group.user;
           const name = getUserName(user);
           const avatar = user?.profilePic || user?.image;
+          const latestStory = getLatestStory(group);
+          const latestStoryMedia = latestStory?.mediaUrl || avatar;
           return (
             <button
               key={getUserId(user)}
@@ -297,9 +315,9 @@ const StoriesBar = ({ chatClient }) => {
                 }`}
               >
                 <div className="size-full overflow-hidden rounded-full bg-base-300">
-                  {avatar ? (
+                  {latestStoryMedia ? (
                     <img
-                      src={avatar}
+                      src={latestStoryMedia}
                       alt={name}
                       className="size-full object-cover"
                     />

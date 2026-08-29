@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import useAuthUser from "../hooks/useAuthUser";
+import useStreamClient from "../hooks/useStreamClient";
 import { useQuery } from "@tanstack/react-query";
 import {
   getStreamToken,
@@ -32,7 +33,6 @@ import {
   MessageUI,
   useMessageContext,
 } from "stream-chat-react";
-import { StreamChat } from "stream-chat";
 import ChatLoader from "../components/ChatLoader.jsx";
 import CallButton from "../components/CallButton.jsx";
 import HyeChatCallCard from "../components/HyeChatCallCard.jsx";
@@ -40,8 +40,6 @@ import { getHyeChatCallDetails } from "../lib/hyeChatCall.js";
 import StoryReplyPreview from "../components/stories/StoryReplyPreview.jsx";
 import { buildChatChannelId } from "../lib/utils.js";
 import { getStreamVideoClient } from "../lib/streamVideoClient.js";
-
-const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -197,6 +195,9 @@ const ChatPage = () => {
   );
 
   const { authUser } = useAuthUser();
+  
+  // Use persistent shared Stream client across entire app
+  const { client: streamClient, connectionState } = useStreamClient();
 
   useEffect(() => {
     const updateViewportHeight = () => {
@@ -237,7 +238,18 @@ const ChatPage = () => {
   });
 
   const initializeChat = useCallback(async () => {
-    if (!tokenData?.token || !authUser || !targetUserId) {
+    // Wait for Stream client to be connected
+    if (!streamClient || connectionState !== "connected") {
+      if (connectionState === "connecting") {
+        setInitializationError("Connecting to chat...");
+      } else if (connectionState === "disconnected") {
+        setInitializationError("Could not connect to chat. Please try again.");
+      }
+      setLoading(false);
+      return;
+    }
+
+    if (!authUser || !targetUserId) {
       setInitializationError("This chat is unavailable.");
       setLoading(false);
       return;
@@ -249,20 +261,8 @@ const ChatPage = () => {
     setChannel(null);
 
     try {
-      console.log("Initializing stream chat client....");
-      const client = StreamChat.getInstance(STREAM_API_KEY);
-
-      if (client.userID !== authUser._id) {
-        await client.connectUser(
-          {
-            id: authUser._id,
-            name: authUser.fullName,
-            image: authUser.profilePic,
-          },
-          tokenData.token,
-        );
-      }
-
+      console.log("Initializing chat channel with persistent Stream client...");
+      
       const routeLooksLikeChannelId =
         typeof targetUserId === "string" &&
         targetUserId.includes("-") &&
@@ -272,14 +272,14 @@ const ChatPage = () => {
         ? targetUserId
         : buildChatChannelId(authUser._id, targetUserId);
 
-      const currChannel = client.channel("messaging", channelId, {
+      const currChannel = streamClient.channel("messaging", channelId, {
         ...(routeLooksLikeChannelId
           ? {}
           : { members: [authUser._id, targetUserId] }),
       });
 
       await currChannel.watch();
-      setChatClient(client);
+      setChatClient(streamClient);
       setChannel(currChannel);
 
       const matchedFriend = friends.find(
@@ -309,31 +309,26 @@ const ChatPage = () => {
       setPeerUser(nextPeerUser);
       setIsPeerOnline(Boolean(matchedFriend?.isOnline));
 
-      const presenceState = client.state?.users?.[targetUserId];
+      const presenceState = streamClient.state?.users?.[targetUserId];
       if (presenceState?.online !== undefined) {
         setIsPeerOnline(Boolean(presenceState.online));
       }
     } catch (error) {
-      console.log("Error initializing chat client:", error);
+      console.log("Error initializing chat channel:", error);
       setInitializationError("Could not connect to chat. Please try again.");
       toast.error("Could not connect to chat. Please try again later.");
     } finally {
       setLoading(false);
     }
-  }, [authUser, friends, targetUserId, tokenData]);
+  }, [streamClient, connectionState, authUser, friends, targetUserId]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(initializeChat, 0);
     return () => window.clearTimeout(timeoutId);
   }, [initializeChat]);
 
-  useEffect(() => {
-    return () => {
-      if (chatClient?.disconnectUser) {
-        chatClient.disconnectUser().catch(() => {});
-      }
-    };
-  }, [chatClient]);
+  // REMOVED: disconnectUser cleanup effect - DO NOT disconnect the shared client!
+  // The persistent Stream client should remain connected for the entire session.
 
   useEffect(() => {
     if (!channel) return;

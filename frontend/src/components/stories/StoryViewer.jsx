@@ -634,6 +634,28 @@ const StoryViewer = ({
                 Next Story
               </button>
             </div>
+          ) : currentStory.mediaType === "video" ? (
+            <video
+              src={currentStory.mediaUrl}
+              className={`max-h-full max-w-full object-contain transition-opacity ${
+                imageLoading ? "opacity-0" : "opacity-100"
+              }`}
+              autoPlay
+              muted
+              playsInline
+              loop={false}
+              controls
+              onLoadedData={() => setImageLoading(false)}
+              onError={() => {
+                if (activeStoryId.current !== currentStory._id) return;
+
+                unavailableStoryIds.current.add(currentStory._id);
+                onStoryUnavailable();
+                setImageLoading(false);
+                setImageError(true);
+                moveToNext();
+              }}
+            />
           ) : (
             <img
               src={currentStory.mediaUrl}

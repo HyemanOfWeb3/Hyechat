@@ -1,48 +1,17 @@
-import { useEffect, useState } from "react";
-import { StreamChat } from "stream-chat";
 import { Image, Loader2 } from "lucide-react";
-import { getStreamToken } from "../lib/api.js";
+import useStreamClient from "../hooks/useStreamClient.js";
 import useAuthUser from "../hooks/useAuthUser.js";
 import StoriesBar from "../components/stories/StoriesBar.jsx";
 
-const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
-
 const StoriesPage = () => {
   const { authUser } = useAuthUser();
-  const [chatClient, setChatClient] = useState(null);
-  const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (!authUser || !STREAM_API_KEY) return undefined;
-    let active = true;
-
-    const connect = async () => {
-      try {
-        const tokenData = await getStreamToken();
-        if (!tokenData?.token) throw new Error("Unable to load story tools");
-        const client = StreamChat.getInstance(STREAM_API_KEY);
-        if (client.userID !== authUser._id) {
-          await client.connectUser(
-            {
-              id: authUser._id,
-              name: authUser.fullName,
-              image: authUser.profilePic,
-            },
-            tokenData.token,
-          );
-        }
-        if (active) setChatClient(client);
-      } catch (connectionError) {
-        console.error("Could not connect to story tools", connectionError);
-        if (active) setError("Stories are temporarily unavailable.");
-      }
-    };
-
-    connect();
-    return () => {
-      active = false;
-    };
-  }, [authUser]);
+  const { client: streamClient, connectionState, error: streamError } =
+    useStreamClient();
+  const chatClient =
+    authUser && streamClient && connectionState === "connected"
+      ? streamClient
+      : null;
 
   return (
     <div className="w-full overflow-y-auto bg-base-100 px-4 py-6 sm:px-6 lg:px-10">
@@ -59,8 +28,8 @@ const StoriesPage = () => {
             world.
           </p>
         </header>
-        {error ? (
-          <div className="alert alert-error">{error}</div>
+        {streamError ? (
+          <div className="alert alert-error">{streamError}</div>
         ) : chatClient ? (
           <StoriesBar chatClient={chatClient} />
         ) : (

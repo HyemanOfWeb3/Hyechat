@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, MessageSquare, RefreshCw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { StreamChat } from "stream-chat";
-import { getStreamToken, getUserFriends } from "../lib/api.js";
+import useStreamClient from "../hooks/useStreamClient.js";
+import { getUserFriends } from "../lib/api.js";
 import useAuthUser from "../hooks/useAuthUser.js";
 import ChatLoader from "../components/ChatLoader.jsx";
 import ChatList from "../components/ChatList.jsx";
 import StoriesBar from "../components/stories/StoriesBar.jsx";
-
-const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
 const ChatsPage = () => {
   const { authUser } = useAuthUser();
@@ -19,20 +17,18 @@ const ChatsPage = () => {
   const [conversationError, setConversationError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
+  // Use persistent shared Stream client
+  const { client: streamClient, connectionState } = useStreamClient();
+
   const { data: friends = [], isLoading: friendsLoading } = useQuery({
     queryKey: ["friends"],
     queryFn: getUserFriends,
     enabled: !!authUser,
   });
 
-  const { data: tokenData, isLoading: tokenLoading } = useQuery({
-    queryKey: ["streamToken"],
-    queryFn: getStreamToken,
-    enabled: !!authUser,
-  });
-
   useEffect(() => {
-    if (!authUser) return undefined;
+    if (!authUser || !streamClient || connectionState !== "connected")
+      return undefined;
 
     let isActive = true;
 
@@ -40,37 +36,15 @@ const ChatsPage = () => {
       setIsLoadingConversations(true);
       setConversationError("");
 
-      if (!STREAM_API_KEY || !tokenData?.token) {
-        if (isActive) {
-          setConversationError(
-            "Unable to connect to chat right now. Please try again.",
-          );
-          setIsLoadingConversations(false);
-        }
-        return;
-      }
-
       try {
-        const client = StreamChat.getInstance(STREAM_API_KEY);
-        if (client.userID !== authUser._id) {
-          await client.connectUser(
-            {
-              id: authUser._id,
-              name: authUser.fullName,
-              image: authUser.profilePic,
-            },
-            tokenData.token,
-          );
-        }
-
-        const channels = await client.queryChannels(
+        const channels = await streamClient.queryChannels(
           { type: "messaging", members: { $in: [authUser._id] } },
           { last_message_at: -1 },
           { limit: 50, state: true, watch: false, presence: true },
         );
 
         if (isActive) {
-          setChatClient(client);
+          setChatClient(streamClient);
           setConversations(channels);
         }
       } catch (error) {
@@ -90,7 +64,7 @@ const ChatsPage = () => {
     return () => {
       isActive = false;
     };
-  }, [authUser, reloadKey, tokenData?.token]);
+  }, [authUser, streamClient, connectionState, reloadKey]);
 
   const friendById = useMemo(
     () => new Map(friends.map((friend) => [friend._id, friend])),
@@ -115,7 +89,7 @@ const ChatsPage = () => {
 
   const handleRetry = () => setReloadKey((key) => key + 1);
 
-  if (friendsLoading || tokenLoading) return <ChatLoader />;
+  if (friendsLoading) return <ChatLoader />;
 
   return (
     <div className="min-h-0 w-full overflow-y-auto bg-base-100 px-3 py-4 sm:px-6 sm:py-6 lg:px-8">

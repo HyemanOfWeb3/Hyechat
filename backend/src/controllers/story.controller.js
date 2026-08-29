@@ -46,10 +46,10 @@ export async function createStory(req, res) {
     return res.status(400).json({ message: "Story media URL is required" });
   }
 
-  if (mediaType !== "image") {
+  if (!['image', 'video'].includes(mediaType)) {
     return res
       .status(400)
-      .json({ message: "Only image stories are supported" });
+      .json({ message: "Only image and video stories are supported" });
   }
 
   if (!isValidStreamImageUrl(mediaUrl)) {

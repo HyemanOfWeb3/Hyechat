@@ -69,6 +69,15 @@ const CallPage = () => {
   const [selectedCameraDeviceId, setSelectedCameraDeviceId] = useState(null);
   const [switchingCamera, setSwitchingCamera] = useState(false);
   const [cameraSelectionError, setCameraSelectionError] = useState("");
+  const [supportsScreenShare] = useState(() => {
+    // Detect screen sharing capability once on mount
+    return Boolean(
+      navigator.mediaDevices?.getDisplayMedia ||
+      navigator.getDisplayMedia ||
+      navigator.webkitGetDisplayMedia
+    );
+  });
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const recordingDestination = import.meta.env.VITE_RECORDING_DESTINATION;
 
@@ -193,6 +202,31 @@ const CallPage = () => {
       toast.error("Unable to switch camera right now.");
     } finally {
       setSwitchingCamera(false);
+    }
+  };
+
+  const handleScreenShare = async () => {
+    if (!call || !supportsScreenShare) return;
+
+    try {
+      if (isScreenSharing) {
+        await call.screenShare.disable();
+        setIsScreenSharing(false);
+        toast.success("Screen sharing stopped");
+      } else {
+        await call.screenShare.enable();
+        setIsScreenSharing(true);
+        toast.success("Screen sharing started");
+      }
+    } catch (error) {
+      console.error("Screen sharing error:", error);
+      const errorMessage = error?.message || "";
+      if (errorMessage.includes("NotAllowedError")) {
+        toast.error("Screen sharing permission denied");
+      } else {
+        toast.error("Unable to share screen right now");
+      }
+      setIsScreenSharing(false);
     }
   };
 
@@ -368,35 +402,85 @@ const CallPage = () => {
             <p className="font-medium">{joinError}</p>
           </div>
         ) : videoClient && call ? (
-          <div className="grid gap-3 xl:grid-cols-[1.6fr_0.8fr]">
-            <div className="overflow-hidden rounded-3xl border border-base-300 bg-base-100 shadow-xl">
+          <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[1.6fr_0.8fr]">
+            <div className="order-1 flex flex-col overflow-hidden rounded-3xl border border-base-300 bg-base-100 shadow-xl lg:order-none">
               <div className="flex items-center justify-between border-b border-base-300 px-4 py-3 text-sm">
                 <div className="flex items-center gap-2">
                   {!isVoice ? (
                     <>
                       <Video className="h-4 w-4 text-primary" />
-                      <span>Secure meeting • screen sharing • reactions</span>
+                      <span className="hidden sm:inline">Secure meeting • screen sharing • reactions</span>
+                      <span className="sm:hidden">Video call</span>
                     </>
                   ) : (
                     <>
                       <Mic className="h-4 w-4 text-primary" />
-                      <span>High quality voice • low bandwidth</span>
+                      <span>High quality voice</span>
                     </>
                   )}
                 </div>
               </div>
-              <div className="min-h-[560px] bg-base-200/70">
+              <div className="relative min-h-[400px] flex-1 overflow-hidden bg-base-200/70 flex flex-col sm:min-h-[560px]">
                 <StreamVideo client={videoClient}>
                   <StreamCall call={call}>
                     <StreamTheme>
                       {!isVoice ? (
                         <>
-                          <SpeakerLayout participantBarPosition="right" />
-                          <div className="flex items-center justify-center gap-2">
+                          <SpeakerLayout participantBarPosition="bottom" />
+                          <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-wrap items-center justify-center gap-2 bg-gradient-to-t from-base-900/80 to-transparent px-3 py-4 sm:px-4 sm:py-6">
                             <CallControls onLeave={handleLeaveCall} />
                             {cameraDevices.length > 1 && (
                               <select
-                                className="select select-sm select-bordered"
+                                className="select select-sm select-bordered h-11 min-w-[120px]"
+                                value={selectedCameraDeviceId || ""}
+                                onChange={(event) =>
+                                  handleSwitchCamera(event.target.value)
+                                }
+                                disabled={switchingCamera}
+                              >
+                                {cameraDevices.map((device) => (
+                                  <option
+                                    key={device.deviceId}
+                                    value={device.deviceId}
+                                  >
+                                    {device.label ||
+                                      `Camera ${device.deviceId.slice(0, 4)}`}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                            {supportsScreenShare && (
+                              <button
+                                type="button"
+                                onClick={handleScreenShare}
+                                disabled={!call}
+                                className={`btn btn-sm min-h-11 px-4 gap-2 ${
+                                  isScreenSharing
+                                    ? "btn-warning"
+                                    : "btn-ghost hover:bg-base-700"
+                                }`}
+                                title={isScreenSharing ? "Stop sharing" : "Share screen"}
+                              >
+                                <ScreenShare className="h-4 w-4" />
+                                <span className="hidden sm:inline">
+                                  {isScreenSharing ? "Stop" : "Share"}
+                                </span>
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex h-full flex-col items-center justify-center gap-4 px-4">
+                          <div className="flex flex-col items-center gap-3">
+                            <Mic className="h-12 w-12 text-primary" />
+                            <h3 className="text-lg font-semibold">Voice call</h3>
+                            <p className="text-sm opacity-70">Room: {id || "unknown"}</p>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+                            <CallControls onLeave={handleLeaveCall} />
+                            {cameraDevices.length > 1 && (
+                              <select
+                                className="select select-sm select-bordered h-11"
                                 value={selectedCameraDeviceId || ""}
                                 onChange={(event) =>
                                   handleSwitchCamera(event.target.value)
@@ -415,46 +499,11 @@ const CallPage = () => {
                               </select>
                             )}
                           </div>
-                        </>
-                      ) : (
-                        <div className="flex h-full items-center justify-center">
-                          <div className="flex flex-col items-center gap-3">
-                            <Mic className="h-12 w-12 text-primary" />
-                            <h3 className="text-lg font-semibold">
-                              Voice call
-                            </h3>
-                            <p className="opacity-70">
-                              Room: {id || "unknown"}
+                          {cameraSelectionError && (
+                            <p className="text-xs text-error text-center">
+                              {cameraSelectionError}
                             </p>
-                            <div className="flex flex-col items-center gap-2">
-                              <CallControls onLeave={handleLeaveCall} />
-                              {cameraDevices.length > 1 && (
-                                <select
-                                  className="select select-sm select-bordered"
-                                  value={selectedCameraDeviceId || ""}
-                                  onChange={(event) =>
-                                    handleSwitchCamera(event.target.value)
-                                  }
-                                  disabled={switchingCamera}
-                                >
-                                  {cameraDevices.map((device) => (
-                                    <option
-                                      key={device.deviceId}
-                                      value={device.deviceId}
-                                    >
-                                      {device.label ||
-                                        `Camera ${device.deviceId.slice(0, 4)}`}
-                                    </option>
-                                  ))}
-                                </select>
-                              )}
-                              {cameraSelectionError && (
-                                <p className="text-xs text-error">
-                                  {cameraSelectionError}
-                                </p>
-                              )}
-                            </div>
-                          </div>
+                          )}
                         </div>
                       )}
                     </StreamTheme>
@@ -463,13 +512,13 @@ const CallPage = () => {
               </div>
             </div>
 
-            <aside className="flex flex-col gap-3">
-              <div className="rounded-3xl border border-base-300 bg-base-100 p-4 shadow-sm">
+            <aside className="order-2 flex flex-col gap-3 lg:order-none">
+              <div className="rounded-3xl border border-base-300 bg-base-100 p-3 shadow-sm sm:p-4">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-primary" />
-                  <h3 className="font-semibold">Meeting essentials</h3>
+                  <h3 className="font-semibold text-sm sm:text-base">Meeting essentials</h3>
                 </div>
-                <div className="mt-3 space-y-2 text-sm text-base-content/70">
+                <div className="mt-3 space-y-2 text-xs sm:text-sm text-base-content/70">
                   <div className="flex items-center justify-between rounded-xl bg-base-200 px-3 py-2">
                     <span>Connection</span>
                     <span className="font-medium text-success">Stable</span>
@@ -480,19 +529,19 @@ const CallPage = () => {
                   </div>
                   <div className="flex items-center justify-between rounded-xl bg-base-200 px-3 py-2">
                     <span>Room</span>
-                    <span className="font-medium text-base-content">
+                    <span className="font-medium text-base-content truncate">
                       {id || "unknown"}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-base-300 bg-base-100 p-4 shadow-sm">
+              <div className="rounded-3xl border border-base-300 bg-base-100 p-3 shadow-sm sm:p-4">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">Recordings</p>
-                  <div className="flex items-center gap-2">
+                  <p className="text-xs font-medium sm:text-sm">Recordings</p>
+                  <div className="flex items-center gap-1 sm:gap-2">
                     <button
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost btn-xs sm:btn-sm h-10 sm:h-11"
                       onClick={async () => {
                         setRecordingLoading(true);
                         try {
@@ -515,7 +564,7 @@ const CallPage = () => {
                       Start
                     </button>
                     <button
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost btn-xs sm:btn-sm h-10 sm:h-11"
                       onClick={async () => {
                         setRecordingLoading(true);
                         try {
@@ -531,7 +580,7 @@ const CallPage = () => {
                       Stop
                     </button>
                     <button
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost btn-xs sm:btn-sm h-10 sm:h-11"
                       onClick={async () => {
                         setRecordingLoading(true);
                         try {
@@ -573,10 +622,10 @@ const CallPage = () => {
                         return (
                           <div
                             key={recordingKey}
-                            className="flex items-center justify-between rounded-xl border border-base-300 bg-base-200 px-3 py-2"
+                            className="flex items-center justify-between gap-2 rounded-xl border border-base-300 bg-base-200 px-3 py-2"
                           >
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs sm:text-sm font-medium">
                                 {getRecordingName(recording)}
                               </p>
                               <p className="text-xs opacity-70">
@@ -585,7 +634,7 @@ const CallPage = () => {
                             </div>
                             <button
                               type="button"
-                              className="btn btn-ghost btn-xs gap-1"
+                              className="btn btn-ghost btn-xs h-10 gap-1 shrink-0"
                               onClick={() =>
                                 saveRecordingToDevice(recording, index)
                               }
