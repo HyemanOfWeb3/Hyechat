@@ -119,11 +119,23 @@ const StreamChatExperience = ({
   const [threadMessageId, setThreadMessageId] = useState(null);
   const [threadDraft, setThreadDraft] = useState("");
   const [pinnedMessageIds, setPinnedMessageIds] = useState([]);
+  const [quotedMessageId, setQuotedMessageId] = useState(null);
   const messageEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
+  const longPressTimeoutRef = useRef(null);
+  const longPressTrackerRef = useRef({ pointerId: null, moved: false });
   const displayedUserStatus =
     userStatus ?? getInitialUserStatus(chatClient, targetUser);
+
+  // Clean up pointer listeners on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimeoutRef.current) {
+        clearTimeout(longPressTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Fetch messages
   useEffect(() => {
@@ -213,7 +225,23 @@ const StreamChatExperience = ({
     if (!text.trim()) return;
 
     try {
-      await channel.sendMessage({ text });
+      const messageData = { text };
+
+      // Add quoted message if replying
+      if (quotedMessageId) {
+        const quotedMsg = messages.find((m) => m.id === quotedMessageId);
+        if (quotedMsg) {
+          messageData.quoted_message_id = quotedMessageId;
+          messageData.quoted_message = {
+            id: quotedMsg.id,
+            text: quotedMsg.text,
+            user: quotedMsg.user,
+          };
+        }
+        setQuotedMessageId(null);
+      }
+
+      await channel.sendMessage(messageData);
       setInputMessage("");
       setIsTyping(false);
     } catch (error) {
@@ -471,6 +499,57 @@ const StreamChatExperience = ({
     }
   };
 
+  // Long-press message handling for mobile touch devices
+  const LONG_PRESS_DURATION = 500; // ms
+  const LONG_PRESS_TOLERANCE = 10; // px movement tolerance
+
+  const handleMessagePointerDown = (e, messageId) => {
+    // Only handle on touch or pointer devices, not mouse
+    if (e.pointerType === "mouse") return;
+
+    longPressTrackerRef.current = {
+      pointerId: e.pointerId,
+      moved: false,
+      startX: e.clientX,
+      startY: e.clientY,
+    };
+
+    // Set timeout for long-press detection
+    longPressTimeoutRef.current = setTimeout(() => {
+      if (
+        !longPressTrackerRef.current.moved &&
+        longPressTrackerRef.current.pointerId === e.pointerId
+      ) {
+        setActiveActionMenuId(messageId);
+      }
+    }, LONG_PRESS_DURATION);
+  };
+
+  const handleMessagePointerMove = (e) => {
+    if (longPressTrackerRef.current.pointerId !== e.pointerId) return;
+
+    const dx = Math.abs(e.clientX - longPressTrackerRef.current.startX);
+    const dy = Math.abs(e.clientY - longPressTrackerRef.current.startY);
+
+    if (dx > LONG_PRESS_TOLERANCE || dy > LONG_PRESS_TOLERANCE) {
+      longPressTrackerRef.current.moved = true;
+      if (longPressTimeoutRef.current) {
+        clearTimeout(longPressTimeoutRef.current);
+        longPressTimeoutRef.current = null;
+      }
+    }
+  };
+
+  const handleMessagePointerUp = (e) => {
+    if (longPressTrackerRef.current.pointerId === e.pointerId) {
+      if (longPressTimeoutRef.current) {
+        clearTimeout(longPressTimeoutRef.current);
+        longPressTimeoutRef.current = null;
+      }
+      longPressTrackerRef.current = { pointerId: null, moved: false };
+    }
+  };
+
   let lastDate = null;
 
   return (
@@ -566,6 +645,9 @@ const StreamChatExperience = ({
                   isSent ? "justify-end" : "justify-start"
                 } ${!isConsecutive ? "mt-4" : ""}`}
                 onMouseEnter={() => setHoveredMessageId(msg.id)}
+                onPointerDown={(e) => handleMessagePointerDown(e, msg.id)}
+                onPointerMove={handleMessagePointerMove}
+                onPointerUp={handleMessagePointerUp}
               >
                 {!isSent && !isConsecutive && (
                   <img
@@ -617,6 +699,8 @@ const StreamChatExperience = ({
                         <StoryReplyPreview
                           storyMediaUrl={msg.story_media_url}
                           storyMediaType={msg.story_media_type}
+                          storyText={msg.story_text}
+                          storyOwnerName={msg.story_owner_name || "User"}
                           isDark={true}
                         />
                       )}
@@ -763,6 +847,18 @@ const StreamChatExperience = ({
                             type="button"
                             onClick={() => {
                               setActiveActionMenuId(null);
+                              setQuotedMessageId(msg.id);
+                            }}
+                            className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-slate-200 transition hover:bg-slate-800"
+                          >
+                            <Reply size={12} />
+                            Reply
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveActionMenuId(null);
                               setThreadMessageId(msg.id);
                               setThreadDraft("");
                             }}
@@ -884,6 +980,28 @@ const StreamChatExperience = ({
                 Send reply
               </button>
             </div>
+          </div>
+        )}
+
+        {quotedMessageId && (
+          <div className="mb-3 rounded-lg border-l-3 border-slate-600 bg-slate-800/40 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-medium text-slate-300">
+                Replying to{" "}
+                {messages.find((m) => m.id === quotedMessageId)?.user?.name ||
+                  "User"}
+              </p>
+              <button
+                onClick={() => setQuotedMessageId(null)}
+                className="text-slate-400 hover:text-slate-200"
+                title="Cancel reply"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 truncate">
+              {messages.find((m) => m.id === quotedMessageId)?.text || ""}
+            </p>
           </div>
         )}
 

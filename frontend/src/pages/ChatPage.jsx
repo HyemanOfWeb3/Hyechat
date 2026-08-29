@@ -160,6 +160,7 @@ const StoryReplyMessage = () => {
           storyMediaUrl={message.story_media_url}
           storyMediaType={message.story_media_type}
           storyText={message.story_text}
+          storyOwnerName={message.story_owner_name || "User"}
           isDark={false}
         />
       )}

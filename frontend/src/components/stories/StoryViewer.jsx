@@ -480,6 +480,7 @@ const StoryViewer = ({
         text: trimmed,
         story_id: String(currentStory._id),
         story_owner_id: String(storyOwnerId),
+        story_owner_name: ownerName,
         story_media_url: currentStory.mediaUrl,
         story_media_type: currentStory.mediaType,
         story_text: currentStory.text || "",
@@ -556,6 +557,15 @@ const StoryViewer = ({
         </div>
 
         <div className="absolute left-0 right-0 top-0 z-10 flex items-center justify-between p-5 pt-7 text-white">
+          <button
+            type="button"
+            onClick={closeViewer}
+            className="btn btn-circle btn-sm min-h-11 min-w-11 border-0 bg-black/30 text-white hover:bg-black/50 lg:hidden"
+            aria-label="Close Story viewer"
+            title="Back"
+          >
+            <ArrowLeft className="size-5" />
+          </button>
           <div className="flex min-w-0 items-center gap-3">
             <div className="size-10 shrink-0 overflow-hidden rounded-full border-2 border-white/80 bg-base-300">
               {ownerAvatar ? (
