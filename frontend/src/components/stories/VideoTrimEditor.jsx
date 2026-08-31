@@ -105,7 +105,10 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
     const clickTime = percentage * videoDuration;
 
     if (videoRef.current) {
-      videoRef.current.currentTime = Math.max(0, Math.min(clickTime, videoDuration));
+      videoRef.current.currentTime = Math.max(
+        0,
+        Math.min(clickTime, videoDuration),
+      );
     }
   };
 
@@ -146,7 +149,7 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     },
-    [endTime, startTime, videoDuration]
+    [endTime, startTime, videoDuration],
   );
 
   const handleTouchStart = useCallback(
@@ -180,7 +183,7 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
       document.addEventListener("touchmove", handleTouchMove);
       document.addEventListener("touchend", handleTouchEnd);
     },
-    [endTime, startTime, videoDuration]
+    [endTime, startTime, videoDuration],
   );
 
   const formatTime = (seconds) => {
@@ -205,20 +208,31 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
       // 1. ffmpeg.wasm (~3MB): https://ffmpegwasm.netlify.app/
       // 2. Backend API endpoint that trims the video server-side
       // 3. Third-party video service
-      
+
       // For now, we attach trim metadata to the file and let the backend handle it
       // Create a new file object with trim metadata
-      const trimmedFile = new File([videoFile], videoFile.name, { type: videoFile.type });
-      
+      const trimmedFile = new File([videoFile], videoFile.name, {
+        type: videoFile.type,
+      });
+
       // Attach trim start/end as custom properties
-      Object.defineProperty(trimmedFile, "trimStart", { value: startTime, writable: false });
-      Object.defineProperty(trimmedFile, "trimEnd", { value: endTime, writable: false });
-      Object.defineProperty(trimmedFile, "originalDuration", { value: videoDuration, writable: false });
+      Object.defineProperty(trimmedFile, "trimStart", {
+        value: startTime,
+        writable: false,
+      });
+      Object.defineProperty(trimmedFile, "trimEnd", {
+        value: endTime,
+        writable: false,
+      });
+      Object.defineProperty(trimmedFile, "originalDuration", {
+        value: videoDuration,
+        writable: false,
+      });
 
       // For production:
       // 1. If you have ffmpeg.wasm installed, uncomment and use it
       // 2. Or upload to backend with trim parameters for server-side processing
-      
+
       onComplete(trimmedFile);
     } catch (err) {
       console.error("Error processing video:", err);
@@ -299,7 +313,11 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
             {/* Start handle */}
             <div
               className="absolute size-8 -translate-x-1/2 cursor-grab active:cursor-grabbing rounded-full bg-primary shadow-lg"
-              style={{ left: `${startPercentage}%`, top: "50%", transform: "translate(-50%, -50%)" }}
+              style={{
+                left: `${startPercentage}%`,
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+              }}
               onMouseDown={handleMouseDown("start")}
               onTouchStart={handleTouchStart("start")}
               role="slider"
@@ -312,7 +330,11 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
             {/* End handle */}
             <div
               className="absolute size-8 -translate-x-1/2 cursor-grab active:cursor-grabbing rounded-full bg-primary shadow-lg"
-              style={{ left: `${endPercentage}%`, top: "50%", transform: "translate(-50%, -50%)" }}
+              style={{
+                left: `${endPercentage}%`,
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+              }}
               onMouseDown={handleMouseDown("end")}
               onTouchStart={handleTouchStart("end")}
               role="slider"
@@ -361,7 +383,9 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
           <button
             type="button"
             onClick={handleTrimAndContinue}
-            disabled={isTrimming || selectedDuration > MAX_TRIM_DURATION_SECONDS}
+            disabled={
+              isTrimming || selectedDuration > MAX_TRIM_DURATION_SECONDS
+            }
             className="btn btn-primary flex-1"
           >
             {isTrimming ? (

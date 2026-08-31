@@ -1,8 +1,9 @@
-import { ArrowLeft, ImageOff, X } from "lucide-react";
+import { ArrowLeft, ImageOff, Play, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 /**
- * Compact Story-reply preview styled like a WhatsApp-style quoted message.
+ * Compact Story-reply preview styled like WhatsApp quoted messages.
+ * Mobile-first design with Story media thumbnail (48-56px wide, 64-76px high, 9:16 aspect).
  * Embedded inside a chat message bubble as a compact quote.
  *
  * Props:
@@ -23,11 +24,13 @@ const StoryReplyPreview = ({
 }) => {
   const [imgError, setImgError] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [videoThumbnail, setVideoThumbnail] = useState(null);
 
-  const borderCls = isDark ? "border-slate-600/50" : "border-base-content/20";
-  const bgCls = isDark ? "bg-slate-800/40" : "bg-base-300/30";
-  const textCls = isDark ? "text-slate-300" : "text-base-content/70";
+  const borderCls = isDark ? "border-primary/40" : "border-primary/30";
+  const bgCls = isDark ? "bg-slate-800/20" : "bg-base-200/40";
+  const textCls = isDark ? "text-slate-200" : "text-base-content/80";
   const labelCls = isDark ? "text-slate-400" : "text-base-content/60";
+  const unavailableBgCls = isDark ? "bg-slate-900/40" : "bg-base-300/50";
 
   useEffect(() => {
     if (!isExpanded) return undefined;
@@ -40,6 +43,47 @@ const StoryReplyPreview = ({
     };
   }, [isExpanded]);
 
+  // Extract first frame from video for thumbnail preview
+  useEffect(() => {
+    if (storyMediaType !== "video" || !storyMediaUrl || imgError) {
+      return;
+    }
+
+    let isMounted = true;
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.src = storyMediaUrl;
+    video.currentTime = 0.1;
+
+    const captureFrame = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 56;
+      canvas.height = 75;
+      const ctx = canvas.getContext("2d");
+      if (ctx && isMounted) {
+        ctx.drawImage(video, 0, 0, 56, 75);
+        setVideoThumbnail(canvas.toDataURL("image/jpeg", 0.7));
+      }
+      video.removeEventListener("seeked", captureFrame);
+    };
+
+    const handleError = () => {
+      if (isMounted) {
+        setImgError(true);
+      }
+      video.removeEventListener("seeked", captureFrame);
+    };
+
+    video.addEventListener("seeked", captureFrame);
+    video.addEventListener("error", handleError);
+
+    return () => {
+      isMounted = false;
+      video.removeEventListener("seeked", captureFrame);
+      video.removeEventListener("error", handleError);
+    };
+  }, [storyMediaType, storyMediaUrl, imgError]);
+
   const handleClick = () => {
     if (storyMediaUrl) {
       setIsExpanded(true);
@@ -49,60 +93,77 @@ const StoryReplyPreview = ({
 
   const closeExpanded = () => setIsExpanded(false);
 
+  // Handle unavailable/expired Story
+  const isUnavailable = !storyMediaUrl || imgError;
+
   return (
     <>
+      {/* Compact WhatsApp-style Story quote – max 28-30% of 320px mobile width (~90px) */}
       <div
-        className={`mb-2 flex w-fit max-w-[min(280px,75vw)] items-stretch gap-2.5 overflow-hidden rounded-lg border-l-3 border-y-0 border-r-0 px-3 py-2 ${borderCls} ${bgCls} cursor-pointer transition-opacity hover:opacity-80 active:opacity-70`}
-        onClick={handleClick}
-        role="button"
-        tabIndex={0}
+        className={`mb-1.5 flex w-fit flex-row items-center gap-2 overflow-hidden rounded-lg border-l-4 border-y-0 border-r-0 px-2 py-1.5 ${borderCls} ${isUnavailable ? unavailableBgCls : bgCls} transition-opacity ${storyMediaUrl && !imgError ? "cursor-pointer hover:opacity-75 active:opacity-60" : ""}`}
+        onClick={storyMediaUrl && !imgError ? handleClick : undefined}
+        role={storyMediaUrl && !imgError ? "button" : undefined}
+        tabIndex={storyMediaUrl && !imgError ? 0 : undefined}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
+          if (
+            (e.key === "Enter" || e.key === " ") &&
+            storyMediaUrl &&
+            !imgError
+          ) {
             e.preventDefault();
             handleClick();
           }
         }}
-        aria-label={`Replying to story from ${storyOwnerName}`}
+        aria-label={`Story from ${storyOwnerName}`}
       >
-        {/* Thumbnail - compact 48px */}
-        <div className="size-12 shrink-0 overflow-hidden rounded-md bg-base-300">
-          {storyMediaType === "image" && storyMediaUrl && !imgError ? (
-            <img
-              src={storyMediaUrl}
-              alt="Story preview"
-              className="size-full object-cover"
-              onError={() => setImgError(true)}
-            />
-          ) : storyMediaType === "video" && storyMediaUrl && !imgError ? (
-            <div className="relative size-full bg-base-300">
-              <video
+        {/* Thumbnail – 48-56px wide × 64-76px high (9:16 aspect) */}
+        {isUnavailable ? (
+          <div className="flex h-16 w-12 shrink-0 items-center justify-center rounded-md bg-base-300/50">
+            <ImageOff className="h-4 w-4 opacity-40" />
+          </div>
+        ) : (
+          <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-md bg-base-300">
+            {storyMediaType === "image" && (
+              <img
                 src={storyMediaUrl}
-                className="size-full object-cover"
+                alt="Story"
+                className="h-full w-full object-cover"
                 onError={() => setImgError(true)}
               />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                <div className="text-xs text-white">Video</div>
+            )}
+            {storyMediaType === "video" && videoThumbnail && (
+              <img
+                src={videoThumbnail}
+                alt="Video thumbnail"
+                className="h-full w-full object-cover"
+              />
+            )}
+            {storyMediaType === "video" && !videoThumbnail && (
+              <div className="h-full w-full bg-base-300" />
+            )}
+            {/* Play indicator for videos */}
+            {storyMediaType === "video" && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                <Play className="h-3 w-3 fill-white text-white" />
               </div>
-            </div>
-          ) : (
-            <div className="flex size-full items-center justify-center bg-base-300">
-              <ImageOff className="size-5 opacity-40" />
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
-        {/* Metadata and preview text - constrained by parent max-w */}
-        <div className="flex min-w-0 flex-col justify-center">
-          <div className={`text-xs font-semibold leading-tight ${textCls}`}>
-            {storyOwnerName}
-            <span className={`ml-1 font-normal ${labelCls}`}>• Status</span>
+        {/* Owner name and Status label – tight typography */}
+        <div className="flex min-w-0 flex-col justify-center gap-0.5">
+          <div className="flex items-baseline gap-1">
+            <span className={`truncate text-xs font-semibold ${textCls}`}>
+              {storyOwnerName}
+            </span>
+            <span className={`shrink-0 text-xs font-normal ${labelCls}`}>
+              • Status
+            </span>
           </div>
 
-          <p
-            className={`mt-0.5 truncate text-xs font-normal leading-snug ${labelCls}`}
-          >
-            {storyText?.trim() ||
-              (storyMediaType === "video" ? "📹 Video" : "📸 Photo")}
+          {/* Duration or content preview – single line */}
+          <p className={`truncate text-xs leading-tight ${labelCls}`}>
+            {storyMediaType === "video" ? "📹 Video" : "📸 Photo"}
           </p>
         </div>
       </div>
