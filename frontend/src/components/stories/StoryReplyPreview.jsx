@@ -52,7 +52,7 @@ const StoryReplyPreview = ({
   return (
     <>
       <div
-        className={`mb-2 flex max-h-24 min-w-0 items-stretch gap-2.5 overflow-hidden rounded-lg border-l-3 border-y-0 border-r-0 px-3 py-2 ${borderCls} ${bgCls} cursor-pointer transition-opacity hover:opacity-80 active:opacity-70`}
+        className={`mb-2 flex w-fit max-w-[min(280px,75vw)] items-stretch gap-2.5 overflow-hidden rounded-lg border-l-3 border-y-0 border-r-0 px-3 py-2 ${borderCls} ${bgCls} cursor-pointer transition-opacity hover:opacity-80 active:opacity-70`}
         onClick={handleClick}
         role="button"
         tabIndex={0}
@@ -64,8 +64,8 @@ const StoryReplyPreview = ({
         }}
         aria-label={`Replying to story from ${storyOwnerName}`}
       >
-        {/* Thumbnail - compact */}
-        <div className="size-12 shrink-0 overflow-hidden rounded-md bg-base-300 flex-shrink-0">
+        {/* Thumbnail - compact 48px */}
+        <div className="size-12 shrink-0 overflow-hidden rounded-md bg-base-300">
           {storyMediaType === "image" && storyMediaUrl && !imgError ? (
             <img
               src={storyMediaUrl}
@@ -91,8 +91,8 @@ const StoryReplyPreview = ({
           )}
         </div>
 
-        {/* Metadata and preview text */}
-        <div className="flex min-w-0 flex-1 flex-col justify-center">
+        {/* Metadata and preview text - constrained by parent max-w */}
+        <div className="flex min-w-0 flex-col justify-center">
           <div className={`text-xs font-semibold leading-tight ${textCls}`}>
             {storyOwnerName}
             <span className={`ml-1 font-normal ${labelCls}`}>• Status</span>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
@@ -43,6 +43,7 @@ const StoryViewer = ({
   onStoryUnavailable,
   onClose,
 }) => {
+  const queryClient = useQueryClient();
   const [groupIndex, setGroupIndex] = useState(initialGroupIndex);
   const [storyIndex, setStoryIndex] = useState(initialStoryIndex);
   const [imageLoading, setImageLoading] = useState(true);
@@ -61,6 +62,7 @@ const StoryViewer = ({
   const touchStart = useRef(null);
   const [isPaused, setIsPaused] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(null);
 
   const setPauseReason = useCallback((reason, shouldPause) => {
     if (shouldPause) {
@@ -77,6 +79,7 @@ const StoryViewer = ({
     setImageLoading(true);
     setImageError(false);
     setViewerError("");
+    setVideoDuration(null);
   }, []);
 
   const availableGroups = useMemo(
@@ -300,6 +303,17 @@ const StoryViewer = ({
     mutationFn: deleteStory,
     onSuccess: (_, storyId) => {
       setIsViewerListOpen(false);
+
+      // Update local cache to remove deleted story
+      setDeletedStoryIds((ids) => new Set(ids).add(storyId));
+
+      // Notify parent component to update cache
+      onStoryDeleted(storyId);
+
+      // Invalidate stories query to ensure fresh data on next fetch
+      queryClient.invalidateQueries({ queryKey: ["stories"] });
+
+      // Check if there are remaining stories in current group
       const currentStories = currentGroup?.stories || [];
       const remainingStories = currentStories.filter(
         (story) => story._id !== storyId,
@@ -307,9 +321,6 @@ const StoryViewer = ({
       const nextGroups = availableGroups.filter(
         (group) => getUserId(group.user) !== getUserId(currentGroup?.user),
       );
-
-      setDeletedStoryIds((ids) => new Set(ids).add(storyId));
-      onStoryDeleted(storyId);
 
       if (remainingStories.length > 0) {
         setStoryIndex(Math.min(storyIndex, remainingStories.length - 1));
@@ -333,6 +344,7 @@ const StoryViewer = ({
         return;
       }
 
+      // No more stories available, close viewer
       closeViewer();
     },
     onError: (error) => {
@@ -402,6 +414,13 @@ const StoryViewer = ({
       return undefined;
     }
 
+    // Determine the duration for this story
+    // Videos use actual duration if available, otherwise fall back to 5s
+    // Images always use 5s
+    const isVideo = currentStory.mediaType === "video";
+    const effectiveDurationMs =
+      isVideo && videoDuration ? videoDuration * 1000 : STORY_DURATION_MS;
+
     let animationFrame;
     let previousTime = performance.now();
 
@@ -410,7 +429,7 @@ const StoryViewer = ({
       previousTime = time;
       const nextProgress = Math.min(
         100,
-        (playbackElapsed.current / STORY_DURATION_MS) * 100,
+        (playbackElapsed.current / effectiveDurationMs) * 100,
       );
       setProgress(nextProgress);
 
@@ -424,7 +443,15 @@ const StoryViewer = ({
 
     animationFrame = requestAnimationFrame(updatePlayback);
     return () => cancelAnimationFrame(animationFrame);
-  }, [currentStory?._id, imageError, imageLoading, isPaused, moveToNext]);
+  }, [
+    currentStory?._id,
+    currentStory?.mediaType,
+    imageError,
+    imageLoading,
+    isPaused,
+    moveToNext,
+    videoDuration,
+  ]);
 
   const handlePointerDown = () => {
     setPauseReason("pointer", true);
@@ -645,6 +672,12 @@ const StoryViewer = ({
               playsInline
               loop={false}
               controls
+              onLoadedMetadata={(e) => {
+                // Capture the actual video duration for progress calculation
+                if (e.currentTarget.duration > 0) {
+                  setVideoDuration(e.currentTarget.duration);
+                }
+              }}
               onLoadedData={() => setImageLoading(false)}
               onError={() => {
                 if (activeStoryId.current !== currentStory._id) return;

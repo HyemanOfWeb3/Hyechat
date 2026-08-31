@@ -195,7 +195,7 @@ const ChatPage = () => {
   );
 
   const { authUser } = useAuthUser();
-  
+
   // Use persistent shared Stream client across entire app
   const { client: streamClient, connectionState } = useStreamClient();
 
@@ -262,7 +262,7 @@ const ChatPage = () => {
 
     try {
       console.log("Initializing chat channel with persistent Stream client...");
-      
+
       const routeLooksLikeChannelId =
         typeof targetUserId === "string" &&
         targetUserId.includes("-") &&

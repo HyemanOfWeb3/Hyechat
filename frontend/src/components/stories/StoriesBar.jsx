@@ -4,6 +4,7 @@ import { ImagePlus } from "lucide-react";
 import { createStory, getStories } from "../../lib/api.js";
 import useAuthUser from "../../hooks/useAuthUser.js";
 import StoryViewer from "./StoryViewer.jsx";
+import VideoTrimEditor from "./VideoTrimEditor.jsx";
 
 const MAX_STORY_SIZE = 10 * 1024 * 1024;
 const MAX_VIDEO_DURATION_SECONDS = 60;
@@ -36,6 +37,8 @@ const StoriesBar = ({ chatClient }) => {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [viewerGroupIndex, setViewerGroupIndex] = useState(null);
+  const [videoToTrim, setVideoToTrim] = useState(null);
+  const [isTrimEditorOpen, setIsTrimEditorOpen] = useState(false);
 
   const {
     data: storyResponse = [],
@@ -122,6 +125,19 @@ const StoriesBar = ({ chatClient }) => {
     }, null);
   };
 
+  const handleTrimComplete = (trimmedFile) => {
+    // Close trim editor and upload the trimmed video
+    setIsTrimEditorOpen(false);
+    setVideoToTrim(null);
+    createStoryMutation(trimmedFile);
+  };
+
+  const handleTrimCancel = () => {
+    setIsTrimEditorOpen(false);
+    setVideoToTrim(null);
+    setErrorMessage("");
+  };
+
   const { mutate: createStoryMutation, isPending } = useMutation({
     mutationFn: async (file) => {
       if (!chatClient)
@@ -161,7 +177,7 @@ const StoriesBar = ({ chatClient }) => {
   const validateVideoDuration = (file) => {
     return new Promise((resolve, reject) => {
       if (!file.type.startsWith("video/")) {
-        resolve(true);
+        resolve({ duration: 0 });
         return;
       }
 
@@ -171,20 +187,14 @@ const StoriesBar = ({ chatClient }) => {
       video.onloadedmetadata = () => {
         window.URL.revokeObjectURL(video.src);
         const durationSeconds = Math.ceil(video.duration);
-        if (durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
-          reject(
-            new Error(
-              `Video is ${durationSeconds} seconds long. Maximum duration is ${MAX_VIDEO_DURATION_SECONDS} seconds.`
-            )
-          );
-        } else {
-          resolve(true);
-        }
+        resolve({ duration: durationSeconds });
       };
 
       video.onerror = () => {
         window.URL.revokeObjectURL(video.src);
-        reject(new Error("Unable to load video. Please check the file format."));
+        reject(
+          new Error("Unable to load video. Please check the file format."),
+        );
       };
 
       video.src = URL.createObjectURL(file);
@@ -206,18 +216,29 @@ const StoriesBar = ({ chatClient }) => {
       return;
     }
 
-    // Validate video duration before uploading
-    if (file.type.startsWith("video/")) {
-      validateVideoDuration(file)
-        .then(() => {
-          createStoryMutation(file);
-        })
-        .catch((error) => {
-          setErrorMessage(error.message);
-        });
-    } else {
+    // For images, proceed directly
+    if (file.type.startsWith("image/")) {
       createStoryMutation(file);
+      return;
     }
+
+    // For videos, validate duration and possibly open trim editor
+    validateVideoDuration(file)
+      .then((isValid) => {
+        // isValid contains the duration info if needed
+        // For videos > 60s, check if we need to open trim editor
+        if (isValid.duration > MAX_VIDEO_DURATION_SECONDS) {
+          // Open trim editor
+          setVideoToTrim(file);
+          setIsTrimEditorOpen(true);
+        } else {
+          // Proceed with normal upload
+          createStoryMutation(file);
+        }
+      })
+      .catch((error) => {
+        setErrorMessage(error.message);
+      });
   };
 
   const ownAvatar = authUser?.profilePic;
@@ -410,6 +431,14 @@ const StoriesBar = ({ chatClient }) => {
           onStoryDeleted={removeStoryFromCache}
           onStoryUnavailable={handleStoryUnavailable}
           onClose={() => setViewerGroupIndex(null)}
+        />
+      )}
+
+      {isTrimEditorOpen && videoToTrim && (
+        <VideoTrimEditor
+          videoFile={videoToTrim}
+          onComplete={handleTrimComplete}
+          onCancel={handleTrimCancel}
         />
       )}
     </div>

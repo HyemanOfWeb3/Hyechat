@@ -46,7 +46,7 @@ export async function createStory(req, res) {
     return res.status(400).json({ message: "Story media URL is required" });
   }
 
-  if (!['image', 'video'].includes(mediaType)) {
+  if (!["image", "video"].includes(mediaType)) {
     return res
       .status(400)
       .json({ message: "Only image and video stories are supported" });
@@ -96,7 +96,7 @@ export async function getStories(req, res) {
       // Remove reaction details from non-owners, keep only user's own reaction
       if (!isOwner && storyObj.reactions) {
         const userReaction = storyObj.reactions.find(
-          (r) => r.user.toString() === req.user._id.toString()
+          (r) => r.user.toString() === req.user._id.toString(),
         );
         storyObj.reactions = userReaction ? [userReaction] : [];
       }
@@ -155,7 +155,7 @@ export async function viewStory(req, res) {
       // Remove reaction details from non-owners, keep only user's own reaction
       if (storyObj.reactions) {
         const userReaction = storyObj.reactions.find(
-          (r) => r.user.toString() === req.user._id.toString()
+          (r) => r.user.toString() === req.user._id.toString(),
         );
         storyObj.reactions = userReaction ? [userReaction] : [];
       }
@@ -187,12 +187,9 @@ export async function getStoryViewers(req, res) {
     }
 
     if (story.user.toString() !== req.user._id.toString()) {
-      return res
-        .status(403)
-        .json({
-          message:
-            "You are not authorized to view the viewer list of this Story",
-        });
+      return res.status(403).json({
+        message: "You are not authorized to view the viewer list of this Story",
+      });
     }
 
     const populatedStory = await Story.findById(id).populate(
@@ -227,14 +224,26 @@ export async function deleteStory(req, res) {
         .json({ message: "You are not authorized to delete this Story" });
     }
 
-    try {
-      await deleteStreamImage(story.mediaUrl);
-    } catch (error) {
-      console.error("Error deleting Story media", error.message);
-      return res.status(502).json({ message: "Unable to delete Story media" });
+    // Attempt to clean up media, but don't fail the entire delete if media cleanup fails
+    if (story.mediaUrl) {
+      try {
+        await deleteStreamImage(story.mediaUrl);
+      } catch (error) {
+        // Log media deletion error but continue with Story deletion from DB
+        console.error(
+          "Warning: Could not delete Story media from Stream CDN",
+          error.message,
+        );
+        // Do not return error here - Story still needs to be removed from DB
+      }
     }
 
-    await Story.deleteOne({ _id: story._id });
+    // Delete Story from database
+    const deleteResult = await Story.deleteOne({ _id: story._id });
+
+    if (deleteResult.deletedCount === 0) {
+      return res.status(404).json({ message: "Story not found" });
+    }
 
     return res.status(200).json({ success: true, message: "Story deleted" });
   } catch (error) {
@@ -253,7 +262,7 @@ const buildReactionResponse = (story, userId, isOwner) => {
       reactions: [],
       myReaction:
         (story.reactions || []).find(
-          (r) => r.user.toString() === userId.toString()
+          (r) => r.user.toString() === userId.toString(),
         )?.type || null,
     };
   }
@@ -346,11 +355,16 @@ export async function addReaction(req, res) {
         });
       } catch (notifError) {
         // Notification failure must never break the reaction response
-        console.error("Error creating reaction notification", notifError.message);
+        console.error(
+          "Error creating reaction notification",
+          notifError.message,
+        );
       }
     }
 
-    return res.status(200).json(buildReactionResponse(finalStory, userId, isOwner));
+    return res
+      .status(200)
+      .json(buildReactionResponse(finalStory, userId, isOwner));
   } catch (error) {
     console.error("Error adding Story reaction", error.message);
     return res.status(500).json({ message: "Internal Server Error" });
@@ -376,11 +390,9 @@ export async function removeReaction(req, res) {
     }
 
     if (!isVisibleToUser(story, req.user)) {
-      return res
-        .status(403)
-        .json({
-          message: "You are not authorized to interact with this Story",
-        });
+      return res.status(403).json({
+        message: "You are not authorized to interact with this Story",
+      });
     }
 
     const userId = req.user._id;
@@ -396,7 +408,9 @@ export async function removeReaction(req, res) {
       return res.status(410).json({ message: "Story has expired" });
     }
 
-    return res.status(200).json(buildReactionResponse(updatedStory, userId, isOwner));
+    return res
+      .status(200)
+      .json(buildReactionResponse(updatedStory, userId, isOwner));
   } catch (error) {
     console.error("Error removing Story reaction", error.message);
     return res.status(500).json({ message: "Internal Server Error" });

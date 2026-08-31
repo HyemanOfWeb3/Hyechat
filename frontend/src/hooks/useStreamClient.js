@@ -12,13 +12,13 @@ let connectPromise = null;
 /**
  * Hook that provides a persistent, shared Stream Chat client.
  * Prevents multiple connectUser calls and premature disconnects.
- * 
+ *
  * Features:
  * - Single client instance across entire app
  * - Automatic reconnection on network changes
  * - Connection state tracking
  * - Graceful error handling
- * 
+ *
  * Returns: { client, isConnecting, error, connectionState }
  */
 export const useStreamClient = () => {
@@ -137,7 +137,10 @@ export const useStreamClient = () => {
     const handleOnline = async () => {
       console.log("Network online - reconnecting Stream client");
       // Only reconnect if we were connected before
-      if (connectionState === "disconnected" && sharedClientInstance?.userID === authUser?._id) {
+      if (
+        connectionState === "disconnected" &&
+        sharedClientInstance?.userID === authUser?._id
+      ) {
         setConnectionState("connecting");
         try {
           const tokenData = await getStreamToken();
@@ -176,7 +179,10 @@ export const useStreamClient = () => {
       } else {
         // App came to foreground - verify connection
         console.log("App foregrounded - verifying Stream connection");
-        if (connectionState === "disconnected" && sharedClientInstance?.userID === authUser?._id) {
+        if (
+          connectionState === "disconnected" &&
+          sharedClientInstance?.userID === authUser?._id
+        ) {
           try {
             setConnectionState("connecting");
             const tokenData = await getStreamToken();
