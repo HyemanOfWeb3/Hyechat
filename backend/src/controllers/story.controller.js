@@ -86,9 +86,21 @@ export async function getStories(req, res) {
     const sanitizedStories = stories.map((story) => {
       const storyObj = story.toObject();
       const ownerId = storyObj.user._id || storyObj.user;
-      if (ownerId.toString() !== req.user._id.toString()) {
+      const isOwner = ownerId.toString() === req.user._id.toString();
+
+      // Remove viewer list from non-owners
+      if (!isOwner) {
         delete storyObj.viewers;
       }
+
+      // Remove reaction details from non-owners, keep only user's own reaction
+      if (!isOwner && storyObj.reactions) {
+        const userReaction = storyObj.reactions.find(
+          (r) => r.user.toString() === req.user._id.toString()
+        );
+        storyObj.reactions = userReaction ? [userReaction] : [];
+      }
+
       return storyObj;
     });
 
@@ -140,6 +152,13 @@ export async function viewStory(req, res) {
     const storyObj = updatedStory.toObject();
     if (storyObj.user.toString() !== req.user._id.toString()) {
       delete storyObj.viewers;
+      // Remove reaction details from non-owners, keep only user's own reaction
+      if (storyObj.reactions) {
+        const userReaction = storyObj.reactions.find(
+          (r) => r.user.toString() === req.user._id.toString()
+        );
+        storyObj.reactions = userReaction ? [userReaction] : [];
+      }
     }
 
     return res.status(200).json(storyObj);
@@ -226,7 +245,20 @@ export async function deleteStory(req, res) {
 
 const SUPPORTED_REACTIONS = ["❤️", "😂", "😮", "😢", "🔥", "👍"];
 
-const buildReactionResponse = (story, userId) => {
+const buildReactionResponse = (story, userId, isOwner) => {
+  // Only return reaction analytics to the story owner
+  if (!isOwner) {
+    return {
+      storyId: story._id,
+      reactions: [],
+      myReaction:
+        (story.reactions || []).find(
+          (r) => r.user.toString() === userId.toString()
+        )?.type || null,
+    };
+  }
+
+  // Owner sees full reaction analytics
   const reactions = story.reactions || [];
   const counts = SUPPORTED_REACTIONS.reduce((acc, type) => {
     const count = reactions.filter((r) => r.type === type).length;
@@ -275,6 +307,7 @@ export async function addReaction(req, res) {
     }
 
     const userId = req.user._id;
+    const isOwner = story.user.toString() === userId.toString();
 
     // Atomically remove any existing reaction from this user then add the new one
     const updatedStory = await Story.findOneAndUpdate(
@@ -302,7 +335,7 @@ export async function addReaction(req, res) {
     }
 
     // Notify story owner — but never notify the actor themselves
-    if (finalStory.user.toString() !== userId.toString()) {
+    if (!isOwner) {
       try {
         await createNotification({
           recipient: finalStory.user,
@@ -317,7 +350,7 @@ export async function addReaction(req, res) {
       }
     }
 
-    return res.status(200).json(buildReactionResponse(finalStory, userId));
+    return res.status(200).json(buildReactionResponse(finalStory, userId, isOwner));
   } catch (error) {
     console.error("Error adding Story reaction", error.message);
     return res.status(500).json({ message: "Internal Server Error" });
@@ -351,6 +384,7 @@ export async function removeReaction(req, res) {
     }
 
     const userId = req.user._id;
+    const isOwner = story.user.toString() === userId.toString();
 
     const updatedStory = await Story.findOneAndUpdate(
       { _id: id, expiresAt: { $gt: new Date() } },
@@ -362,7 +396,7 @@ export async function removeReaction(req, res) {
       return res.status(410).json({ message: "Story has expired" });
     }
 
-    return res.status(200).json(buildReactionResponse(updatedStory, userId));
+    return res.status(200).json(buildReactionResponse(updatedStory, userId, isOwner));
   } catch (error) {
     console.error("Error removing Story reaction", error.message);
     return res.status(500).json({ message: "Internal Server Error" });

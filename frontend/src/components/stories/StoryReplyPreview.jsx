@@ -52,7 +52,7 @@ const StoryReplyPreview = ({
   return (
     <>
       <div
-        className={`mb-2 flex min-w-0 items-stretch gap-2.5 rounded-lg border-l-3 border-y-0 border-r-0 px-3 py-2 ${borderCls} ${bgCls} cursor-pointer transition-opacity hover:opacity-80 active:opacity-70`}
+        className={`mb-2 flex max-h-24 min-w-0 items-stretch gap-2.5 overflow-hidden rounded-lg border-l-3 border-y-0 border-r-0 px-3 py-2 ${borderCls} ${bgCls} cursor-pointer transition-opacity hover:opacity-80 active:opacity-70`}
         onClick={handleClick}
         role="button"
         tabIndex={0}

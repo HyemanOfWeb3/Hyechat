@@ -279,6 +279,15 @@ const ChatPage = () => {
       });
 
       await currChannel.watch();
+
+      // Mark channel as read when user enters the conversation
+      // This ensures unread messages become read only when user explicitly opens the chat
+      try {
+        await currChannel.markRead();
+      } catch (markReadError) {
+        console.warn("Could not mark channel as read:", markReadError);
+      }
+
       setChatClient(streamClient);
       setChannel(currChannel);
 

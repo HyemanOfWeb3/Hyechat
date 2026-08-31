@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { logout } from "../lib/api.js";
+import { disconnectStreamClient } from "./useStreamClient.js";
 
 const DEFAULT_INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
 const WARNING_DURATION_MS = 60 * 1000;
@@ -50,6 +51,13 @@ const useInactivityLogout = ({ enabled }) => {
       clearAuthenticatedState();
 
       if (broadcast) channelRef.current?.postMessage({ type: "logout" });
+      try {
+        // Disconnect Stream Chat client cleanly
+        await disconnectStreamClient();
+      } catch (streamError) {
+        console.error("Error disconnecting Stream during logout:", streamError);
+        // Continue with logout even if Stream disconnect fails
+      }
       try {
         await logout();
       } catch {

@@ -221,18 +221,22 @@ export const getSharedStreamClient = () => {
 };
 
 /**
- * Force disconnect and reset the shared client.
- * Only use on logout.
+ * Disconnect the shared Stream Chat client.
+ * Called during logout to cleanly disconnect before auth state is cleared.
  */
-export const resetStreamClient = async () => {
-  if (sharedClientInstance) {
+export const disconnectStreamClient = async () => {
+  if (sharedClientInstance && sharedClientInstance.userID) {
     try {
+      console.log("Disconnecting Stream Chat client");
       await sharedClientInstance.disconnectUser();
-    } catch (err) {
-      console.error("Error disconnecting Stream client:", err);
+      sharedClientInstance = null;
+      connectPromise = null;
+    } catch (error) {
+      console.error("Error disconnecting Stream client:", error);
+      // Still null out the instance even if disconnect fails
+      sharedClientInstance = null;
+      connectPromise = null;
     }
-    sharedClientInstance = null;
-    connectPromise = null;
   }
 };
 

@@ -6,6 +6,7 @@ import useAuthUser from "../../hooks/useAuthUser.js";
 import StoryViewer from "./StoryViewer.jsx";
 
 const MAX_STORY_SIZE = 10 * 1024 * 1024;
+const MAX_VIDEO_DURATION_SECONDS = 60;
 
 const getUserId = (user) => {
   if (!user) return "";
@@ -157,6 +158,39 @@ const StoriesBar = ({ chatClient }) => {
     },
   });
 
+  const validateVideoDuration = (file) => {
+    return new Promise((resolve, reject) => {
+      if (!file.type.startsWith("video/")) {
+        resolve(true);
+        return;
+      }
+
+      const video = document.createElement("video");
+      video.preload = "metadata";
+
+      video.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(video.src);
+        const durationSeconds = Math.ceil(video.duration);
+        if (durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
+          reject(
+            new Error(
+              `Video is ${durationSeconds} seconds long. Maximum duration is ${MAX_VIDEO_DURATION_SECONDS} seconds.`
+            )
+          );
+        } else {
+          resolve(true);
+        }
+      };
+
+      video.onerror = () => {
+        window.URL.revokeObjectURL(video.src);
+        reject(new Error("Unable to load video. Please check the file format."));
+      };
+
+      video.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
     setErrorMessage("");
@@ -172,7 +206,18 @@ const StoriesBar = ({ chatClient }) => {
       return;
     }
 
-    createStoryMutation(file);
+    // Validate video duration before uploading
+    if (file.type.startsWith("video/")) {
+      validateVideoDuration(file)
+        .then(() => {
+          createStoryMutation(file);
+        })
+        .catch((error) => {
+          setErrorMessage(error.message);
+        });
+    } else {
+      createStoryMutation(file);
+    }
   };
 
   const ownAvatar = authUser?.profilePic;

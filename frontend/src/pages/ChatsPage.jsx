@@ -40,7 +40,7 @@ const ChatsPage = () => {
         const channels = await streamClient.queryChannels(
           { type: "messaging", members: { $in: [authUser._id] } },
           { last_message_at: -1 },
-          { limit: 50, state: true, watch: false, presence: true },
+          { limit: 50, state: true, watch: true, presence: true },
         );
 
         if (isActive) {
