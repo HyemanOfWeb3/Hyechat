@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import {
+  Attachment as DefaultAttachment,
   Chat,
   Channel,
   ChannelHeader,
@@ -36,6 +37,7 @@ import {
 import ChatLoader from "../components/ChatLoader.jsx";
 import CallButton from "../components/CallButton.jsx";
 import HyeChatCallCard from "../components/HyeChatCallCard.jsx";
+import MediaViewer from "../components/MediaViewer.jsx";
 import { getHyeChatCallDetails } from "../lib/hyeChatCall.js";
 import StoryReplyPreview from "../components/stories/StoryReplyPreview.jsx";
 import { buildChatChannelId } from "../lib/utils.js";
@@ -167,6 +169,90 @@ const StoryReplyMessage = () => {
   );
 };
 
+const isSupportedChatImage = (attachment) => {
+  if (!attachment) return false;
+
+  const mimeType = attachment.mime_type || attachment.type || "";
+  const url =
+    attachment.image_url ||
+    attachment.asset_url ||
+    attachment.thumb_url ||
+    attachment.url;
+
+  if (!url) return false;
+
+  return (
+    attachment.type === "image" ||
+    mimeType.startsWith("image/") ||
+    /\.(png|jpe?g|webp|gif)(?:\?|$)/i.test(url)
+  );
+};
+
+const getChatImageMedia = (attachment) => {
+  if (!attachment || !isSupportedChatImage(attachment)) return null;
+
+  const url =
+    attachment.image_url ||
+    attachment.asset_url ||
+    attachment.thumb_url ||
+    attachment.url;
+
+  if (!url) return null;
+
+  return {
+    type: "image",
+    url,
+    alt: attachment.title || attachment.fallback || "Shared image",
+  };
+};
+
+const ChatAttachmentRenderer = ({ attachments = [], ...props }) => {
+  const imageAttachments = attachments.filter(isSupportedChatImage);
+  const remainingAttachments = attachments.filter(
+    (attachment) => !isSupportedChatImage(attachment),
+  );
+
+  if (!imageAttachments.length) {
+    return <DefaultAttachment attachments={attachments} {...props} />;
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {imageAttachments.map((attachment, index) => {
+        const media = getChatImageMedia(attachment);
+
+        if (!media) return null;
+
+        return (
+          <button
+            key={
+              attachment.id ||
+              attachment.asset_url ||
+              attachment.image_url ||
+              attachment.thumb_url ||
+              index
+            }
+            type="button"
+            onClick={() => props.onOpenMedia?.(media)}
+            className="block w-full overflow-hidden rounded-xl border border-slate-700 bg-slate-900 text-left outline-none transition hover:opacity-95 focus-visible:ring-2 focus-visible:ring-purple-400"
+            aria-label={`Open image: ${media.alt}`}
+          >
+            <img
+              src={media.url}
+              alt={media.alt}
+              className="max-h-72 w-full object-contain bg-slate-900"
+            />
+          </button>
+        );
+      })}
+
+      {remainingAttachments.length > 0 && (
+        <DefaultAttachment attachments={remainingAttachments} {...props} />
+      )}
+    </div>
+  );
+};
+
 const ChatPage = () => {
   const { id: targetUserId } = useParams();
   const navigate = useNavigate();
@@ -182,6 +268,7 @@ const ChatPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState(null);
   const [isVoiceRecording, setIsVoiceRecording] = useState(false);
   const [voiceRecorder, setVoiceRecorder] = useState(null);
   const [voiceBlob, setVoiceBlob] = useState(null);
@@ -617,7 +704,18 @@ const ChatPage = () => {
   return (
     <div className="chat-page-shell flex h-full min-h-0 w-full max-w-full overflow-hidden">
       <Chat client={chatClient} theme="str-chat__theme-light">
-        <Channel channel={channel} Message={StoryReplyMessage}>
+        <Channel
+          channel={channel}
+          Message={StoryReplyMessage}
+          components={{
+            Attachment: (attachmentProps) => (
+              <ChatAttachmentRenderer
+                {...attachmentProps}
+                onOpenMedia={setSelectedMedia}
+              />
+            ),
+          }}
+        >
           <AutoScrollToInitialMessage />
           <UnreadMessagesShortcut />
           <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden touch-pan-y">
@@ -890,6 +988,12 @@ const ChatPage = () => {
           <Thread />
         </Channel>
       </Chat>
+      {selectedMedia && (
+        <MediaViewer
+          media={selectedMedia}
+          onClose={() => setSelectedMedia(null)}
+        />
+      )}
     </div>
   );
 };
