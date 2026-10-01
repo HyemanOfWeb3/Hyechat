@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
@@ -44,6 +45,7 @@ const StoryViewer = ({
   onClose,
 }) => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [groupIndex, setGroupIndex] = useState(initialGroupIndex);
   const [storyIndex, setStoryIndex] = useState(initialStoryIndex);
   const [imageLoading, setImageLoading] = useState(true);
@@ -513,6 +515,8 @@ const StoryViewer = ({
         story_text: currentStory.text || "",
       });
       setReplyText("");
+      onClose?.();
+      navigate(`/chat/${encodeURIComponent(storyOwnerId)}`);
     } catch (err) {
       setReplyError(
         err?.response?.data?.message ||

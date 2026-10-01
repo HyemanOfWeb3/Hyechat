@@ -367,6 +367,7 @@ const ChatAttachmentRenderer = ({ attachments = [], ...props }) => {
 const ChatPage = () => {
   const { id: targetUserId } = useParams();
   const navigate = useNavigate();
+  const normalizedTargetId = typeof targetUserId === "string" ? targetUserId.trim() : "";
 
   const [chatClient, setChatClient] = useState(null);
   const [channel, setChannel] = useState(null);
@@ -448,7 +449,7 @@ const ChatPage = () => {
       return;
     }
 
-    if (!authUser || !targetUserId) {
+    if (!authUser || !normalizedTargetId || normalizedTargetId === "undefined" || normalizedTargetId === "null") {
       setInitializationError("This chat is unavailable.");
       setLoading(false);
       return;
@@ -463,13 +464,14 @@ const ChatPage = () => {
       console.log("Initializing chat channel with persistent Stream client...");
 
       const routeLooksLikeChannelId =
-        typeof targetUserId === "string" &&
-        targetUserId.includes("-") &&
-        targetUserId.length <= 64;
+        typeof normalizedTargetId === "string" &&
+        (normalizedTargetId.startsWith("messaging:") ||
+          normalizedTargetId.includes(":") ||
+          (normalizedTargetId.includes("-") && normalizedTargetId.length <= 64));
 
       const channelId = routeLooksLikeChannelId
-        ? targetUserId
-        : buildChatChannelId(authUser._id, targetUserId);
+        ? normalizedTargetId
+        : buildChatChannelId(authUser._id, normalizedTargetId);
 
       const currChannel = streamClient.channel("messaging", channelId, {
         ...(routeLooksLikeChannelId
@@ -491,7 +493,7 @@ const ChatPage = () => {
       setChannel(currChannel);
 
       const matchedFriend = friends.find(
-        (friend) => friend._id === targetUserId,
+        (friend) => friend._id === normalizedTargetId,
       );
       const channelPeer = Object.values(currChannel.state?.members || {}).find(
         (member) => member.user_id !== authUser._id,
@@ -505,19 +507,19 @@ const ChatPage = () => {
         : channelPeer
           ? {
               id: channelPeer.user_id,
-              name: channelPeer.user?.name || channelPeer.name || targetUserId,
+              name: channelPeer.user?.name || channelPeer.name || normalizedTargetId,
               image: channelPeer.user?.image || channelPeer.image || null,
             }
           : {
-              id: targetUserId,
-              name: targetUserId,
+              id: normalizedTargetId,
+              name: normalizedTargetId,
               image: null,
             };
 
       setPeerUser(nextPeerUser);
       setIsPeerOnline(Boolean(matchedFriend?.isOnline));
 
-      const presenceState = streamClient.state?.users?.[targetUserId];
+      const presenceState = streamClient.state?.users?.[normalizedTargetId];
       if (presenceState?.online !== undefined) {
         setIsPeerOnline(Boolean(presenceState.online));
       }
@@ -528,7 +530,7 @@ const ChatPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [streamClient, connectionState, authUser, friends, targetUserId]);
+  }, [streamClient, connectionState, authUser, friends, normalizedTargetId]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(initializeChat, 0);
@@ -594,12 +596,12 @@ const ChatPage = () => {
   const handleVideoCall = async () => {
     if (channel) {
       const callId = crypto.randomUUID();
-      const callUrl = `${window.location.origin}/call/${callId}?type=video&chatId=${channel.id}&participantId=${targetUserId}`;
+      const callUrl = `${window.location.origin}/call/${callId}?type=video&chatId=${channel.id}&participantId=${normalizedTargetId}`;
 
       startCallHistory({
         roomId: callId,
         callType: "video",
-        participantIds: [targetUserId],
+        participantIds: [normalizedTargetId],
         answered: false,
       }).catch(() => {});
       try {
@@ -608,7 +610,7 @@ const ChatPage = () => {
           token: tokenData.token,
         });
         await videoClient.call("default", callId).getOrCreate({
-          data: { members: [{ user_id: targetUserId }] },
+          data: { members: [{ user_id: normalizedTargetId }] },
           ring: true,
           video: true,
         });
@@ -626,12 +628,12 @@ const ChatPage = () => {
   const handleVoiceCall = async () => {
     if (channel) {
       const callId = crypto.randomUUID();
-      const callUrl = `${window.location.origin}/call/${callId}?type=voice&chatId=${channel.id}&participantId=${targetUserId}`;
+      const callUrl = `${window.location.origin}/call/${callId}?type=voice&chatId=${channel.id}&participantId=${normalizedTargetId}`;
 
       startCallHistory({
         roomId: callId,
         callType: "voice",
-        participantIds: [targetUserId],
+        participantIds: [normalizedTargetId],
         answered: false,
       }).catch(() => {});
       try {
@@ -640,7 +642,7 @@ const ChatPage = () => {
           token: tokenData.token,
         });
         await videoClient.call("default", callId).getOrCreate({
-          data: { members: [{ user_id: targetUserId }] },
+          data: { members: [{ user_id: normalizedTargetId }] },
           ring: true,
           video: false,
         });

@@ -133,7 +133,7 @@ export async function translateChatMessage(req, res) {
     if (!translatedText) {
       return res.status(503).json({
         message:
-          "Translation is not configured on this server yet. Please try again later or set a language preference in the app.",
+          "Translation is not configured on this server yet. Set OPENAI_API_KEY in the backend environment (optionally OPENAI_BASE_URL and OPENAI_MODEL) before enabling chat translation. The API key is never exposed to the frontend.",
       });
     }
 

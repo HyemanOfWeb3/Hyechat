@@ -7,7 +7,7 @@ const HyeChatCallCard = ({ callType, createdBy, url }) => {
   const joinLabel = isVideoCall ? "Join video call" : "Join call";
 
   return (
-    <div className="hyechat-call-card w-full max-w-full overflow-hidden rounded-2xl border border-primary/20 bg-base-100 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-4">
+    <div className="hyechat-call-card block max-w-[22rem] w-fit overflow-hidden rounded-2xl border border-primary/20 bg-base-100 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-4">
       <div className="flex min-w-0 items-center gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <CallIcon className="size-5" aria-hidden="true" />
@@ -32,7 +32,7 @@ const HyeChatCallCard = ({ callType, createdBy, url }) => {
         </div>
         <a
           href={url}
-          className="btn btn-primary min-h-11 shrink-0 px-4 transition-transform active:scale-95"
+          className="btn btn-primary inline-flex min-h-11 shrink-0 px-4 transition-transform active:scale-95"
           aria-label={`Join HyeChat ${isVideoCall ? "video" : "voice"} call`}
         >
           {joinLabel}

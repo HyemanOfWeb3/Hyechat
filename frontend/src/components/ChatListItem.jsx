@@ -42,7 +42,17 @@ const ChatListItem = ({ channel, currentUserId, friendById }) => {
     (member) => String(getMemberId(member)) !== String(currentUserId),
   );
   const userId = getMemberId(otherMember);
-  const friend = userId ? friendById.get(userId) : null;
+  const channelTargetId =
+    userId ||
+    channel?.data?.channel_id ||
+    channel?.data?.conversation_id ||
+    channel?.cid?.split(":").at(-1) ||
+    channel?.id;
+  const safeChatTargetId =
+    typeof channelTargetId === "string" && channelTargetId.trim()
+      ? channelTargetId.trim()
+      : "";
+  const friend = safeChatTargetId ? friendById.get(userId || safeChatTargetId) : null;
   const name =
     (isCommunity ? channel.data?.name : null) ||
     friend?.fullName ||
@@ -63,14 +73,14 @@ const ChatListItem = ({ channel, currentUserId, friendById }) => {
   const unreadCount =
     channel.state?.unreadCount || channel.countUnread?.() || 0;
 
-  if (!userId && !isCommunity) return null;
+  if (!safeChatTargetId && !isCommunity) return null;
 
   return (
     <Link
       to={
         isCommunity
           ? `/communities/${channel.data.community_id}`
-          : `/chat/${userId}`
+          : `/chat/${encodeURIComponent(safeChatTargetId)}`
       }
       aria-label={`Open chat with ${name}`}
       className="flex min-w-0 items-center gap-3 border-b border-base-300 px-4 py-4 transition-colors last:border-b-0 hover:bg-base-300/60 active:bg-base-300/80"

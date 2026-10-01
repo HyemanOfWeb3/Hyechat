@@ -33,7 +33,8 @@ const NotificationItem = ({
 
   const handleReplyClick = async () => {
     if (isUnread) await onMarkAsRead(notification._id);
-    if (actor._id) navigate(`/chat/${actor._id}`);
+    const chatTargetId = actor?._id || actor?.id || "";
+    if (chatTargetId) navigate(`/chat/${encodeURIComponent(chatTargetId)}`);
   };
 
   const handleAction = (action) => (event) => {
