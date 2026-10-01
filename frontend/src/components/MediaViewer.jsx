@@ -8,9 +8,6 @@ const MediaViewer = ({ media, onClose }) => {
   useEffect(() => {
     if (!media) return undefined;
 
-    setIsLoading(true);
-    setHasError(false);
-
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
@@ -32,8 +29,6 @@ const MediaViewer = ({ media, onClose }) => {
 
   const isVideo =
     media.type === "video" || media.mimeType?.startsWith("video/");
-  const isImage =
-    media.type === "image" || media.mimeType?.startsWith("image/");
   const hasUsableMedia = Boolean(media.url);
 
   return (
@@ -79,22 +74,37 @@ const MediaViewer = ({ media, onClose }) => {
         {hasUsableMedia && !hasError ? (
           isVideo ? (
             <video
+              key={media.url}
               src={media.url}
               controls
               playsInline
               autoPlay
               className="max-h-[calc(100dvh-6rem)] max-w-[calc(100vw-1.5rem)] rounded-xl object-contain"
-              onError={() => setHasError(true)}
+              onLoadStart={() => {
+                setIsLoading(true);
+                setHasError(false);
+              }}
+              onError={() => {
+                setHasError(true);
+                setIsLoading(false);
+              }}
               onLoadedData={() => setIsLoading(false)}
               onClick={(event) => event.stopPropagation()}
             />
           ) : (
             <img
+              key={media.url}
               src={media.url}
               alt={media.alt || "Shared media"}
               className="max-h-[calc(100dvh-6rem)] max-w-[calc(100vw-1.5rem)] rounded-xl object-contain"
-              onLoad={() => setIsLoading(false)}
-              onError={() => setHasError(true)}
+              onLoad={() => {
+                setIsLoading(false);
+                setHasError(false);
+              }}
+              onError={() => {
+                setHasError(true);
+                setIsLoading(false);
+              }}
               onClick={(event) => event.stopPropagation()}
             />
           )

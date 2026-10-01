@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import useAuthUser from "../hooks/useAuthUser.js";
+import useStreamClient from "../hooks/useStreamClient.js";
 import {
   changeMyPassword,
   deleteMyAccount,
@@ -25,9 +26,13 @@ const getErrorMessage = (error, fallback) =>
 
 const ProfilePage = () => {
   const { authUser } = useAuthUser();
+  const { client: streamClient } = useStreamClient();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
+  const [pendingProfileImage, setPendingProfileImage] = useState(null);
+  const [profileImagePreview, setProfileImagePreview] = useState("");
+  const [isUploadingProfileImage, setIsUploadingProfileImage] = useState(false);
   const [passwords, setPasswords] = useState({
     currentPassword: "",
     newPassword: "",
@@ -104,6 +109,72 @@ const ProfilePage = () => {
     deleteMutation.mutate(deletePassword);
   };
 
+  const handleProfileImageSelect = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Please choose a JPG, PNG, or WebP image.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be smaller than 5 MB.");
+      event.target.value = "";
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setPendingProfileImage(file);
+    setProfileImagePreview(previewUrl);
+    event.target.value = "";
+  };
+
+  const handleProfileImageSave = async () => {
+    if (!pendingProfileImage || !streamClient) {
+      toast.error("Your profile image is not ready to upload yet.");
+      return;
+    }
+
+    setIsUploadingProfileImage(true);
+
+    try {
+      const uploadResponse = await streamClient.uploadFile(
+        pendingProfileImage,
+        pendingProfileImage.name,
+        pendingProfileImage.type,
+      );
+
+      const imageUrl = uploadResponse?.file;
+      if (!imageUrl) {
+        throw new Error("The image upload did not return a valid URL.");
+      }
+
+      const nextProfile = { ...profileData, profilePic: imageUrl };
+      setProfileImagePreview("");
+      setPendingProfileImage(null);
+      setProfile(nextProfile);
+      await profileMutation.mutateAsync(nextProfile);
+      toast.success("Profile photo updated");
+    } catch (error) {
+      console.error("Profile photo upload failed:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          error.message ||
+          "Could not upload profile photo. Please try again.",
+      );
+    } finally {
+      setIsUploadingProfileImage(false);
+    }
+  };
+
+  const handleProfileImageCancel = () => {
+    setPendingProfileImage(null);
+    setProfileImagePreview("");
+  };
+
   if (!authUser) {
     return (
       <div className="flex w-full justify-center py-16">
@@ -132,14 +203,17 @@ const ProfilePage = () => {
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
               <div className="avatar">
                 <div className="w-24 rounded-full bg-base-300 ring ring-primary ring-offset-2 ring-offset-base-200">
-                  {profileData.profilePic ? (
-                    <img src={profileData.profilePic} alt="Profile preview" />
+                  {profileImagePreview || profileData.profilePic ? (
+                    <img
+                      src={profileImagePreview || profileData.profilePic}
+                      alt="Profile preview"
+                    />
                   ) : (
                     <UserRound className="m-auto mt-7 size-10 opacity-40" />
                   )}
                 </div>
               </div>
-              <div>
+              <div className="flex-1">
                 <h2 className="text-2xl font-bold">
                   {profileData.fullName || "Your profile"}
                 </h2>
@@ -150,6 +224,36 @@ const ProfilePage = () => {
                   <span className="size-2 rounded-full bg-success" /> Account
                   active
                 </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <label className="btn btn-outline btn-sm cursor-pointer">
+                    <Camera className="size-4" /> Change photo
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={handleProfileImageSelect}
+                    />
+                  </label>
+                  {pendingProfileImage && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={handleProfileImageCancel}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={handleProfileImageSave}
+                        disabled={isUploadingProfileImage}
+                      >
+                        {isUploadingProfileImage ? "Saving..." : "Save photo"}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -268,20 +372,12 @@ const ProfilePage = () => {
                 </label>
                 <label className="form-control">
                   <span className="label-text mb-2 flex items-center gap-2 font-semibold">
-                    <Camera className="size-4" /> Profile picture URL
+                    <Camera className="size-4" /> Profile picture
                   </span>
-                  <input
-                    type="url"
-                    className="input input-bordered w-full"
-                    value={profileData.profilePic}
-                    onChange={(event) =>
-                      setProfile({
-                        ...profileData,
-                        profilePic: event.target.value,
-                      })
-                    }
-                    placeholder="https://..."
-                  />
+                  <div className="rounded-xl border border-dashed border-base-300 bg-base-100 p-3 text-sm text-base-content/70">
+                    Upload a photo from your device and save it before
+                    continuing.
+                  </div>
                 </label>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">

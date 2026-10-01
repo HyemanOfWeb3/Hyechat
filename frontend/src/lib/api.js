@@ -352,3 +352,11 @@ export async function syncStreamUsers(users) {
     throw error;
   }
 }
+
+export async function translateMessage({ messageId, text, targetLanguage }) {
+  const res = await axiosInstance.post(
+    `/chat/messages/${encodeURIComponent(messageId)}/translate`,
+    { text, targetLanguage },
+  );
+  return res.data;
+}

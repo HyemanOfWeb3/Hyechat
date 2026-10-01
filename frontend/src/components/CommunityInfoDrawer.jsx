@@ -1,4 +1,5 @@
 import {
+  Camera,
   Copy,
   Link2,
   LogOut,
@@ -9,6 +10,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
+import useStreamClient from "../hooks/useStreamClient.js";
 import { CommunityAvatar } from "./CommunityChatHeader.jsx";
 
 const CommunityInfoDrawer = ({
@@ -31,8 +33,12 @@ const CommunityInfoDrawer = ({
   isMuted,
   onToggleMute,
 }) => {
+  const { client: streamClient } = useStreamClient();
   const [isEditing, setIsEditing] = useState(false);
   const [memberQuery, setMemberQuery] = useState("");
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
+  const [pendingAvatarFile, setPendingAvatarFile] = useState(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [draft, setDraft] = useState({
     name: community.name,
     description: community.description || "",
@@ -48,6 +54,73 @@ const CommunityInfoDrawer = ({
     } catch {
       toast.error("Could not copy the invite link");
     }
+  };
+
+  const handleAvatarSelect = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      toast.error("Please choose a JPG, PNG, or WebP image.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Community photo must be smaller than 5 MB.");
+      event.target.value = "";
+      return;
+    }
+
+    setPendingAvatarFile(file);
+    setAvatarPreviewUrl(URL.createObjectURL(file));
+    event.target.value = "";
+  };
+
+  const handleAvatarSave = async () => {
+    if (!pendingAvatarFile && !draft.avatar) {
+      toast.error("Community photo is not ready to upload yet.");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+
+    try {
+      let imageUrl = draft.avatar;
+      if (pendingAvatarFile) {
+        const uploadResponse = await streamClient.uploadFile(
+          pendingAvatarFile,
+          pendingAvatarFile.name,
+          pendingAvatarFile.type,
+        );
+        imageUrl = uploadResponse?.file;
+        if (!imageUrl) {
+          throw new Error("No image URL was returned from the upload.");
+        }
+      }
+
+      const nextDraft = { ...draft, avatar: imageUrl };
+      setDraft(nextDraft);
+      setAvatarPreviewUrl("");
+      setPendingAvatarFile(null);
+      updateMutation.mutate(nextDraft);
+      setIsEditing(false);
+      toast.success("Community photo saved");
+    } catch (error) {
+      console.error("Community photo upload failed:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          error.message ||
+          "Could not upload community photo. Please try again.",
+      );
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleAvatarCancel = () => {
+    setPendingAvatarFile(null);
+    setAvatarPreviewUrl("");
   };
 
   return (
@@ -77,7 +150,26 @@ const CommunityInfoDrawer = ({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
           <section className="flex flex-col items-center text-center">
-            <CommunityAvatar community={community} size="size-20" />
+            <div className="relative">
+              <CommunityAvatar
+                community={{
+                  ...community,
+                  avatar: avatarPreviewUrl || community.avatar,
+                }}
+                size="size-20"
+              />
+              {isEditing && (
+                <label className="absolute -bottom-2 -right-2 flex size-9 cursor-pointer items-center justify-center rounded-full border border-base-300 bg-base-100 shadow-md">
+                  <Camera className="size-4" />
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleAvatarSelect}
+                  />
+                </label>
+              )}
+            </div>
             {isEditing ? (
               <div className="mt-3 w-full space-y-2">
                 <input
@@ -98,20 +190,46 @@ const CommunityInfoDrawer = ({
                   maxLength={500}
                   aria-label="Community description"
                 />
-                <input
-                  className="input input-bordered input-sm w-full"
-                  type="url"
-                  value={draft.avatar}
-                  onChange={(event) =>
-                    setDraft({ ...draft, avatar: event.target.value })
-                  }
-                  aria-label="Community avatar URL"
-                />
+                <div className="rounded-xl border border-dashed border-base-300 bg-base-200 p-2 text-center text-xs text-base-content/70">
+                  {pendingAvatarFile ? (
+                    <div className="space-y-2">
+                      <img
+                        src={avatarPreviewUrl}
+                        alt="Community preview"
+                        className="mx-auto h-24 w-24 rounded-xl object-cover"
+                      />
+                      <div className="flex justify-center gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs"
+                          onClick={handleAvatarCancel}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-xs"
+                          onClick={handleAvatarSave}
+                          disabled={isUploadingAvatar}
+                        >
+                          {isUploadingAvatar ? "Saving..." : "Save photo"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <span>
+                      Pick a JPG, PNG, or WebP and save it before finishing.
+                    </span>
+                  )}
+                </div>
                 <div className="flex justify-center gap-2">
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"
-                    onClick={() => setIsEditing(false)}
+                    onClick={() => {
+                      handleAvatarCancel();
+                      setIsEditing(false);
+                    }}
                   >
                     Cancel
                   </button>
@@ -119,12 +237,16 @@ const CommunityInfoDrawer = ({
                     type="button"
                     className="btn btn-primary btn-sm"
                     onClick={() => {
+                      if (pendingAvatarFile) {
+                        handleAvatarSave();
+                        return;
+                      }
                       updateMutation.mutate(draft);
                       setIsEditing(false);
                     }}
-                    disabled={updateMutation.isPending}
+                    disabled={updateMutation.isPending || isUploadingAvatar}
                   >
-                    Save
+                    {pendingAvatarFile ? "Upload & Save" : "Save"}
                   </button>
                 </div>
               </div>

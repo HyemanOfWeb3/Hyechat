@@ -7,6 +7,7 @@ import {
   getStreamToken,
   getUserFriends,
   startCallHistory,
+  translateMessage,
 } from "../lib/api.js";
 import { toast } from "react-hot-toast";
 import {
@@ -140,9 +141,88 @@ const UnreadMessagesShortcut = () => {
   );
 };
 
-const StoryReplyMessage = () => {
-  const { message } = useMessageContext();
-  const callDetails = getHyeChatCallDetails(message.text);
+const normalizeTranslationLanguage = (language) => {
+  if (!language) return "English";
+  const cleaned = String(language).trim();
+  if (!cleaned) return "English";
+  return cleaned;
+};
+
+const getPreferredTranslationLanguage = (user) =>
+  normalizeTranslationLanguage(
+    user?.nativeLanguage || user?.learningLanguage || "English",
+  );
+
+const StoryReplyMessage = ({ message: messageProp, translationCacheRef }) => {
+  const { message: contextMessage } = useMessageContext();
+  const { authUser } = useAuthUser();
+  const message = messageProp || contextMessage;
+  const [translatedText, setTranslatedText] = useState("");
+  const [isShowingTranslation, setIsShowingTranslation] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translationError, setTranslationError] = useState("");
+
+  const targetLanguage = getPreferredTranslationLanguage(authUser);
+  const cacheKey = `${message?.id || message?.created_at || "message"}:${targetLanguage}`;
+
+  useEffect(() => {
+    const cached = translationCacheRef?.current?.get(cacheKey);
+    if (cached?.translation) {
+      setTranslatedText(cached.translation);
+      setIsShowingTranslation(Boolean(cached.show));
+      setTranslationError("");
+    } else {
+      setTranslatedText("");
+      setIsShowingTranslation(false);
+      setTranslationError("");
+    }
+  }, [cacheKey, translationCacheRef]);
+
+  const handleTranslateToggle = async () => {
+    if (!message?.text || !message.text.trim()) return;
+
+    const cached = translationCacheRef?.current?.get(cacheKey);
+    if (cached?.translation && isShowingTranslation) {
+      setIsShowingTranslation(false);
+      return;
+    }
+
+    if (cached?.translation) {
+      setTranslatedText(cached.translation);
+      setIsShowingTranslation(true);
+      setTranslationError("");
+      return;
+    }
+
+    setIsTranslating(true);
+    setTranslationError("");
+
+    try {
+      const response = await translateMessage({
+        messageId: message.id,
+        text: message.text,
+        targetLanguage,
+      });
+
+      const nextTranslation = response?.translation || "";
+      translationCacheRef?.current?.set(cacheKey, {
+        translation: nextTranslation,
+        show: true,
+      });
+      setTranslatedText(nextTranslation);
+      setIsShowingTranslation(true);
+    } catch (error) {
+      const messageText =
+        error?.response?.data?.message ||
+        "Translation failed. Please try again.";
+      setTranslationError(messageText);
+      setIsShowingTranslation(false);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const callDetails = message ? getHyeChatCallDetails(message.text) : null;
 
   if (callDetails) {
     return (
@@ -153,9 +233,11 @@ const StoryReplyMessage = () => {
     );
   }
 
+  const canTranslate = Boolean(message?.text && message.text.trim());
+
   return (
     <div>
-      {message.story_id && (
+      {message?.story_id && (
         <StoryReplyPreview
           storyMediaUrl={message.story_media_url}
           storyMediaType={message.story_media_type}
@@ -164,7 +246,36 @@ const StoryReplyMessage = () => {
           isDark={false}
         />
       )}
-      <MessageUI />
+      <div className="flex flex-col gap-1">
+        <MessageUI />
+        {canTranslate && (
+          <div className="mt-1 flex items-center gap-2 text-[11px] font-medium text-slate-500">
+            <button
+              type="button"
+              onClick={handleTranslateToggle}
+              disabled={isTranslating}
+              className="inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-2 py-1 hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isTranslating
+                ? "Translating..."
+                : isShowingTranslation
+                  ? "Hide translation"
+                  : "Translate"}
+            </button>
+            {translationError && (
+              <span className="text-red-500">{translationError}</span>
+            )}
+          </div>
+        )}
+        {isShowingTranslation && translatedText && (
+          <div className="mt-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-slate-700 shadow-sm">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-600">
+              {targetLanguage}
+            </p>
+            <p className="whitespace-pre-wrap break-words">{translatedText}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -269,6 +380,7 @@ const ChatPage = () => {
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState(null);
+  const translationCacheRef = useRef(new Map());
   const [isVoiceRecording, setIsVoiceRecording] = useState(false);
   const [voiceRecorder, setVoiceRecorder] = useState(null);
   const [voiceBlob, setVoiceBlob] = useState(null);
@@ -706,7 +818,12 @@ const ChatPage = () => {
       <Chat client={chatClient} theme="str-chat__theme-light">
         <Channel
           channel={channel}
-          Message={StoryReplyMessage}
+          Message={(messageProps) => (
+            <StoryReplyMessage
+              {...messageProps}
+              translationCacheRef={translationCacheRef}
+            />
+          )}
           components={{
             Attachment: (attachmentProps) => (
               <ChatAttachmentRenderer

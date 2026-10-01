@@ -3,12 +3,139 @@ import { ChevronLeft, Play, X } from "lucide-react";
 
 const MAX_TRIM_DURATION_SECONDS = 60;
 
-/**
- * VideoTrimEditor: Mobile-friendly video trimming component
- * Allows users to select a portion of a video (max 60 seconds)
- * Note: The UI provides trim selection and preview, but actual video re-encoding
- * would require either ffmpeg.wasm or a backend trimming service
- */
+const waitForVideoMetadata = (video) =>
+  new Promise((resolve, reject) => {
+    const handleLoaded = () => {
+      cleanup();
+      resolve();
+    };
+    const handleError = () => {
+      cleanup();
+      reject(new Error("Unable to load the selected video for trimming."));
+    };
+    const cleanup = () => {
+      video.removeEventListener("loadedmetadata", handleLoaded);
+      video.removeEventListener("error", handleError);
+    };
+
+    video.addEventListener("loadedmetadata", handleLoaded);
+    video.addEventListener("error", handleError);
+    if (video.readyState >= 1) {
+      cleanup();
+      resolve();
+    }
+  });
+
+const seekVideo = (video, time) =>
+  new Promise((resolve, reject) => {
+    const handleSeeked = () => {
+      cleanup();
+      resolve();
+    };
+    const handleError = () => {
+      cleanup();
+      reject(new Error("The selected video could not be trimmed."));
+    };
+    const cleanup = () => {
+      video.removeEventListener("seeked", handleSeeked);
+      video.removeEventListener("error", handleError);
+    };
+
+    video.addEventListener("seeked", handleSeeked);
+    video.addEventListener("error", handleError);
+    video.currentTime = time;
+  });
+
+const trimVideoToFile = async (videoFile, startTime, endTime) => {
+  const sourceUrl = URL.createObjectURL(videoFile);
+  const video = document.createElement("video");
+  video.preload = "auto";
+  video.muted = true;
+  video.playsInline = true;
+  video.crossOrigin = "anonymous";
+  video.src = sourceUrl;
+
+  try {
+    await waitForVideoMetadata(video);
+
+    const duration = Number.isFinite(video.duration) ? video.duration : 0;
+    const actualStart = Math.max(0, Math.min(startTime, duration));
+    const actualEnd = Math.max(actualStart + 0.1, Math.min(endTime, duration));
+
+    const stream = video.captureStream?.() ?? video.mozCaptureStream?.();
+    if (!stream) {
+      throw new Error(
+        "This browser does not support trimming videos in the app",
+      );
+    }
+
+    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+      ? "video/webm;codecs=vp9"
+      : MediaRecorder.isTypeSupported("video/webm")
+        ? "video/webm"
+        : "video/mp4";
+
+    const recorder = new MediaRecorder(
+      stream,
+      mimeType ? { mimeType } : undefined,
+    );
+    const chunks = [];
+
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        chunks.push(event.data);
+      }
+    };
+
+    await seekVideo(video, actualStart);
+
+    const trimmedBlob = await new Promise((resolve, reject) => {
+      const timeoutId = window.setTimeout(() => {
+        reject(new Error("Video trimming timed out."));
+      }, 15000);
+
+      recorder.onerror = () => {
+        window.clearTimeout(timeoutId);
+        reject(new Error("The video could not be trimmed successfully."));
+      };
+
+      recorder.onstop = () => {
+        window.clearTimeout(timeoutId);
+        const blob = new Blob(chunks, {
+          type: recorder.mimeType || "video/webm",
+        });
+        resolve(blob);
+      };
+
+      recorder.start();
+      video.play().catch(() => {
+        // Some browsers do not let media playback start without user interaction,
+        // but the capture stream still records while the element is seeking.
+      });
+
+      const checkProgress = () => {
+        if (video.currentTime >= actualEnd) {
+          video.pause();
+          recorder.stop();
+          return;
+        }
+        requestAnimationFrame(checkProgress);
+      };
+
+      requestAnimationFrame(checkProgress);
+    });
+
+    const extension = trimmedBlob.type.includes("mp4") ? "mp4" : "webm";
+    return new File(
+      [trimmedBlob],
+      `${videoFile.name.replace(/\.[^.]+$/, "")}-trimmed.${extension}`,
+      { type: trimmedBlob.type || "video/webm" },
+    );
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+};
+
 const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -204,35 +331,7 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
     setError("");
 
     try {
-      // For a complete implementation, you would need either:
-      // 1. ffmpeg.wasm (~3MB): https://ffmpegwasm.netlify.app/
-      // 2. Backend API endpoint that trims the video server-side
-      // 3. Third-party video service
-
-      // For now, we attach trim metadata to the file and let the backend handle it
-      // Create a new file object with trim metadata
-      const trimmedFile = new File([videoFile], videoFile.name, {
-        type: videoFile.type,
-      });
-
-      // Attach trim start/end as custom properties
-      Object.defineProperty(trimmedFile, "trimStart", {
-        value: startTime,
-        writable: false,
-      });
-      Object.defineProperty(trimmedFile, "trimEnd", {
-        value: endTime,
-        writable: false,
-      });
-      Object.defineProperty(trimmedFile, "originalDuration", {
-        value: videoDuration,
-        writable: false,
-      });
-
-      // For production:
-      // 1. If you have ffmpeg.wasm installed, uncomment and use it
-      // 2. Or upload to backend with trim parameters for server-side processing
-
+      const trimmedFile = await trimVideoToFile(videoFile, startTime, endTime);
       onComplete(trimmedFile);
     } catch (err) {
       console.error("Error processing video:", err);
