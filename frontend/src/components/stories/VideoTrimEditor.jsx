@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, Play, X } from "lucide-react";
+import { ChevronLeft, Pause, Play, RotateCcw, X } from "lucide-react";
 
 const MAX_TRIM_DURATION_SECONDS = 60;
 
@@ -28,6 +28,10 @@ const waitForVideoMetadata = (video) =>
 
 const seekVideo = (video, time) =>
   new Promise((resolve, reject) => {
+    if (Math.abs(video.currentTime - time) < 0.01) {
+      resolve();
+      return;
+    }
     const handleSeeked = () => {
       cleanup();
       resolve();
@@ -46,39 +50,79 @@ const seekVideo = (video, time) =>
     video.currentTime = time;
   });
 
+const readVideoDuration = (blob) =>
+  new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const video = document.createElement("video");
+    const cleanup = () => {
+      video.removeAttribute("src");
+      video.load();
+      URL.revokeObjectURL(url);
+    };
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      const duration = video.duration;
+      cleanup();
+      if (!Number.isFinite(duration) || duration <= 0) {
+        reject(new Error("The trimmed video has invalid media data."));
+        return;
+      }
+      resolve(duration);
+    };
+    video.onerror = () => {
+      cleanup();
+      reject(new Error("The browser could not verify the trimmed video."));
+    };
+    video.src = url;
+  });
+
 const trimVideoToFile = async (videoFile, startTime, endTime) => {
+  if (typeof MediaRecorder === "undefined") {
+    throw new Error("Video trimming is not supported by this browser.");
+  }
   const sourceUrl = URL.createObjectURL(videoFile);
   const video = document.createElement("video");
   video.preload = "auto";
-  video.muted = true;
+  video.muted = false;
   video.playsInline = true;
-  video.crossOrigin = "anonymous";
   video.src = sourceUrl;
+  let capturedStream;
 
   try {
     await waitForVideoMetadata(video);
 
     const duration = Number.isFinite(video.duration) ? video.duration : 0;
-    const actualStart = Math.max(0, Math.min(startTime, duration));
-    const actualEnd = Math.max(actualStart + 0.1, Math.min(endTime, duration));
+    if (duration <= 0) throw new Error("This video has an invalid duration.");
+    const minimumSegmentLength = Math.min(1, duration);
+    const actualStart = Math.max(
+      0,
+      Math.min(startTime, duration - minimumSegmentLength),
+    );
+    const actualEnd = Math.min(
+      duration,
+      Math.max(actualStart + minimumSegmentLength, endTime),
+    );
+    if (actualEnd - actualStart > MAX_TRIM_DURATION_SECONDS) {
+      throw new Error("Choose a video segment between 1 and 60 seconds.");
+    }
 
     const stream = video.captureStream?.() ?? video.mozCaptureStream?.();
     if (!stream) {
-      throw new Error(
-        "This browser does not support trimming videos in the app",
-      );
+      throw new Error("This browser does not support video trimming.");
+    }
+    capturedStream = stream;
+
+    const mimeType = [
+      "video/webm;codecs=vp9,opus",
+      "video/webm;codecs=vp8,opus",
+      "video/webm",
+      "video/mp4",
+    ].find((type) => MediaRecorder.isTypeSupported(type));
+    if (!mimeType) {
+      throw new Error("This browser does not provide a supported video encoder.");
     }
 
-    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-      ? "video/webm;codecs=vp9"
-      : MediaRecorder.isTypeSupported("video/webm")
-        ? "video/webm"
-        : "video/mp4";
-
-    const recorder = new MediaRecorder(
-      stream,
-      mimeType ? { mimeType } : undefined,
-    );
+    const recorder = new MediaRecorder(stream, { mimeType });
     const chunks = [];
 
     recorder.ondataavailable = (event) => {
@@ -88,11 +132,19 @@ const trimVideoToFile = async (videoFile, startTime, endTime) => {
     };
 
     await seekVideo(video, actualStart);
+    try {
+      await video.play();
+      video.pause();
+      await seekVideo(video, actualStart);
+    } catch {
+      throw new Error("Allow video playback in this browser to trim the file.");
+    }
 
     const trimmedBlob = await new Promise((resolve, reject) => {
       const timeoutId = window.setTimeout(() => {
-        reject(new Error("Video trimming timed out."));
-      }, 15000);
+        recorder.stop();
+        reject(new Error("Video trimming timed out. Try a shorter segment."));
+      }, Math.max(15000, (actualEnd - actualStart) * 1500 + 5000));
 
       recorder.onerror = () => {
         window.clearTimeout(timeoutId);
@@ -109,11 +161,13 @@ const trimVideoToFile = async (videoFile, startTime, endTime) => {
 
       recorder.start();
       video.play().catch(() => {
-        // Some browsers do not let media playback start without user interaction,
-        // but the capture stream still records while the element is seeking.
+        window.clearTimeout(timeoutId);
+        if (recorder.state !== "inactive") recorder.stop();
+        reject(new Error("Video playback was blocked while trimming."));
       });
 
       const checkProgress = () => {
+        if (recorder.state === "inactive") return;
         if (video.currentTime >= actualEnd) {
           video.pause();
           recorder.stop();
@@ -125,20 +179,34 @@ const trimVideoToFile = async (videoFile, startTime, endTime) => {
       requestAnimationFrame(checkProgress);
     });
 
-    const extension = trimmedBlob.type.includes("mp4") ? "mp4" : "webm";
+    if (!trimmedBlob.size) {
+      throw new Error("The browser produced an empty trimmed video.");
+    }
+    const outputDuration = await readVideoDuration(trimmedBlob);
+    const selectedDuration = actualEnd - actualStart;
+    if (Math.abs(outputDuration - selectedDuration) > 1.5) {
+      throw new Error("The trimmed video did not match the selected duration.");
+    }
+    if (outputDuration > MAX_TRIM_DURATION_SECONDS + 0.5) {
+      throw new Error("The encoded clip exceeded 60 seconds. Trim a shorter section.");
+    }
+
+    const extension = mimeType.includes("mp4") ? "mp4" : "webm";
     return new File(
       [trimmedBlob],
       `${videoFile.name.replace(/\.[^.]+$/, "")}-trimmed.${extension}`,
-      { type: trimmedBlob.type || "video/webm" },
+      { type: trimmedBlob.type || mimeType },
     );
   } finally {
+    capturedStream?.getTracks().forEach((track) => track.stop());
+    video.pause();
+    video.src = "";
     URL.revokeObjectURL(sourceUrl);
   }
 };
 
 const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
   const [videoDuration, setVideoDuration] = useState(0);
   const [startTime, setStartTime] = useState(0);
   const [endTime, setEndTime] = useState(0);
@@ -156,7 +224,7 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
     video.src = url;
 
     const handleLoadedMetadata = () => {
-      const duration = Math.ceil(video.duration);
+      const duration = video.duration;
       setVideoDuration(duration);
       const end = Math.min(duration, MAX_TRIM_DURATION_SECONDS);
       setStartTime(0);
@@ -169,31 +237,6 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
       URL.revokeObjectURL(url);
     };
   }, [videoFile]);
-
-  useEffect(() => {
-    if (!videoRef.current || !canvasRef.current) return;
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-
-    if (!ctx) return;
-
-    const updateCanvas = () => {
-      if (video.readyState >= 2) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      }
-    };
-
-    video.addEventListener("seeked", updateCanvas);
-    video.addEventListener("timeupdate", updateCanvas);
-    updateCanvas();
-
-    return () => {
-      video.removeEventListener("seeked", updateCanvas);
-      video.removeEventListener("timeupdate", updateCanvas);
-    };
-  }, []);
 
   useEffect(() => {
     if (!videoRef.current) return;
@@ -223,6 +266,8 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
     return () => video.removeEventListener("timeupdate", updatePlayback);
   }, [isPlaying, startTime, endTime]);
 
+  const minimumSelectionLength = Math.min(1, videoDuration);
+
   const handleTimelineClick = (e) => {
     if (!containerRef.current) return;
 
@@ -239,6 +284,49 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
     }
   };
 
+  const handleSliderKeyDown = (handle) => (event) => {
+    const increments = {
+      ArrowLeft: -1,
+      ArrowDown: -1,
+      ArrowRight: 1,
+      ArrowUp: 1,
+    };
+    const increment = increments[event.key];
+    if (increment === undefined && event.key !== "Home" && event.key !== "End") {
+      return;
+    }
+    event.preventDefault();
+
+    if (handle === "start") {
+      const requestedTime =
+        event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? endTime - minimumSelectionLength
+            : startTime + increment * (event.shiftKey ? 5 : 1);
+      const nextTime = Math.max(
+        0,
+        Math.min(requestedTime, endTime - minimumSelectionLength),
+      );
+      setStartTime(nextTime);
+      if (videoRef.current) videoRef.current.currentTime = nextTime;
+      return;
+    }
+
+    const requestedTime =
+      event.key === "Home"
+        ? startTime + minimumSelectionLength
+        : event.key === "End"
+          ? videoDuration
+          : endTime + increment * (event.shiftKey ? 5 : 1);
+    const nextTime = Math.max(
+      startTime + minimumSelectionLength,
+      Math.min(requestedTime, videoDuration),
+    );
+    setEndTime(nextTime);
+    if (videoRef.current) videoRef.current.currentTime = nextTime;
+  };
+
   const handleMouseDown = useCallback(
     (handle) => (e) => {
       e.preventDefault();
@@ -253,13 +341,13 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
         const time = percentage * videoDuration;
 
         if (draggedHandle.current === "start") {
-          const newStart = Math.min(time, endTime - 1);
+          const newStart = Math.min(time, endTime - minimumSelectionLength);
           setStartTime(Math.max(0, newStart));
           if (videoRef.current) {
             videoRef.current.currentTime = newStart;
           }
         } else if (draggedHandle.current === "end") {
-          const newEnd = Math.max(time, startTime + 1);
+          const newEnd = Math.max(time, startTime + minimumSelectionLength);
           setEndTime(Math.min(videoDuration, newEnd));
           if (videoRef.current) {
             videoRef.current.currentTime = newEnd;
@@ -276,7 +364,7 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     },
-    [endTime, startTime, videoDuration],
+    [endTime, minimumSelectionLength, startTime, videoDuration],
   );
 
   const handleTouchStart = useCallback(
@@ -293,10 +381,10 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
         const time = percentage * videoDuration;
 
         if (draggedHandle.current === "start") {
-          const newStart = Math.min(time, endTime - 1);
+          const newStart = Math.min(time, endTime - minimumSelectionLength);
           setStartTime(Math.max(0, newStart));
         } else if (draggedHandle.current === "end") {
-          const newEnd = Math.max(time, startTime + 1);
+          const newEnd = Math.max(time, startTime + minimumSelectionLength);
           setEndTime(Math.min(videoDuration, newEnd));
         }
       };
@@ -310,7 +398,7 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
       document.addEventListener("touchmove", handleTouchMove);
       document.addEventListener("touchend", handleTouchEnd);
     },
-    [endTime, startTime, videoDuration],
+    [endTime, minimumSelectionLength, startTime, videoDuration],
   );
 
   const formatTime = (seconds) => {
@@ -320,6 +408,15 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
   };
 
   const selectedDuration = Math.round((endTime - startTime) * 10) / 10;
+
+  const resetTrim = () => {
+    const resetEnd = Math.min(videoDuration, MAX_TRIM_DURATION_SECONDS);
+    setStartTime(0);
+    setEndTime(resetEnd);
+    setIsPlaying(false);
+    setError("");
+    if (videoRef.current) videoRef.current.currentTime = 0;
+  };
 
   const handleTrimAndContinue = async () => {
     if (selectedDuration > MAX_TRIM_DURATION_SECONDS) {
@@ -340,8 +437,8 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
     }
   };
 
-  const startPercentage = (startTime / videoDuration) * 100;
-  const endPercentage = (endTime / videoDuration) * 100;
+  const startPercentage = videoDuration ? (startTime / videoDuration) * 100 : 0;
+  const endPercentage = videoDuration ? (endTime / videoDuration) * 100 : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3">
@@ -363,21 +460,13 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
 
         {/* Video Preview */}
         <div className="flex-1 flex items-center justify-center bg-black p-2">
-          <canvas
-            ref={canvasRef}
-            width={320}
-            height={480}
-            className="max-h-full max-w-full rounded"
+          <video
+            ref={videoRef}
+            className="max-h-full max-w-full rounded object-contain"
+            playsInline
+            preload="metadata"
           />
         </div>
-
-        {/* Hidden video element */}
-        <video
-          ref={videoRef}
-          className="hidden"
-          playsInline
-          crossOrigin="anonymous"
-        />
 
         {/* Duration Info */}
         <div className="flex flex-col gap-3 px-4 py-3 border-b border-base-300">
@@ -411,7 +500,7 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
 
             {/* Start handle */}
             <div
-              className="absolute size-8 -translate-x-1/2 cursor-grab active:cursor-grabbing rounded-full bg-primary shadow-lg"
+              className="absolute size-8 -translate-x-1/2 cursor-grab rounded-full bg-primary shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-base-content"
               style={{
                 left: `${startPercentage}%`,
                 top: "50%",
@@ -419,7 +508,9 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
               }}
               onMouseDown={handleMouseDown("start")}
               onTouchStart={handleTouchStart("start")}
+              onKeyDown={handleSliderKeyDown("start")}
               role="slider"
+              tabIndex={0}
               aria-label="Trim start"
               aria-valuemin="0"
               aria-valuemax={videoDuration}
@@ -428,7 +519,7 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
 
             {/* End handle */}
             <div
-              className="absolute size-8 -translate-x-1/2 cursor-grab active:cursor-grabbing rounded-full bg-primary shadow-lg"
+              className="absolute size-8 -translate-x-1/2 cursor-grab rounded-full bg-primary shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-base-content"
               style={{
                 left: `${endPercentage}%`,
                 top: "50%",
@@ -436,7 +527,9 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
               }}
               onMouseDown={handleMouseDown("end")}
               onTouchStart={handleTouchStart("end")}
+              onKeyDown={handleSliderKeyDown("end")}
               role="slider"
+              tabIndex={0}
               aria-label="Trim end"
               aria-valuemin="0"
               aria-valuemax={videoDuration}
@@ -458,8 +551,12 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
             disabled={isTrimming}
             className="btn btn-sm btn-primary gap-2"
           >
-            <Play className="size-4" />
-            {isPlaying ? "Playing..." : "Preview"}
+            {isPlaying ? (
+              <Pause className="size-4" />
+            ) : (
+              <Play className="size-4" />
+            )}
+            {isPlaying ? "Pause preview" : "Preview selected section"}
           </button>
         </div>
 
@@ -469,7 +566,7 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-2 px-4 py-3">
+        <div className="flex flex-wrap gap-2 px-4 py-3">
           <button
             type="button"
             onClick={onCancel}
@@ -478,6 +575,16 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
           >
             <X className="size-4" />
             Cancel
+          </button>
+          <button
+            type="button"
+            onClick={resetTrim}
+            disabled={isTrimming}
+            className="btn btn-ghost"
+            aria-label="Reset trim selection"
+          >
+            <RotateCcw className="size-4" />
+            Reset
           </button>
           <button
             type="button"

@@ -42,8 +42,13 @@ export const getStories = async () => {
   return res.data;
 };
 
-export const createStory = async (mediaUrl, mediaType = "image") => {
-  const res = await axiosInstance.post("/stories", { mediaUrl, mediaType });
+export const createStory = async (mediaUrl, mediaType = "image", text = "") => {
+  const caption = typeof text === "string" ? text.trim() : "";
+  const res = await axiosInstance.post("/stories", {
+    mediaUrl,
+    mediaType,
+    ...(caption ? { text: caption } : {}),
+  });
   return res.data;
 };
 
@@ -353,10 +358,25 @@ export async function syncStreamUsers(users) {
   }
 }
 
-export async function translateMessage({ messageId, text, targetLanguage }) {
+export async function getTranslationLanguages() {
+  const res = await axiosInstance.get("/translation/languages");
+  return res.data;
+}
+
+export async function translateMessage({ text, targetLanguage }) {
   const res = await axiosInstance.post(
-    `/chat/messages/${encodeURIComponent(messageId)}/translate`,
+    "/translation/text",
     { text, targetLanguage },
+    { timeout: 25000 },
+  );
+  return res.data;
+}
+
+export async function transcribeVoiceNote({ messageId }) {
+  const res = await axiosInstance.post(
+    "/translation/voice/transcribe",
+    { messageId },
+    { timeout: 90000 },
   );
   return res.data;
 }

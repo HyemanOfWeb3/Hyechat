@@ -4,10 +4,10 @@ import { ImagePlus } from "lucide-react";
 import { createStory, getStories } from "../../lib/api.js";
 import useAuthUser from "../../hooks/useAuthUser.js";
 import StoryViewer from "./StoryViewer.jsx";
+import StoryMediaComposer from "./StoryMediaComposer.jsx";
 import VideoTrimEditor from "./VideoTrimEditor.jsx";
 
 const MAX_STORY_SIZE = 10 * 1024 * 1024;
-const MAX_VIDEO_DURATION_SECONDS = 60;
 
 const getUserId = (user) => {
   if (!user) return "";
@@ -37,6 +37,11 @@ const StoriesBar = ({ chatClient }) => {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [viewerGroupIndex, setViewerGroupIndex] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectionVersion, setSelectionVersion] = useState(0);
+  const [originalVideo, setOriginalVideo] = useState(null);
+  const [caption, setCaption] = useState("");
+  const [isTrimmed, setIsTrimmed] = useState(false);
   const [videoToTrim, setVideoToTrim] = useState(null);
   const [isTrimEditorOpen, setIsTrimEditorOpen] = useState(false);
 
@@ -126,22 +131,23 @@ const StoriesBar = ({ chatClient }) => {
   };
 
   const handleTrimComplete = (trimmedFile) => {
-    // Close trim editor and upload the trimmed video
     setIsTrimEditorOpen(false);
-    setVideoToTrim(null);
-    createStoryMutation(trimmedFile);
+    setSelectedFile(trimmedFile);
+    setSelectionVersion((version) => version + 1);
+    setIsTrimmed(true);
   };
 
   const handleTrimCancel = () => {
     setIsTrimEditorOpen(false);
-    setVideoToTrim(null);
-    setErrorMessage("");
   };
 
   const { mutate: createStoryMutation, isPending } = useMutation({
-    mutationFn: async (file) => {
+    mutationFn: async ({ file, text }) => {
       if (!chatClient)
         throw new Error("Chat is still loading. Please try again.");
+      if (!file || !file.size) throw new Error("Choose a non-empty media file.");
+      if (file.size > MAX_STORY_SIZE)
+        throw new Error("Stories must be smaller than 10 MB.");
 
       const isVideo = file.type.startsWith("video/");
       const uploadResponse = await chatClient.uploadFile(
@@ -156,12 +162,21 @@ const StoriesBar = ({ chatClient }) => {
         );
       }
 
-      return createStory(uploadResponse.file, isVideo ? "video" : "image");
+      return createStory(
+        uploadResponse.file,
+        isVideo ? "video" : "image",
+        text,
+      );
     },
     onSuccess: async () => {
       setErrorMessage("");
       setSuccessMessage("Your Story is live for 24 hours.");
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      setSelectedFile(null);
+      setSelectionVersion((version) => version + 1);
+      setOriginalVideo(null);
+      setVideoToTrim(null);
+      setCaption("");
+      setIsTrimmed(false);
       await queryClient.invalidateQueries({ queryKey: ["stories"] });
     },
     onError: (error) => {
@@ -176,33 +191,33 @@ const StoriesBar = ({ chatClient }) => {
 
   const validateVideoDuration = (file) => {
     return new Promise((resolve, reject) => {
-      if (!file.type.startsWith("video/")) {
-        resolve({ duration: 0 });
-        return;
-      }
-
       const video = document.createElement("video");
       video.preload = "metadata";
+      const url = URL.createObjectURL(file);
 
       video.onloadedmetadata = () => {
-        window.URL.revokeObjectURL(video.src);
-        const durationSeconds = Math.ceil(video.duration);
-        resolve({ duration: durationSeconds });
+        URL.revokeObjectURL(url);
+        if (!Number.isFinite(video.duration) || video.duration <= 0) {
+          reject(new Error("This video has an invalid duration."));
+          return;
+        }
+        resolve(video.duration);
       };
 
       video.onerror = () => {
-        window.URL.revokeObjectURL(video.src);
+        URL.revokeObjectURL(url);
         reject(
           new Error("Unable to load video. Please check the file format."),
         );
       };
 
-      video.src = URL.createObjectURL(file);
+      video.src = url;
     });
   };
 
-  const handleFileChange = (event) => {
+  const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
+    event.target.value = "";
     setErrorMessage("");
     setSuccessMessage("");
 
@@ -211,34 +226,56 @@ const StoriesBar = ({ chatClient }) => {
       setErrorMessage("Please select an image or video file.");
       return;
     }
+    if (!file.size) {
+      setErrorMessage("The selected file is empty. Choose another file.");
+      return;
+    }
     if (file.size > MAX_STORY_SIZE) {
       setErrorMessage("Stories must be smaller than 10 MB.");
       return;
     }
 
-    // For images, proceed directly
-    if (file.type.startsWith("image/")) {
-      createStoryMutation(file);
-      return;
+    if (file.type.startsWith("video/")) {
+      try {
+        await validateVideoDuration(file);
+      } catch (error) {
+        setErrorMessage(error.message);
+        return;
+      }
+      setOriginalVideo(file);
+      setVideoToTrim(file);
+    } else {
+      setOriginalVideo(null);
+      setVideoToTrim(null);
     }
 
-    // For videos, validate duration and possibly open trim editor
-    validateVideoDuration(file)
-      .then((isValid) => {
-        // isValid contains the duration info if needed
-        // For videos > 60s, check if we need to open trim editor
-        if (isValid.duration > MAX_VIDEO_DURATION_SECONDS) {
-          // Open trim editor
-          setVideoToTrim(file);
-          setIsTrimEditorOpen(true);
-        } else {
-          // Proceed with normal upload
-          createStoryMutation(file);
-        }
-      })
-      .catch((error) => {
-        setErrorMessage(error.message);
-      });
+    setSelectedFile(file);
+    setSelectionVersion((version) => version + 1);
+    setCaption("");
+    setIsTrimmed(false);
+  };
+
+  const openFilePicker = () => fileInputRef.current?.click();
+  const cancelComposer = () => {
+    if (isPending) return;
+    setSelectedFile(null);
+    setSelectionVersion((version) => version + 1);
+    setOriginalVideo(null);
+    setVideoToTrim(null);
+    setCaption("");
+    setIsTrimmed(false);
+    setErrorMessage("");
+  };
+  const resetTrim = () => {
+    if (!originalVideo) return;
+    setSelectedFile(originalVideo);
+    setSelectionVersion((version) => version + 1);
+    setIsTrimmed(false);
+  };
+  const postStory = () => {
+    if (!selectedFile || isPending) return;
+    setErrorMessage("");
+    createStoryMutation({ file: selectedFile, text: caption });
   };
 
   const ownAvatar = authUser?.profilePic;
@@ -254,6 +291,15 @@ const StoriesBar = ({ chatClient }) => {
 
   return (
     <div className="rounded-xl border border-base-300 bg-base-200/50 p-4">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        onChange={handleFileChange}
+        className="hidden"
+        disabled={isPending || !chatClient}
+        aria-label="Select Story image or video"
+      />
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Stories</h2>
@@ -299,7 +345,13 @@ const StoriesBar = ({ chatClient }) => {
                 )}
               </button>
             ) : (
-              <label className="block size-full cursor-pointer overflow-hidden rounded-full bg-base-300">
+              <button
+                type="button"
+                onClick={openFilePicker}
+                disabled={isPending || !chatClient}
+                className="block size-full overflow-hidden rounded-full bg-base-300 disabled:cursor-not-allowed disabled:opacity-60"
+                aria-label="Add a Story"
+              >
                 {ownStoryImage ? (
                   <img
                     src={ownStoryImage}
@@ -311,15 +363,7 @@ const StoriesBar = ({ chatClient }) => {
                     {getUserName(authUser, "You").charAt(0).toUpperCase()}
                   </div>
                 )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*,video/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                  disabled={isPending || !chatClient}
-                />
-              </label>
+              </button>
             )}
             {!ownGroup && (
               <span className="absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-full border-2 border-base-200 bg-primary text-primary-content">
@@ -331,17 +375,14 @@ const StoriesBar = ({ chatClient }) => {
             Your Story
           </span>
           {ownGroup && (
-            <label className="cursor-pointer text-[10px] text-primary hover:underline">
+            <button
+              type="button"
+              onClick={openFilePicker}
+              disabled={isPending || !chatClient}
+              className="text-[10px] text-primary hover:underline disabled:opacity-50"
+            >
               Add another
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,video/*"
-                onChange={handleFileChange}
-                className="hidden"
-                disabled={isPending || !chatClient}
-              />
-            </label>
+            </button>
           )}
         </div>
 
@@ -400,12 +441,7 @@ const StoriesBar = ({ chatClient }) => {
         })}
       </div>
 
-      {isPending && (
-        <p className="mt-3 text-sm opacity-70">
-          Uploading and creating Story...
-        </p>
-      )}
-      {errorMessage && (
+      {errorMessage && !selectedFile && (
         <p className="mt-3 text-sm text-error">{errorMessage}</p>
       )}
       {successMessage && (
@@ -431,6 +467,23 @@ const StoriesBar = ({ chatClient }) => {
           onStoryDeleted={removeStoryFromCache}
           onStoryUnavailable={handleStoryUnavailable}
           onClose={() => setViewerGroupIndex(null)}
+        />
+      )}
+
+      {selectedFile && (
+        <StoryMediaComposer
+          key={selectionVersion}
+          file={selectedFile}
+          caption={caption}
+          onCaptionChange={setCaption}
+          onCancel={cancelComposer}
+          onReplace={openFilePicker}
+          onResetTrim={resetTrim}
+          onTrim={() => setIsTrimEditorOpen(true)}
+          onSubmit={postStory}
+          isSubmitting={isPending}
+          isTrimmed={isTrimmed}
+          error={errorMessage}
         />
       )}
 

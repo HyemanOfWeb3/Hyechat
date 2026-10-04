@@ -11,6 +11,7 @@ import notificationRoutes from "./routes/notification.route.js";
 import streamWebhookRoutes from "./routes/streamWebhook.route.js";
 import communityRoutes from "./routes/community.route.js";
 import callHistoryRoutes from "./routes/callHistory.route.js";
+import translationRoutes from "./routes/translation.route.js";
 
 const app = express();
 const allowedOrigins = (process.env.CLIENT_URL || "")
@@ -44,6 +45,7 @@ app.use(cookieParser());
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/translation", translationRoutes);
 app.use("/api/stories", storyRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/communities", communityRoutes);

@@ -41,6 +41,13 @@ const isValidStreamImageUrl = (mediaUrl) => {
 
 export async function createStory(req, res) {
   const { mediaUrl, mediaType } = req.body || {};
+  const caption = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+
+  if (caption.length > 500) {
+    return res.status(400).json({
+      message: "Story captions must be 500 characters or fewer",
+    });
+  }
 
   if (!mediaUrl) {
     return res.status(400).json({ message: "Story media URL is required" });
@@ -62,6 +69,7 @@ export async function createStory(req, res) {
       user: req.user._id,
       mediaUrl: mediaUrl.trim(),
       mediaType,
+      ...(caption ? { text: caption } : {}),
       createdAt,
       expiresAt: new Date(createdAt.getTime() + STORY_LIFETIME_MS),
       viewers: [],

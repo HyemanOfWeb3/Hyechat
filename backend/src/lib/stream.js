@@ -51,6 +51,14 @@ export const deleteStreamImage = async (imageUrl) => {
   return streamClient.deleteImage(imageUrl);
 };
 
+export const getStreamMessage = async (messageId) => {
+  const response = await streamClient.getMessage(messageId);
+  return response.message;
+};
+
+export const getStreamChannel = (channelType, channelId) =>
+  streamClient.channel(channelType, channelId);
+
 export const createCommunityChannel = async ({
   channelId,
   ownerId,

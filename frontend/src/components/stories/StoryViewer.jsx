@@ -713,6 +713,12 @@ const StoryViewer = ({
             />
           )}
 
+          {currentStory.text?.trim() && (
+            <p className="pointer-events-none absolute bottom-4 left-1/2 z-10 max-h-32 w-[calc(100%-5rem)] -translate-x-1/2 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-black/60 px-3 py-2 text-center text-sm text-white shadow-lg sm:bottom-6 sm:max-h-40 sm:text-base">
+              {currentStory.text}
+            </p>
+          )}
+
           <button
             type="button"
             onClick={moveToPrevious}

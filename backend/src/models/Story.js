@@ -17,6 +17,11 @@ const storySchema = new mongoose.Schema(
       required: true,
       enum: ["image", "video"],
     },
+    text: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+    },
     viewers: [
       {
         type: mongoose.Schema.Types.ObjectId,
