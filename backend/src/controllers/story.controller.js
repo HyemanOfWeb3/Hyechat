@@ -41,7 +41,8 @@ const isValidStreamImageUrl = (mediaUrl) => {
 
 export async function createStory(req, res) {
   const { mediaUrl, mediaType } = req.body || {};
-  const caption = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+  const caption =
+    typeof req.body?.text === "string" ? req.body.text.trim() : "";
 
   if (caption.length > 500) {
     return res.status(400).json({

@@ -117,7 +117,9 @@ const mapProviderError = (error, stage) => {
   const code = Number(error?.code);
   if (code === 7 || code === 16) {
     return new TranslationServiceError(
-      stage === "speech" ? "SPEECH_NOT_CONFIGURED" : "TRANSLATION_NOT_CONFIGURED",
+      stage === "speech"
+        ? "SPEECH_NOT_CONFIGURED"
+        : "TRANSLATION_NOT_CONFIGURED",
       503,
       "Google Cloud translation is unavailable. Check the server's Google Cloud service configuration.",
     );
@@ -165,8 +167,7 @@ export const getSupportedTranslationLanguages = async () => {
   try {
     const client = getTranslationClient();
     const projectId =
-      process.env.GOOGLE_CLOUD_PROJECT ||
-      getGoogleClientOptions().projectId;
+      process.env.GOOGLE_CLOUD_PROJECT || getGoogleClientOptions().projectId;
     const [response] = await client.getSupportedLanguages({
       parent: `projects/${projectId}/locations/global`,
       displayLanguageCode: "en",
@@ -200,7 +201,12 @@ export const resolveTranslationLanguage = async (value) => {
     const override = [...googleLanguageOverrides.values()].find(
       (candidate) => candidate.code.toLowerCase() === requestedCode,
     );
-    if (override && languages.some((candidate) => candidate.code.toLowerCase() === requestedCode)) {
+    if (
+      override &&
+      languages.some(
+        (candidate) => candidate.code.toLowerCase() === requestedCode,
+      )
+    ) {
       return override;
     }
     throw new TranslationServiceError(
@@ -214,7 +220,8 @@ export const resolveTranslationLanguage = async (value) => {
 };
 
 export const mapProfileLanguageToGoogleCode = async (profileLanguage) => {
-  if (typeof profileLanguage !== "string" || !profileLanguage.trim()) return null;
+  if (typeof profileLanguage !== "string" || !profileLanguage.trim())
+    return null;
   const normalized = profileLanguage.trim().toLowerCase();
   const languages = await getSupportedTranslationLanguages();
   const directMatch = languages.find(
@@ -223,7 +230,10 @@ export const mapProfileLanguageToGoogleCode = async (profileLanguage) => {
   if (directMatch) return directMatch.code;
 
   const override = googleLanguageOverrides.get(normalized);
-  if (override && languages.some((language) => language.code === override.code)) {
+  if (
+    override &&
+    languages.some((language) => language.code === override.code)
+  ) {
     return override.code;
   }
 
@@ -237,8 +247,10 @@ export const mapProfileLanguageToGoogleCode = async (profileLanguage) => {
 export const mapProfileLanguageToSpeechCode = async (profileLanguage) => {
   const translationCode = await mapProfileLanguageToGoogleCode(profileLanguage);
   if (!translationCode) return null;
-  return speechLanguageOverrides.get(translationCode.toLowerCase()) ||
-    (translationCode.includes("-") ? translationCode : null);
+  return (
+    speechLanguageOverrides.get(translationCode.toLowerCase()) ||
+    (translationCode.includes("-") ? translationCode : null)
+  );
 };
 
 export const translateText = async (text, targetLanguage) => {
@@ -261,15 +273,15 @@ export const translateText = async (text, targetLanguage) => {
   try {
     const client = getTranslationClient();
     const projectId =
-      process.env.GOOGLE_CLOUD_PROJECT ||
-      getGoogleClientOptions().projectId;
+      process.env.GOOGLE_CLOUD_PROJECT || getGoogleClientOptions().projectId;
     const [translation] = await client.translateText({
       parent: `projects/${projectId}/locations/global`,
       contents: [text],
       targetLanguageCode: language.code,
       mimeType: "text/plain",
     });
-    const translatedText = translation.translations?.[0]?.translatedText?.trim();
+    const translatedText =
+      translation.translations?.[0]?.translatedText?.trim();
     if (!translatedText) {
       throw new TranslationServiceError(
         "TRANSLATION_FAILED",
@@ -305,8 +317,7 @@ export const transcribeAudio = async ({ audio, languageCodes }) => {
   try {
     const client = getSpeechClient();
     const projectId =
-      process.env.GOOGLE_CLOUD_PROJECT ||
-      getGoogleClientOptions().projectId;
+      process.env.GOOGLE_CLOUD_PROJECT || getGoogleClientOptions().projectId;
     if (!projectId) {
       throw new TranslationServiceError(
         "SPEECH_NOT_CONFIGURED",
@@ -330,8 +341,9 @@ export const transcribeAudio = async ({ audio, languageCodes }) => {
       .map((result) => result.alternatives?.[0]?.transcript?.trim())
       .filter(Boolean)
       .join(" ");
-    const sourceLanguage = results.find((result) => result.languageCode)
-      ?.languageCode;
+    const sourceLanguage = results.find(
+      (result) => result.languageCode,
+    )?.languageCode;
 
     if (!transcript) {
       throw new TranslationServiceError(

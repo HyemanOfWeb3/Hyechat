@@ -41,6 +41,7 @@ import ChatLoader from "../components/ChatLoader.jsx";
 import CallButton from "../components/CallButton.jsx";
 import HyeChatCallCard from "../components/HyeChatCallCard.jsx";
 import MediaViewer from "../components/MediaViewer.jsx";
+import ChatImageGalleryUI from "../components/ChatImageGalleryUI.jsx";
 import { getHyeChatCallDetails } from "../lib/hyeChatCall.js";
 import StoryReplyPreview from "../components/stories/StoryReplyPreview.jsx";
 import VoiceNoteTranslation from "../components/VoiceNoteTranslation.jsx";
@@ -148,28 +149,39 @@ const getTranslationErrorMessage = (error) => {
   const code = error?.response?.data?.code;
   const status = error?.response?.status;
 
-  if (status === 401) return "Your session expired. Sign in again to translate.";
-  if (code === "MISSING_LANGUAGE") return "Set your preferred language in your profile before translating.";
-  if (code === "UNSUPPORTED_LANGUAGE") return "Choose another supported language.";
-  if (code === "TRANSLATION_NOT_CONFIGURED") return "Google Cloud Translation is not configured on this server.";
-  if (code === "PROVIDER_NOT_CONFIGURED") return "Google Cloud translation is unavailable. Check the server configuration.";
+  if (status === 401)
+    return "Your session expired. Sign in again to translate.";
+  if (code === "MISSING_LANGUAGE")
+    return "Set your preferred language in your profile before translating.";
+  if (code === "UNSUPPORTED_LANGUAGE")
+    return "Choose another supported language.";
+  if (code === "TRANSLATION_NOT_CONFIGURED")
+    return "Google Cloud Translation is not configured on this server.";
+  if (code === "PROVIDER_NOT_CONFIGURED")
+    return "Google Cloud translation is unavailable. Check the server configuration.";
   if (code === "RATE_LIMITED" || status === 429) {
     return "Translation is busy right now. Please wait and try again.";
   }
-  if (code === "INVALID_TEXT") return "There is no translatable text in this message.";
+  if (code === "INVALID_TEXT")
+    return "There is no translatable text in this message.";
   if (code === "TEXT_TOO_LONG" || status === 413) {
     return "This message is too long to translate.";
   }
   if (code === "TRANSLATION_FAILED" || status >= 500) {
     return "Translation service is currently unavailable.";
   }
-  if (!error?.response) return "Could not reach the translation service. Check your connection.";
+  if (!error?.response)
+    return "Could not reach the translation service. Check your connection.";
   return "This message could not be translated. Try again.";
 };
 
 const fingerprintTranslationText = (text) => {
   let hash = 2166136261;
-  for (let characterIndex = 0; characterIndex < text.length; characterIndex += 1) {
+  for (
+    let characterIndex = 0;
+    characterIndex < text.length;
+    characterIndex += 1
+  ) {
     hash = Math.imul(hash ^ text.charCodeAt(characterIndex), 16777619);
   }
   return `${text.length}:${hash >>> 0}`;
@@ -183,27 +195,31 @@ const StoryReplyMessage = ({ message: messageProp }) => {
     const mimeType = String(attachment?.mime_type || "").toLowerCase();
     return (
       mimeType.startsWith("audio/") ||
-      ["audio", "voice"].includes(String(attachment?.type || "").toLowerCase()) ||
+      ["audio", "voice"].includes(
+        String(attachment?.type || "").toLowerCase(),
+      ) ||
       /voice note/i.test(attachment?.title || "")
     );
   });
   const hasUnsupportedAttachment = (message?.attachments || []).some(
     (attachment) =>
       String(attachment?.type || "").toLowerCase() === "file" ||
-      String(attachment?.mime_type || "").toLowerCase().startsWith("application/"),
+      String(attachment?.mime_type || "")
+        .toLowerCase()
+        .startsWith("application/"),
   );
   const canTranslate = Boolean(
     message?.user?.id &&
-      message.type !== "system" &&
-      message.type !== "deleted" &&
-      message.type !== "error" &&
-      message.type !== "ephemeral" &&
-      !message.deleted_at &&
-      !callDetails &&
-      !hasAudioAttachment &&
-      !hasUnsupportedAttachment &&
-      typeof message.text === "string" &&
-      message.text.trim(),
+    message.type !== "system" &&
+    message.type !== "deleted" &&
+    message.type !== "error" &&
+    message.type !== "ephemeral" &&
+    !message.deleted_at &&
+    !callDetails &&
+    !hasAudioAttachment &&
+    !hasUnsupportedAttachment &&
+    typeof message.text === "string" &&
+    message.text.trim(),
   );
   const [selectedLanguage, setSelectedLanguage] = useState("");
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
@@ -232,13 +248,17 @@ const StoryReplyMessage = ({ message: messageProp }) => {
       fingerprintTranslationText(sourceText),
     ],
     queryFn: () => translateMessage({ text: sourceText, targetLanguage }),
-    enabled: canTranslate && Boolean(targetLanguage) && showingTranslationKey === cacheKey,
+    enabled:
+      canTranslate &&
+      Boolean(targetLanguage) &&
+      showingTranslationKey === cacheKey,
     retry: false,
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
   });
   const isShowingTranslation =
-    showingTranslationKey === cacheKey && Boolean(translationQuery.data?.translatedText);
+    showingTranslationKey === cacheKey &&
+    Boolean(translationQuery.data?.translatedText);
   const isTranslating =
     showingTranslationKey === cacheKey && translationQuery.isFetching;
   const translationError =
@@ -297,99 +317,113 @@ const StoryReplyMessage = ({ message: messageProp }) => {
       <div className="flex flex-col gap-1">
         <MessageUI />
         {canTranslate && (
-              <>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500">
-                  <button
-                    type="button"
-                    onClick={handleTranslate}
-                    disabled={isTranslating}
-                    className="inline-flex min-h-8 items-center rounded-full border border-slate-200 bg-white/70 px-2.5 py-1 hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+          <>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500">
+              <button
+                type="button"
+                onClick={handleTranslate}
+                disabled={isTranslating}
+                className="inline-flex min-h-8 items-center rounded-full border border-slate-200 bg-white/70 px-2.5 py-1 hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isTranslating
+                  ? "Translating..."
+                  : isShowingTranslation
+                    ? "Hide translation"
+                    : translationError
+                      ? "Try again"
+                      : "Translate"}
+              </button>
+              {(isShowingTranslation || translationError) && (
+                <button
+                  type="button"
+                  onClick={openLanguagePicker}
+                  className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 hover:bg-base-200"
+                  aria-label="Change translation language"
+                >
+                  <Languages className="size-3.5" />
+                  Change language
+                </button>
+              )}
+            </div>
+
+            {isLanguagePickerOpen && (
+              <div className="mt-2 flex max-w-sm flex-wrap items-end gap-2 rounded-lg border border-base-300 bg-base-100 p-2">
+                <label className="form-control min-w-40 flex-1">
+                  <span className="mb-1 text-[11px] font-medium text-base-content/70">
+                    Translate to
+                  </span>
+                  <select
+                    className="select select-bordered select-sm w-full"
+                    value={
+                      languages.some(
+                        (language) => language.code === targetLanguage,
+                      )
+                        ? targetLanguage
+                        : ""
+                    }
+                    onChange={(event) =>
+                      setSelectedLanguage(event.target.value)
+                    }
+                    disabled={languageQuery.isLoading || languageQuery.isError}
                   >
-                    {isTranslating
-                      ? "Translating..."
-                      : isShowingTranslation
-                        ? "Hide translation"
-                        : translationError
-                          ? "Try again"
-                          : "Translate"}
-                  </button>
-                  {(isShowingTranslation || translationError) && (
+                    <option value="">Choose a language</option>
+                    {languages.map((language) => (
+                      <option key={language.code} value={language.code}>
+                        {language.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={handleTranslateSelectedLanguage}
+                  disabled={
+                    !targetLanguage || isTranslating || languageQuery.isLoading
+                  }
+                >
+                  Translate
+                </button>
+                {languageQuery.isLoading && (
+                  <span
+                    className="loading loading-spinner loading-xs"
+                    aria-label="Loading languages"
+                  />
+                )}
+                {languageQuery.isError && (
+                  <span className="w-full text-xs text-error">
+                    {getTranslationErrorMessage(languageQuery.error)}
                     <button
                       type="button"
-                      onClick={openLanguagePicker}
-                      className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 hover:bg-base-200"
-                      aria-label="Change translation language"
+                      className="ml-1 underline"
+                      onClick={() => void languageQuery.refetch()}
                     >
-                      <Languages className="size-3.5" />
-                      Change language
+                      Retry
                     </button>
-                  )}
-                </div>
-
-                {isLanguagePickerOpen && (
-                  <div className="mt-2 flex max-w-sm flex-wrap items-end gap-2 rounded-lg border border-base-300 bg-base-100 p-2">
-                    <label className="form-control min-w-40 flex-1">
-                      <span className="mb-1 text-[11px] font-medium text-base-content/70">
-                        Translate to
-                      </span>
-                      <select
-                        className="select select-bordered select-sm w-full"
-                        value={languages.some((language) => language.code === targetLanguage) ? targetLanguage : ""}
-                        onChange={(event) => setSelectedLanguage(event.target.value)}
-                        disabled={languageQuery.isLoading || languageQuery.isError}
-                      >
-                        <option value="">Choose a language</option>
-                        {languages.map((language) => (
-                          <option key={language.code} value={language.code}>
-                            {language.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      onClick={handleTranslateSelectedLanguage}
-                      disabled={!targetLanguage || isTranslating || languageQuery.isLoading}
-                    >
-                      Translate
-                    </button>
-                    {languageQuery.isLoading && (
-                      <span className="loading loading-spinner loading-xs" aria-label="Loading languages" />
-                    )}
-                    {languageQuery.isError && (
-                      <span className="w-full text-xs text-error">
-                        {getTranslationErrorMessage(languageQuery.error)}
-                        <button
-                          type="button"
-                          className="ml-1 underline"
-                          onClick={() => void languageQuery.refetch()}
-                        >
-                          Retry
-                        </button>
-                      </span>
-                    )}
-                  </div>
+                  </span>
                 )}
-
-                {translationError && (
-                  <p role="status" className="mt-1 text-xs text-error">
-                    {translationError}
-                  </p>
-                )}
-
-                {isShowingTranslation && (
-                  <div className="mt-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-slate-700 shadow-sm">
-                    <p className="mb-1 text-[10px] font-semibold text-sky-700">
-                      Translated to: {translationQuery.data.targetLanguageName || targetLanguage}
-                    </p>
-                    <p className="whitespace-pre-wrap break-words">
-                      {translationQuery.data.translatedText}
-                    </p>
-                  </div>
-                )}
-              </>
+              </div>
             )}
+
+            {translationError && (
+              <p role="status" className="mt-1 text-xs text-error">
+                {translationError}
+              </p>
+            )}
+
+            {isShowingTranslation && (
+              <div className="mt-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-slate-700 shadow-sm">
+                <p className="mb-1 text-[10px] font-semibold text-sky-700">
+                  Translated to:{" "}
+                  {translationQuery.data.targetLanguageName || targetLanguage}
+                </p>
+                <p className="whitespace-pre-wrap break-words">
+                  {translationQuery.data.translatedText}
+                </p>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -439,7 +473,8 @@ const ChatAttachmentRenderer = ({ attachments = [], ...props }) => {
     const mimeType = String(attachment?.mime_type || "").toLowerCase();
     return (
       mimeType.startsWith("audio/") &&
-      (attachment?.type === "audio" || /voice note/i.test(attachment?.title || ""))
+      (attachment?.type === "audio" ||
+        /voice note/i.test(attachment?.title || ""))
     );
   });
   const voiceAttachmentSet = new Set(voiceAttachments);
@@ -499,7 +534,8 @@ const ChatAttachmentRenderer = ({ attachments = [], ...props }) => {
 const ChatPage = () => {
   const { id: targetUserId } = useParams();
   const navigate = useNavigate();
-  const normalizedTargetId = typeof targetUserId === "string" ? targetUserId.trim() : "";
+  const normalizedTargetId =
+    typeof targetUserId === "string" ? targetUserId.trim() : "";
 
   const [chatClient, setChatClient] = useState(null);
   const [channel, setChannel] = useState(null);
@@ -580,7 +616,12 @@ const ChatPage = () => {
       return;
     }
 
-    if (!authUser || !normalizedTargetId || normalizedTargetId === "undefined" || normalizedTargetId === "null") {
+    if (
+      !authUser ||
+      !normalizedTargetId ||
+      normalizedTargetId === "undefined" ||
+      normalizedTargetId === "null"
+    ) {
       setInitializationError("This chat is unavailable.");
       setLoading(false);
       return;
@@ -598,7 +639,8 @@ const ChatPage = () => {
         typeof normalizedTargetId === "string" &&
         (normalizedTargetId.startsWith("messaging:") ||
           normalizedTargetId.includes(":") ||
-          (normalizedTargetId.includes("-") && normalizedTargetId.length <= 64));
+          (normalizedTargetId.includes("-") &&
+            normalizedTargetId.length <= 64));
 
       const channelId = routeLooksLikeChannelId
         ? normalizedTargetId
@@ -638,7 +680,10 @@ const ChatPage = () => {
         : channelPeer
           ? {
               id: channelPeer.user_id,
-              name: channelPeer.user?.name || channelPeer.name || normalizedTargetId,
+              name:
+                channelPeer.user?.name ||
+                channelPeer.name ||
+                normalizedTargetId,
               image: channelPeer.user?.image || channelPeer.image || null,
             }
           : {
@@ -954,6 +999,7 @@ const ChatPage = () => {
           channel={channel}
           Message={StoryReplyMessage}
           components={{
+            GalleryUI: ChatImageGalleryUI,
             Attachment: (attachmentProps) => (
               <ChatAttachmentRenderer
                 {...attachmentProps}

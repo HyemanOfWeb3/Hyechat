@@ -32,8 +32,10 @@ const getTranslationErrorMessage = (error) => {
   if (code === "UNSUPPORTED_AUDIO_TYPE") {
     return "This voice note format cannot be transcribed.";
   }
-  if (code === "AUDIO_TOO_LARGE") return "This voice note is too large to translate.";
-  if (code === "AUDIO_TOO_LONG") return "This voice note is too long to translate.";
+  if (code === "AUDIO_TOO_LARGE")
+    return "This voice note is too large to translate.";
+  if (code === "AUDIO_TOO_LONG")
+    return "This voice note is too long to translate.";
   if (code === "TRANSCRIPTION_FAILED" || code === "INVALID_AUDIO") {
     return "Unable to transcribe this voice note.";
   }
@@ -46,7 +48,8 @@ const getTranslationErrorMessage = (error) => {
   if (code === "TRANSLATION_FAILED" || status >= 500) {
     return "Translation is temporarily unavailable. Please try again.";
   }
-  if (!error?.response) return "Could not reach translation. Check your connection.";
+  if (!error?.response)
+    return "Could not reach translation. Check your connection.";
   return "This voice note could not be translated.";
 };
 
@@ -143,7 +146,8 @@ const VoiceNoteTranslation = ({ message, attachment }) => {
                   ? "Retry translation"
                   : "Translate voice note"}
         </button>
-        {((transcript && translationQuery.data?.translatedText) || errorMessage) && (
+        {((transcript && translationQuery.data?.translatedText) ||
+          errorMessage) && (
           <button
             type="button"
             className="btn btn-ghost btn-sm min-h-9"
@@ -162,7 +166,11 @@ const VoiceNoteTranslation = ({ message, attachment }) => {
             <span className="mb-1 text-xs font-medium">Translate to</span>
             <select
               className="select select-bordered select-sm w-full"
-              value={languages.some((language) => language.code === targetLanguage) ? targetLanguage : ""}
+              value={
+                languages.some((language) => language.code === targetLanguage)
+                  ? targetLanguage
+                  : ""
+              }
               onChange={(event) => setSelectedLanguage(event.target.value)}
               disabled={languagesQuery.isLoading || languagesQuery.isError}
             >
@@ -183,7 +191,10 @@ const VoiceNoteTranslation = ({ message, attachment }) => {
             Translate
           </button>
           {languagesQuery.isLoading && (
-            <span className="loading loading-spinner loading-xs" aria-label="Loading languages" />
+            <span
+              className="loading loading-spinner loading-xs"
+              aria-label="Loading languages"
+            />
           )}
           {languagesQuery.isError && (
             <p className="w-full text-xs text-error">
@@ -224,7 +235,8 @@ const VoiceNoteTranslation = ({ message, attachment }) => {
           {isResultVisible && translationQuery.data?.translatedText && (
             <div className="border-t border-base-300 pt-2">
               <p className="mb-0.5 text-[11px] font-semibold text-primary">
-                Translated to: {translationQuery.data.targetLanguageName || targetLanguage}
+                Translated to:{" "}
+                {translationQuery.data.targetLanguageName || targetLanguage}
               </p>
               <p className="whitespace-pre-wrap break-words">
                 {translationQuery.data.translatedText}

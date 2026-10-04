@@ -119,7 +119,9 @@ const trimVideoToFile = async (videoFile, startTime, endTime) => {
       "video/mp4",
     ].find((type) => MediaRecorder.isTypeSupported(type));
     if (!mimeType) {
-      throw new Error("This browser does not provide a supported video encoder.");
+      throw new Error(
+        "This browser does not provide a supported video encoder.",
+      );
     }
 
     const recorder = new MediaRecorder(stream, { mimeType });
@@ -141,10 +143,13 @@ const trimVideoToFile = async (videoFile, startTime, endTime) => {
     }
 
     const trimmedBlob = await new Promise((resolve, reject) => {
-      const timeoutId = window.setTimeout(() => {
-        recorder.stop();
-        reject(new Error("Video trimming timed out. Try a shorter segment."));
-      }, Math.max(15000, (actualEnd - actualStart) * 1500 + 5000));
+      const timeoutId = window.setTimeout(
+        () => {
+          recorder.stop();
+          reject(new Error("Video trimming timed out. Try a shorter segment."));
+        },
+        Math.max(15000, (actualEnd - actualStart) * 1500 + 5000),
+      );
 
       recorder.onerror = () => {
         window.clearTimeout(timeoutId);
@@ -188,7 +193,9 @@ const trimVideoToFile = async (videoFile, startTime, endTime) => {
       throw new Error("The trimmed video did not match the selected duration.");
     }
     if (outputDuration > MAX_TRIM_DURATION_SECONDS + 0.5) {
-      throw new Error("The encoded clip exceeded 60 seconds. Trim a shorter section.");
+      throw new Error(
+        "The encoded clip exceeded 60 seconds. Trim a shorter section.",
+      );
     }
 
     const extension = mimeType.includes("mp4") ? "mp4" : "webm";
@@ -292,7 +299,11 @@ const VideoTrimEditor = ({ videoFile, onComplete, onCancel }) => {
       ArrowUp: 1,
     };
     const increment = increments[event.key];
-    if (increment === undefined && event.key !== "Home" && event.key !== "End") {
+    if (
+      increment === undefined &&
+      event.key !== "Home" &&
+      event.key !== "End"
+    ) {
       return;
     }
     event.preventDefault();

@@ -42,7 +42,8 @@ const errorResponse = (res, error) => {
   if (Number(error?.code) === 16 || Number(error?.code) === 7) {
     return res.status(503).json({
       code: "PROVIDER_NOT_CONFIGURED",
-      message: "Google Cloud translation is unavailable. Check the server configuration.",
+      message:
+        "Google Cloud translation is unavailable. Check the server configuration.",
     });
   }
 
@@ -62,7 +63,8 @@ const getUserTranslationTarget = async (user, requestedLanguage) => {
       "Set your preferred language in your profile before translating.",
     );
   }
-  const input = requestedLanguage || (await mapProfileLanguageToGoogleCode(preference));
+  const input =
+    requestedLanguage || (await mapProfileLanguageToGoogleCode(preference));
   if (!input) {
     throw new TranslationServiceError(
       "MISSING_LANGUAGE",
@@ -274,7 +276,8 @@ export async function transcribeVoiceRequest(req, res) {
       const mimeType = String(attachment?.mime_type || "").toLowerCase();
       return (
         (attachment?.type === "audio" || mimeType.startsWith("audio/")) &&
-        (/voice note/i.test(attachment?.title || "") || attachment?.type === "audio")
+        (/voice note/i.test(attachment?.title || "") ||
+          attachment?.type === "audio")
       );
     });
     const mediaUrl = audioAttachment?.asset_url || audioAttachment?.url;
@@ -284,7 +287,8 @@ export async function transcribeVoiceRequest(req, res) {
     if (!audioAttachment || !isAllowedStreamMediaUrl(mediaUrl)) {
       return res.status(400).json({
         code: "INVALID_AUDIO",
-        message: "This message does not contain a supported HyeChat voice note.",
+        message:
+          "This message does not contain a supported HyeChat voice note.",
       });
     }
     if (Number(audioAttachment.file_size) > MAX_AUDIO_BYTES) {
@@ -300,7 +304,9 @@ export async function transcribeVoiceRequest(req, res) {
       });
     }
 
-    const declaredDuration = Number(audioAttachment.duration || message.duration);
+    const declaredDuration = Number(
+      audioAttachment.duration || message.duration,
+    );
     if (
       Number.isFinite(declaredDuration) &&
       declaredDuration > getMaxAudioDurationSeconds()

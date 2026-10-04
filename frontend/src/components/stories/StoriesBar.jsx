@@ -145,7 +145,8 @@ const StoriesBar = ({ chatClient }) => {
     mutationFn: async ({ file, text }) => {
       if (!chatClient)
         throw new Error("Chat is still loading. Please try again.");
-      if (!file || !file.size) throw new Error("Choose a non-empty media file.");
+      if (!file || !file.size)
+        throw new Error("Choose a non-empty media file.");
       if (file.size > MAX_STORY_SIZE)
         throw new Error("Stories must be smaller than 10 MB.");
 

@@ -55,7 +55,9 @@ const StoryMediaComposer = ({
   const handleVideoMetadata = (event) => {
     const videoDuration = event.currentTarget.duration;
     if (!Number.isFinite(videoDuration) || videoDuration <= 0) {
-      setPreviewError("This video has an invalid duration and cannot be posted.");
+      setPreviewError(
+        "This video has an invalid duration and cannot be posted.",
+      );
       return;
     }
     setDuration(videoDuration);
@@ -113,7 +115,9 @@ const StoryMediaComposer = ({
                 onError={() => {
                   setPreviewReady(false);
                   setDuration(0);
-                  setPreviewError("Unable to read this video. Try another file.");
+                  setPreviewError(
+                    "Unable to read this video. Try another file.",
+                  );
                 }}
               />
             ) : (
@@ -123,8 +127,13 @@ const StoryMediaComposer = ({
                 alt="Selected Story preview"
                 className="max-h-[52dvh] max-w-full object-contain"
                 onLoad={(event) => {
-                  if (!event.currentTarget.naturalWidth || !event.currentTarget.naturalHeight) {
-                    setPreviewError("This image could not be read. Try another file.");
+                  if (
+                    !event.currentTarget.naturalWidth ||
+                    !event.currentTarget.naturalHeight
+                  ) {
+                    setPreviewError(
+                      "This image could not be read. Try another file.",
+                    );
                     return;
                   }
                   setPreviewReady(true);
@@ -132,7 +141,9 @@ const StoryMediaComposer = ({
                 onError={() => {
                   setPreviewReady(false);
                   setDuration(0);
-                  setPreviewError("Unable to read this image. Try another file.");
+                  setPreviewError(
+                    "Unable to read this image. Try another file.",
+                  );
                 }}
               />
             )}
@@ -155,7 +166,9 @@ const StoryMediaComposer = ({
                 >
                   <div
                     className="h-full bg-primary"
-                    style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+                    style={{
+                      width: `${duration ? (currentTime / duration) * 100 : 0}%`,
+                    }}
                   />
                 </div>
                 <p className="text-xs opacity-70">
@@ -206,7 +219,9 @@ const StoryMediaComposer = ({
               <textarea
                 value={caption}
                 onChange={(event) =>
-                  onCaptionChange(event.target.value.slice(0, MAX_CAPTION_LENGTH))
+                  onCaptionChange(
+                    event.target.value.slice(0, MAX_CAPTION_LENGTH),
+                  )
                 }
                 maxLength={MAX_CAPTION_LENGTH}
                 rows={5}
@@ -219,7 +234,9 @@ const StoryMediaComposer = ({
               </span>
             </label>
 
-            {previewError && <p className="text-sm text-error">{previewError}</p>}
+            {previewError && (
+              <p className="text-sm text-error">{previewError}</p>
+            )}
             {error && <p className="text-sm text-error">{error}</p>}
           </div>
         </div>

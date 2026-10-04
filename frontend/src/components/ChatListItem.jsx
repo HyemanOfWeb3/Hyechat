@@ -52,7 +52,9 @@ const ChatListItem = ({ channel, currentUserId, friendById }) => {
     typeof channelTargetId === "string" && channelTargetId.trim()
       ? channelTargetId.trim()
       : "";
-  const friend = safeChatTargetId ? friendById.get(userId || safeChatTargetId) : null;
+  const friend = safeChatTargetId
+    ? friendById.get(userId || safeChatTargetId)
+    : null;
   const name =
     (isCommunity ? channel.data?.name : null) ||
     friend?.fullName ||
