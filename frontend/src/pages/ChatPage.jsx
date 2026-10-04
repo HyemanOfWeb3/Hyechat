@@ -34,6 +34,7 @@ import {
   Window,
   useChannelActionContext,
   useChannelStateContext,
+  WithComponents,
   MessageUI,
   useMessageContext,
 } from "stream-chat-react";
@@ -998,16 +999,18 @@ const ChatPage = () => {
         <Channel
           channel={channel}
           Message={StoryReplyMessage}
-          components={{
-            GalleryUI: ChatImageGalleryUI,
-            Attachment: (attachmentProps) => (
-              <ChatAttachmentRenderer
-                {...attachmentProps}
-                onOpenMedia={setSelectedMedia}
-              />
-            ),
-          }}
         >
+          <WithComponents
+            overrides={{
+              GalleryUI: ChatImageGalleryUI,
+              Attachment: (attachmentProps) => (
+                <ChatAttachmentRenderer
+                  {...attachmentProps}
+                  onOpenMedia={setSelectedMedia}
+                />
+              ),
+            }}
+          >
           <AutoScrollToInitialMessage />
           <UnreadMessagesShortcut />
           <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden touch-pan-y">
@@ -1278,6 +1281,7 @@ const ChatPage = () => {
             </div>
           </div>
           <Thread />
+          </WithComponents>
         </Channel>
       </Chat>
       {selectedMedia && (
