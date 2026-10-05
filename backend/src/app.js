@@ -14,6 +14,8 @@ import callHistoryRoutes from "./routes/callHistory.route.js";
 import translationRoutes from "./routes/translation.route.js";
 
 const app = express();
+app.disable("x-powered-by");
+
 const allowedOrigins = (process.env.CLIENT_URL || "")
   .split(",")
   .map((origin) => origin.trim())
@@ -39,7 +41,8 @@ app.use(
   express.raw({ type: "application/json" }),
   streamWebhookRoutes,
 );
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);

@@ -1,5 +1,11 @@
 {
-  "type" : "module",
+  "name": "hyechat",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.20.0 <23",
+    "npm": ">=10.9.0"
+  },
   "dependencies": {
     "@tanstack/react-query": "^5.100.5",
     "lucide-react": "^1.11.0",
@@ -7,6 +13,8 @@
   },
   "scripts": {
     "build": "cd backend && npm install && cd ../frontend && npm install --include=dev && npm run build",
-    "start": "cd backend && npm start"
+    "start": "cd backend && npm start",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev"
   }
 }

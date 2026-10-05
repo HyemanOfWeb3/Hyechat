@@ -12,7 +12,8 @@
   "type": "module",
   "license": "ISC",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.20.0 <23",
+    "npm": ">=10.9.0"
   },
   "dependencies": {
     "@google-cloud/speech": "^7.5.0",
@@ -22,14 +23,22 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
-    "express": "^4.21.0",
+    "express": "^4.22.3",
     "express-rate-limit": "^8.6.2",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^7.0.0",
     "mongoose": "^8.13.2",
     "music-metadata": "^11.16.1",
-    "nodemailer": "^9.0.5",
-    "stream-chat": "^8.60.0"
+    "nodemailer": "^10.0.15",
+    "stream-chat": "^9.54.0"
+  },
+  "overrides": {
+    "axios": "^1.20.0",
+    "follow-redirects": "^1.16.1",
+    "form-data": "^4.0.6",
+    "http-cache-semantics": "^4.3.0",
+    "ip-address": "^10.7.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
