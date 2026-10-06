@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate, useParams } from "react-router";
 import useAuthUser from "../hooks/useAuthUser";
 import useStreamClient from "../hooks/useStreamClient";
@@ -21,6 +28,8 @@ import {
   Pause,
   ArrowLeft,
   Languages,
+  Copy,
+  Forward,
 } from "lucide-react";
 
 import {
@@ -72,6 +81,84 @@ const highlightText = (text, query) => {
       <span key={`${part}-${index}`}>{part}</span>
     );
   });
+};
+
+const ChatMessageActionContext = createContext({
+  onForwardMessage: () => {},
+});
+
+const ChatMessageSearchResults = ({
+  query,
+  results,
+  isSearching,
+  searchError,
+  onClose,
+}) => {
+  const { jumpToMessage } = useChannelActionContext();
+
+  const handleSelect = async (messageId) => {
+    try {
+      await jumpToMessage(messageId);
+      onClose();
+    } catch (error) {
+      console.error("Could not open searched message:", error);
+      toast.error("Could not open that message. Try again.");
+    }
+  };
+
+  return (
+    <div className="absolute inset-x-3 top-3 z-20 flex max-h-[70%] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <span>
+          {isSearching
+            ? "Searching messages..."
+            : `${results.length} result${results.length === 1 ? "" : "s"}`}
+        </span>
+        <button type="button" onClick={onClose} className="normal-case underline">
+          Close
+        </button>
+      </div>
+      <div className="overflow-y-auto px-3 py-3">
+        {searchError ? (
+          <p role="status" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
+            {searchError}
+          </p>
+        ) : results.length ? (
+          results.map((message) => (
+            <button
+              key={message.id}
+              type="button"
+              onClick={() => void handleSelect(message.id)}
+              className="mb-3 block min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-100"
+            >
+              <div className="mb-1 flex items-center justify-between gap-2 text-xs text-slate-500">
+                <span className="truncate font-semibold text-slate-700">
+                  {message.user?.name || "User"}
+                </span>
+                <span className="shrink-0">
+                  {message.created_at
+                    ? new Date(message.created_at).toLocaleString([], {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })
+                    : ""}
+                </span>
+              </div>
+              <div className="break-words text-sm leading-6 text-slate-700">
+                {highlightText(message.text || "Attachment", query)}
+              </div>
+            </button>
+          ))
+        ) : isSearching ? (
+          <p className="p-3 text-sm text-slate-500">Searching the conversation…</p>
+        ) : (
+          <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+            No matching messages found.
+          </p>
+        )}
+      </div>
+    </div>
+  );
 };
 
 const AutoScrollToInitialMessage = () => {
@@ -191,6 +278,7 @@ const fingerprintTranslationText = (text) => {
 const StoryReplyMessage = ({ message: messageProp }) => {
   const { message: contextMessage } = useMessageContext();
   const message = messageProp || contextMessage;
+  const { onForwardMessage } = useContext(ChatMessageActionContext);
   const callDetails = message ? getHyeChatCallDetails(message.text) : null;
   const hasAudioAttachment = (message?.attachments || []).some((attachment) => {
     const mimeType = String(attachment?.mime_type || "").toLowerCase();
@@ -222,6 +310,24 @@ const StoryReplyMessage = ({ message: messageProp }) => {
     typeof message.text === "string" &&
     message.text.trim(),
   );
+  const canCopyOrForward = Boolean(
+    message?.user?.id &&
+      !["system", "deleted", "error", "ephemeral"].includes(message.type) &&
+      !message.deleted_at &&
+      !callDetails &&
+      (message.text?.trim() || message.attachments?.length),
+  );
+  const handleCopyMessage = async () => {
+    if (!message?.text?.trim()) return;
+
+    try {
+      await navigator.clipboard.writeText(message.text);
+      toast.success("Message copied");
+    } catch (error) {
+      console.error("Could not copy message text:", error);
+      toast.error("Could not copy this message.");
+    }
+  };
   const [selectedLanguage, setSelectedLanguage] = useState("");
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
   const [showingTranslationKey, setShowingTranslationKey] = useState("");
@@ -315,8 +421,47 @@ const StoryReplyMessage = ({ message: messageProp }) => {
           isDark={false}
         />
       )}
+      {message?.forwarded_from && (
+        <p className="mb-1 text-xs font-medium text-slate-500">
+          Forwarded from {message.forwarded_from.user_name || "a HyeChat user"}
+          {message.forwarded_from.created_at && (
+            <span>
+              {" "}
+              ·{" "}
+              {new Date(message.forwarded_from.created_at).toLocaleString([], {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+            </span>
+          )}
+        </p>
+      )}
       <div className="flex flex-col gap-1">
         <MessageUI />
+        {canCopyOrForward && (
+          <div className="flex flex-wrap items-center gap-1">
+            {message.text?.trim() && (
+              <button
+                type="button"
+                onClick={() => void handleCopyMessage()}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                aria-label="Copy message text"
+              >
+                <Copy className="size-3.5" aria-hidden="true" />
+                Copy
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onForwardMessage(message)}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              aria-label="Forward message"
+            >
+              <Forward className="size-3.5" aria-hidden="true" />
+              Forward
+            </button>
+          </div>
+        )}
         {canTranslate && (
           <>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500">
@@ -549,7 +694,11 @@ const ChatPage = () => {
   const [failedRetryMessage, setFailedRetryMessage] = useState(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [messageToForward, setMessageToForward] = useState(null);
+  const [isForwardingMessage, setIsForwardingMessage] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [isVoiceRecording, setIsVoiceRecording] = useState(false);
@@ -796,6 +945,37 @@ const ChatPage = () => {
   }, [authUser?._id, channel]);
 
   useEffect(() => {
+    const query = searchQuery.trim();
+    if (!query || !chatClient || !channel) return undefined;
+
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setIsSearching(true);
+      setSearchError("");
+
+      try {
+        const response = await chatClient.search({ cid: channel.cid }, query, {
+          limit: 25,
+        });
+        if (active) setSearchResults(response.messages || []);
+      } catch (error) {
+        console.error("Could not search this conversation:", error);
+        if (active) {
+          setSearchResults([]);
+          setSearchError("Unable to search this conversation. Try again.");
+        }
+      } finally {
+        if (active) setIsSearching(false);
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [channel, chatClient, searchQuery]);
+
+  useEffect(() => {
     if (!isVoiceRecording) {
       return undefined;
     }
@@ -815,23 +995,6 @@ const ChatPage = () => {
 
     return () => window.clearInterval(interval);
   }, [isVoiceRecording]);
-
-  const searchResults = useMemo(() => {
-    if (!channel?.state?.messages) return [];
-
-    const normalizedQuery = searchQuery.trim().toLowerCase();
-
-    if (!normalizedQuery) return channel.state.messages;
-
-    return channel.state.messages.filter((message) => {
-      const text = message?.text?.toLowerCase?.() ?? "";
-      const senderName = message?.user?.name?.toLowerCase?.() ?? "";
-
-      return (
-        text.includes(normalizedQuery) || senderName.includes(normalizedQuery)
-      );
-    });
-  }, [channel, searchQuery]);
 
   const handleVideoCall = async () => {
     if (channel) {
@@ -909,9 +1072,63 @@ const ChatPage = () => {
     }
   };
 
+  const handleForwardToFriend = async (friend) => {
+    if (!streamClient || !authUser || !messageToForward || isForwardingMessage) {
+      return;
+    }
+
+    setIsForwardingMessage(true);
+    try {
+      const forwardChannel = streamClient.channel(
+        "messaging",
+        buildChatChannelId(authUser._id, friend._id),
+        { members: [authUser._id, friend._id] },
+      );
+      await forwardChannel.watch();
+      await forwardChannel.sendMessage({
+        text: messageToForward.text || "",
+        attachments: (messageToForward.attachments || []).map((attachment) => ({
+          ...attachment,
+        })),
+        forwarded_from:
+          messageToForward.forwarded_from || {
+            message_id: messageToForward.id,
+            channel_cid: messageToForward.cid || channel?.cid,
+            user_id: messageToForward.user?.id,
+            user_name:
+              messageToForward.user?.name || messageToForward.user?.id,
+            created_at:
+              messageToForward.created_at instanceof Date
+                ? messageToForward.created_at.toISOString()
+                : messageToForward.created_at,
+          },
+      });
+      setMessageToForward(null);
+      toast.success(`Message forwarded to ${friend.fullName || "your friend"}`);
+    } catch (error) {
+      console.error("Could not forward message:", error);
+      toast.error("Could not forward this message. Please try again.");
+    } finally {
+      setIsForwardingMessage(false);
+    }
+  };
+
   const handleSearchToggle = () => {
-    setIsSearchOpen((prev) => !prev);
+    if (isSearchOpen) {
+      setSearchQuery("");
+      setSearchResults([]);
+      setSearchError("");
+      setIsSearching(false);
+    }
+    setIsSearchOpen(!isSearchOpen);
     setShowEmojiPicker(false);
+  };
+
+  const handleSearchChange = (value) => {
+    setSearchQuery(value);
+    setSearchResults([]);
+    setSearchError("");
+    setIsSearching(false);
   };
 
   const handleEmojiToggle = () => {
@@ -1035,17 +1252,11 @@ const ChatPage = () => {
     }
   };
 
-  const handleSelectSearchResult = (messageId) => {
-    if (!channel || !messageId) return;
-
-    const targetMessage = channel.state.messages.find(
-      (message) => message.id === messageId,
-    );
-
-    if (!targetMessage) return;
-
-    setHighlightedMessageId(messageId);
+  const handleSearchResultSelected = () => {
     setSearchQuery("");
+    setSearchResults([]);
+    setSearchError("");
+    setIsSearching(false);
     setIsSearchOpen(false);
   };
 
@@ -1070,6 +1281,9 @@ const ChatPage = () => {
 
   return (
     <div className="chat-page-shell flex h-full min-h-0 w-full max-w-full overflow-hidden">
+      <ChatMessageActionContext.Provider
+        value={{ onForwardMessage: setMessageToForward }}
+      >
       <Chat client={chatClient} theme="str-chat__theme-light">
         <Channel
           channel={channel}
@@ -1142,7 +1356,9 @@ const ChatPage = () => {
                   <input
                     type="text"
                     value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
+                    onChange={(event) =>
+                      handleSearchChange(event.target.value)
+                    }
                     placeholder="Search chat"
                     className="input input-sm h-9 min-w-0 flex-1 rounded-full border-slate-300 bg-white px-3 text-sm sm:w-[220px] sm:flex-none"
                   />
@@ -1178,10 +1394,18 @@ const ChatPage = () => {
               <div className="chat-window-shell flex h-full min-h-0 flex-1 flex-col overflow-hidden">
                 <Window>
                   <MessageList
-                    highlightedMessageId={highlightedMessageId}
                     className="bg-slate-50 px-4 py-3"
                     showUnreadNotificationAlways
                     Message={StoryReplyMessage}
+                    messageActions={[
+                      "edit",
+                      "delete",
+                      "reply",
+                      "quote",
+                      "react",
+                      "pin",
+                      "saveForLater",
+                    ]}
                   />
                   {failedRetryMessage && (
                     <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
@@ -1319,62 +1543,100 @@ const ChatPage = () => {
                 </Window>
               </div>
 
-              {searchQuery.trim() ? (
-                <div className="absolute inset-x-3 top-3 z-20 flex max-h-[70%] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                  <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <span>
-                      {searchResults.length} result
-                      {searchResults.length === 1 ? "" : "s"}
-                    </span>
-                    <span>Scroll to review</span>
-                  </div>
-                  <div className="overflow-y-auto px-3 py-3">
-                    {searchResults.length ? (
-                      searchResults.map((message) => (
-                        <button
-                          key={message.id}
-                          type="button"
-                          onClick={() => handleSelectSearchResult(message.id)}
-                          className="mb-3 block w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-100"
-                        >
-                          <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
-                            <span className="font-semibold text-slate-700">
-                              {message.user?.name || "User"}
-                            </span>
-                            <span>
-                              {message.created_at
-                                ? new Date(message.created_at).toLocaleString(
-                                    [],
-                                    {
-                                      hour: "numeric",
-                                      minute: "2-digit",
-                                    },
-                                  )
-                                : ""}
-                            </span>
-                          </div>
-                          <div className="text-sm leading-6 text-slate-700">
-                            {highlightText(
-                              message.text || "No message content",
-                              searchQuery,
-                            )}
-                          </div>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="rounded-xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-500">
-                        No matching messages found.
-                      </div>
-                    )}
-                  </div>
-                </div>
+              {isSearchOpen && searchQuery.trim() ? (
+                <ChatMessageSearchResults
+                  query={searchQuery}
+                  results={searchResults}
+                  isSearching={isSearching}
+                  searchError={searchError}
+                  onClose={handleSearchResultSelected}
+                />
               ) : null}
             </div>
           </div>
-          <Thread />
+          <Thread
+            messageActions={[
+              "edit",
+              "delete",
+              "reply",
+              "quote",
+              "react",
+              "pin",
+              "saveForLater",
+            ]}
+          />
           </WithComponents>
         </Channel>
       </Chat>
+      </ChatMessageActionContext.Provider>
+      {messageToForward && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 sm:items-center sm:p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !isForwardingMessage) {
+              setMessageToForward(null);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="forward-message-title"
+            className="max-h-[80dvh] w-full overflow-hidden rounded-t-2xl bg-base-100 shadow-2xl sm:max-w-md sm:rounded-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-base-300 px-4 py-3">
+              <h2 id="forward-message-title" className="font-semibold">
+                Forward message
+              </h2>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setMessageToForward(null)}
+                disabled={isForwardingMessage}
+              >
+                Cancel
+              </button>
+            </div>
+            <div className="max-h-[65dvh] overflow-y-auto p-2">
+              {friends.length ? (
+                friends
+                  .filter((friend) => friend._id !== authUser?._id)
+                  .map((friend) => (
+                    <button
+                      key={friend._id}
+                      type="button"
+                      className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-base-200 disabled:opacity-60"
+                      onClick={() => void handleForwardToFriend(friend)}
+                      disabled={isForwardingMessage}
+                    >
+                      <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-base-300 font-semibold">
+                        {friend.profilePic ? (
+                          <img
+                            src={friend.profilePic}
+                            alt=""
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          (friend.fullName || "U").charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <span className="min-w-0 flex-1 truncate font-medium">
+                        {friend.fullName || "HyeChat user"}
+                      </span>
+                      {isForwardingMessage && (
+                        <span className="loading loading-spinner loading-xs" />
+                      )}
+                    </button>
+                  ))
+              ) : (
+                <p className="p-4 text-center text-sm opacity-70">
+                  Add a friend before forwarding a message.
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
       {selectedMedia && (
         <MediaViewer
           media={selectedMedia}

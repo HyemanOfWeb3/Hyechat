@@ -8,6 +8,7 @@ import {
   MessageList,
   Thread,
   Window,
+  useChannelActionContext,
 } from "stream-chat-react";
 import useStreamClient from "../hooks/useStreamClient.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,6 +28,40 @@ import ChatLoader from "../components/ChatLoader.jsx";
 import CommunityChatHeader from "../components/CommunityChatHeader.jsx";
 import CommunityInfoDrawer from "../components/CommunityInfoDrawer.jsx";
 import { useThemeStore } from "../store/useThemeStore.js";
+
+const CommunitySearchResults = ({ results, onSelect }) => {
+  const { jumpToMessage } = useChannelActionContext();
+
+  const openMessage = async (messageId) => {
+    try {
+      await jumpToMessage(messageId);
+      onSelect();
+    } catch (error) {
+      console.error("Could not open searched community message:", error);
+      toast.error("Could not open that message. Try again.");
+    }
+  };
+
+  return (
+    <div className="mt-2 flex max-h-32 flex-col gap-1 overflow-y-auto">
+      {results.map((message) => (
+        <button
+          key={message.id}
+          type="button"
+          onClick={() => void openMessage(message.id)}
+          className="min-h-11 truncate rounded-lg px-2 py-1 text-left text-sm hover:bg-base-300/60"
+        >
+          <span className="font-semibold">
+            {message.user?.name || "Member"}
+          </span>
+          <span className="ml-2 opacity-70">
+            {message.text || "Attachment"}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+};
 
 const CommunityChatPage = () => {
   const { id } = useParams();
@@ -228,33 +263,7 @@ const CommunityChatPage = () => {
         }}
         onSearchChange={setSearchQuery}
       />
-      {isSearchOpen && searchQuery.trim() && (
-        <div className="community-search-results border-b border-base-300/60 bg-base-200/60 px-4 py-2 sm:px-5">
-          <p className="text-xs opacity-60">
-            {isSearching
-              ? "Searching messages..."
-              : `${searchResults.length} results`}
-          </p>
-          {!isSearching && searchResults.length > 0 && (
-            <div className="mt-2 flex max-h-32 flex-col gap-1 overflow-y-auto">
-              {searchResults.map((message) => (
-                <div
-                  key={message.id}
-                  className="truncate rounded-lg px-2 py-1 text-sm hover:bg-base-300/60"
-                >
-                  <span className="font-semibold">
-                    {message.user?.name || "Member"}
-                  </span>
-                  <span className="ml-2 opacity-70">
-                    {message.text || "Attachment"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-      <div className="community-chat-stream min-h-0 flex-1">
+      <div className="community-chat-stream relative min-h-0 flex-1">
         <Chat
           client={client}
           theme={
@@ -264,11 +273,53 @@ const CommunityChatPage = () => {
           }
         >
           <Channel channel={channel}>
+            {isSearchOpen && searchQuery.trim() && (
+              <div className="absolute inset-x-3 top-3 z-30 max-h-56 overflow-y-auto rounded-xl border border-base-300 bg-base-100/95 p-3 shadow-xl backdrop-blur sm:inset-x-5">
+                <p className="text-xs opacity-60">
+                  {isSearching
+                    ? "Searching messages..."
+                    : `${searchResults.length} results`}
+                </p>
+                {!isSearching && searchResults.length > 0 ? (
+                  <CommunitySearchResults
+                    results={searchResults}
+                    onSelect={() => {
+                      setSearchQuery("");
+                      setIsSearchOpen(false);
+                    }}
+                  />
+                ) : !isSearching ? (
+                  <p className="py-3 text-sm opacity-65">
+                    No matching messages found.
+                  </p>
+                ) : null}
+              </div>
+            )}
             <Window>
-              <MessageList />
+              <MessageList
+                messageActions={[
+                  "edit",
+                  "delete",
+                  "reply",
+                  "quote",
+                  "react",
+                  "pin",
+                  "saveForLater",
+                ]}
+              />
               <MessageComposer />
             </Window>
-            <Thread />
+            <Thread
+              messageActions={[
+                "edit",
+                "delete",
+                "reply",
+                "quote",
+                "react",
+                "pin",
+                "saveForLater",
+              ]}
+            />
           </Channel>
         </Chat>
       </div>
