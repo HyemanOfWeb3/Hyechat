@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, MessageSquare, RefreshCw } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import useStreamClient from "../hooks/useStreamClient.js";
 import { getUserFriends } from "../lib/api.js";
 import useAuthUser from "../hooks/useAuthUser.js";
@@ -26,6 +26,25 @@ const ChatsPage = () => {
     enabled: !!authUser,
   });
 
+  const conversationQuery = useInfiniteQuery({
+    queryKey: ["chatChannels", authUser?._id],
+    enabled: !!authUser && !!streamClient && connectionState === "connected",
+    queryFn: async ({ pageParam = 0 }) => {
+      const channels = await streamClient.queryChannels(
+        { type: "messaging", members: { $in: [authUser._id] } },
+        { last_message_at: -1 },
+        { limit: 20, offset: pageParam, state: true, watch: true, presence: true },
+      );
+      return channels;
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage || lastPage.length < 20) return undefined;
+      return allPages.length * 20;
+    },
+    staleTime: 30_000,
+  });
+
   useEffect(() => {
     if (!authUser || !streamClient || connectionState !== "connected")
       return undefined;
@@ -37,12 +56,7 @@ const ChatsPage = () => {
       setConversationError("");
 
       try {
-        const channels = await streamClient.queryChannels(
-          { type: "messaging", members: { $in: [authUser._id] } },
-          { last_message_at: -1 },
-          { limit: 50, state: true, watch: true, presence: true },
-        );
-
+        const channels = conversationQuery.data?.pages.flat() ?? [];
         if (isActive) {
           setChatClient(streamClient);
           setConversations(channels);
@@ -64,7 +78,7 @@ const ChatsPage = () => {
     return () => {
       isActive = false;
     };
-  }, [authUser, streamClient, connectionState, reloadKey]);
+  }, [authUser, streamClient, connectionState, reloadKey, conversationQuery.data]);
 
   const friendById = useMemo(
     () => new Map(friends.map((friend) => [friend._id, friend])),
@@ -87,7 +101,16 @@ const ChatsPage = () => {
     });
   }, [authUser?._id, conversations, friendById, searchQuery]);
 
-  const handleRetry = () => setReloadKey((key) => key + 1);
+  const handleRetry = () => {
+    setReloadKey((key) => key + 1);
+    void conversationQuery.refetch();
+  };
+
+  const handleLoadMore = () => {
+    if (conversationQuery.hasNextPage && !conversationQuery.isFetchingNextPage) {
+      void conversationQuery.fetchNextPage();
+    }
+  };
 
   if (friendsLoading) return <ChatLoader />;
 
@@ -156,6 +179,9 @@ const ChatsPage = () => {
               friendById={friendById}
               chatClient={chatClient}
               hasSearchQuery={Boolean(searchQuery.trim())}
+              hasMore={Boolean(conversationQuery.hasNextPage)}
+              isLoadingMore={conversationQuery.isFetchingNextPage}
+              onLoadMore={handleLoadMore}
             />
           )}
         </section>

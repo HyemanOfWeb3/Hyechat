@@ -9,6 +9,20 @@ const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 let sharedClientInstance = null;
 let connectPromise = null;
 
+const attachStreamConnectionHandlers = (clientInstance) => {
+  if (!clientInstance || clientInstance.__hyechatHandlersBound) return;
+
+  clientInstance.on("connection.recovered", () => {
+    console.info("Stream connection recovered");
+  });
+
+  clientInstance.on("connection.changed", (event) => {
+    console.info("Stream connection changed:", event?.online ? "online" : "offline");
+  });
+
+  clientInstance.__hyechatHandlersBound = true;
+};
+
 /**
  * Hook that provides a persistent, shared Stream Chat client.
  * Prevents multiple connectUser calls and premature disconnects.
@@ -29,28 +43,26 @@ export const useStreamClient = () => {
   const [connectionState, setConnectionState] = useState("disconnected"); // disconnected, connecting, connected
 
   const connect = useCallback(async () => {
-    // If already connected with this user, return
-    if (sharedClientInstance?.userID === authUser?._id) {
+    if (!authUser || !STREAM_API_KEY) {
+      setConnectionState("disconnected");
+      return null;
+    }
+
+    if (sharedClientInstance?.userID === authUser._id) {
+      attachStreamConnectionHandlers(sharedClientInstance);
       setClient(sharedClientInstance);
       setConnectionState("connected");
       return sharedClientInstance;
     }
 
-    // If connection is in progress, wait for it
     if (connectPromise) {
       return connectPromise;
-    }
-
-    if (!authUser || !STREAM_API_KEY) {
-      setConnectionState("disconnected");
-      return null;
     }
 
     setIsConnecting(true);
     setConnectionState("connecting");
     setError("");
 
-    // Create promise to track connection
     connectPromise = (async () => {
       try {
         const tokenData = await getStreamToken();
@@ -58,14 +70,13 @@ export const useStreamClient = () => {
           throw new Error("Unable to obtain Stream token");
         }
 
-        // Get or create client instance
         if (!sharedClientInstance) {
           sharedClientInstance = StreamChat.getInstance(STREAM_API_KEY);
         }
 
         const clientInstance = sharedClientInstance;
+        attachStreamConnectionHandlers(clientInstance);
 
-        // Only connect if not already connected to this user
         if (clientInstance.userID !== authUser._id) {
           await clientInstance.connectUser(
             {
@@ -75,20 +86,19 @@ export const useStreamClient = () => {
             },
             tokenData.token,
           );
-
-          // Set up reconnection listener
-          clientInstance.on("connection.recovered", () => {
-            setConnectionState("connected");
-          });
-
-          clientInstance.on("connection.changed", (event) => {
-            if (event.online) {
-              setConnectionState("connected");
-            } else {
-              setConnectionState("disconnected");
-            }
-          });
         }
+
+        clientInstance.on("connection.recovered", () => {
+          setConnectionState("connected");
+        });
+
+        clientInstance.on("connection.changed", (event) => {
+          if (event.online) {
+            setConnectionState("connected");
+          } else {
+            setConnectionState("disconnected");
+          }
+        });
 
         setClient(clientInstance);
         setConnectionState("connected");
@@ -105,6 +115,53 @@ export const useStreamClient = () => {
     })();
 
     return connectPromise;
+  }, [authUser]);
+
+  const reconnectClient = useCallback(async () => {
+    if (!authUser || !STREAM_API_KEY) return null;
+
+    try {
+      setConnectionState("connecting");
+      setError("");
+
+      if (!sharedClientInstance) {
+        sharedClientInstance = StreamChat.getInstance(STREAM_API_KEY);
+      }
+
+      const tokenData = await getStreamToken();
+      if (!tokenData?.token) {
+        throw new Error("Unable to obtain Stream token");
+      }
+
+      if (sharedClientInstance.userID !== authUser._id) {
+        await sharedClientInstance.connectUser(
+          {
+            id: authUser._id,
+            name: authUser.fullName,
+            image: authUser.profilePic,
+          },
+          tokenData.token,
+        );
+      } else {
+        await sharedClientInstance.connectUser(
+          {
+            id: authUser._id,
+            name: authUser.fullName,
+            image: authUser.profilePic,
+          },
+          tokenData.token,
+        );
+      }
+
+      setClient(sharedClientInstance);
+      setConnectionState("connected");
+      return sharedClientInstance;
+    } catch (connectionError) {
+      console.error("Failed to reconnect Stream client:", connectionError);
+      setError(connectionError.message || "Reconnection failed");
+      setConnectionState("disconnected");
+      return null;
+    }
   }, [authUser]);
 
   // Initial connection
@@ -136,22 +193,8 @@ export const useStreamClient = () => {
   useEffect(() => {
     const handleOnline = async () => {
       console.log("Network online - reconnecting Stream client");
-      // Only reconnect if we were connected before
-      if (
-        connectionState === "disconnected" &&
-        sharedClientInstance?.userID === authUser?._id
-      ) {
-        setConnectionState("connecting");
-        try {
-          const tokenData = await getStreamToken();
-          if (tokenData?.token && sharedClientInstance) {
-            // Stream SDK should handle reconnection automatically
-            setConnectionState("connected");
-          }
-        } catch (err) {
-          console.error("Reconnection failed:", err);
-          setError("Reconnection failed. Try refreshing the page.");
-        }
+      if (authUser && sharedClientInstance?.userID === authUser._id) {
+        await reconnectClient();
       }
     };
 
@@ -168,30 +211,17 @@ export const useStreamClient = () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [authUser?._id, connectionState]);
+  }, [authUser, reconnectClient]);
 
   // Handle app visibility changes (mobile tab restore)
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.hidden) {
-        // App went to background - don't disconnect, just track state
         console.log("App backgrounded");
       } else {
-        // App came to foreground - verify connection
         console.log("App foregrounded - verifying Stream connection");
-        if (
-          connectionState === "disconnected" &&
-          sharedClientInstance?.userID === authUser?._id
-        ) {
-          try {
-            setConnectionState("connecting");
-            const tokenData = await getStreamToken();
-            if (tokenData?.token && sharedClientInstance) {
-              setConnectionState("connected");
-            }
-          } catch (err) {
-            console.error("Reconnection on foreground failed:", err);
-          }
+        if (authUser && sharedClientInstance?.userID === authUser._id) {
+          await reconnectClient();
         }
       }
     };
@@ -200,7 +230,7 @@ export const useStreamClient = () => {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [connectionState, authUser?._id]);
+  }, [authUser, reconnectClient]);
 
   // Cleanup on unmount - DON'T DISCONNECT, just clear component reference
   useEffect(() => {

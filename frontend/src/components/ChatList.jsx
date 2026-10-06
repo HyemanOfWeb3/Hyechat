@@ -1,6 +1,14 @@
 import ChatListItem from "./ChatListItem.jsx";
 
-const ChatList = ({ channels, currentUserId, friendById, hasSearchQuery }) => {
+const ChatList = ({
+  channels,
+  currentUserId,
+  friendById,
+  hasSearchQuery,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
+}) => {
   if (!channels.length) {
     return (
       <div className="card bg-base-200 p-6 text-center">
@@ -50,6 +58,18 @@ const ChatList = ({ channels, currentUserId, friendById, hasSearchQuery }) => {
           </h3>
           {renderChannels(communityChannels)}
         </section>
+      )}
+      {hasMore && (
+        <div className="pt-2">
+          <button
+            type="button"
+            className="btn btn-outline btn-sm w-full"
+            onClick={onLoadMore}
+            disabled={isLoadingMore}
+          >
+            {isLoadingMore ? "Loading more chats..." : "Load older chats"}
+          </button>
+        </div>
       )}
     </div>
   );

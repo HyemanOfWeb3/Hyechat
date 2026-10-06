@@ -41,6 +41,9 @@ const ChatListItem = ({ channel, currentUserId, friendById }) => {
   const otherMember = getChannelMembers(channel).find(
     (member) => String(getMemberId(member)) !== String(currentUserId),
   );
+  const peerPresence = otherMember?.user || otherMember || {};
+  const peerOnline = Boolean(peerPresence.online || peerPresence.presence?.online);
+  const lastSeen = peerPresence.last_active || peerPresence.last_active_at;
   const userId = getMemberId(otherMember);
   const channelTargetId =
     userId ||
@@ -99,7 +102,7 @@ const ChatListItem = ({ channel, currentUserId, friendById }) => {
             )}
           </div>
         </div>
-        {friend?.isOnline && (
+        {(peerOnline || friend?.isOnline) && (
           <span className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-base-200 bg-success" />
         )}
       </div>
@@ -118,6 +121,9 @@ const ChatListItem = ({ channel, currentUserId, friendById }) => {
               {unreadCount}
             </span>
           )}
+        </div>
+        <div className="mt-1 text-[11px] text-slate-500">
+          {peerOnline ? "Online" : lastSeen ? `Last active ${formatTimestamp(lastSeen)}` : "Offline"}
         </div>
       </div>
       <MessageCircle className="size-4 shrink-0 opacity-40" />

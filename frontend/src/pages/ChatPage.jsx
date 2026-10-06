@@ -544,7 +544,9 @@ const ChatPage = () => {
   const [initializationError, setInitializationError] = useState("");
   const [peerUser, setPeerUser] = useState(null);
   const [isPeerOnline, setIsPeerOnline] = useState(false);
+  const [peerLastSeen, setPeerLastSeen] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [failedRetryMessage, setFailedRetryMessage] = useState(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
@@ -563,6 +565,9 @@ const ChatPage = () => {
   );
 
   const { authUser } = useAuthUser();
+  const draftStorageKey = authUser?._id && normalizedTargetId
+    ? `hyechat:chat:draft:${authUser._id}:${normalizedTargetId}`
+    : "";
 
   // Use persistent shared Stream client across entire app
   const { client: streamClient, connectionState } = useStreamClient();
@@ -697,6 +702,15 @@ const ChatPage = () => {
       setIsPeerOnline(Boolean(matchedFriend?.isOnline));
 
       const presenceState = streamClient.state?.users?.[normalizedTargetId];
+      const nextPeerLastSeen =
+        matchedFriend?.lastActive ||
+        matchedFriend?.last_seen ||
+        channelPeer?.user?.last_active ||
+        channelPeer?.last_active ||
+        presenceState?.last_active ||
+        "";
+
+      setPeerLastSeen(nextPeerLastSeen);
       if (presenceState?.online !== undefined) {
         setIsPeerOnline(Boolean(presenceState.online));
       }
@@ -714,23 +728,72 @@ const ChatPage = () => {
     return () => window.clearTimeout(timeoutId);
   }, [initializeChat]);
 
-  // REMOVED: disconnectUser cleanup effect - DO NOT disconnect the shared client!
-  // The persistent Stream client should remain connected for the entire session.
+  useEffect(() => {
+    if (!channel || !authUser || !draftStorageKey) return undefined;
+
+    const savedDraft = localStorage.getItem(draftStorageKey) || "";
+    const composerNode = document.querySelector(".str-chat__textarea textarea");
+    const inputNode = composerNode || document.querySelector(".str-chat__composer input");
+
+    if (inputNode && savedDraft) {
+      inputNode.value = savedDraft;
+    }
+
+    const handleDraftUpdate = (event) => {
+      const nextDraft = event.target?.value ?? "";
+      if (nextDraft) {
+        localStorage.setItem(draftStorageKey, nextDraft);
+      } else {
+        localStorage.removeItem(draftStorageKey);
+      }
+    };
+
+    const handleMessageSend = (event) => {
+      if (event?.user?.id === authUser._id) {
+        localStorage.removeItem(draftStorageKey);
+      }
+    };
+
+    if (inputNode) {
+      inputNode.addEventListener("input", handleDraftUpdate);
+    }
+
+    channel.on("message.new", handleMessageSend);
+
+    return () => {
+      inputNode?.removeEventListener("input", handleDraftUpdate);
+      channel.off("message.new", handleMessageSend);
+    };
+  }, [authUser, channel, draftStorageKey]);
 
   useEffect(() => {
     if (!channel) return;
 
     const handleTypingStart = () => setIsTyping(true);
     const handleTypingStop = () => setIsTyping(false);
+    const handleMessageFailed = (event) => {
+      if (event?.user?.id === authUser?._id) {
+        setFailedRetryMessage(event);
+      }
+    };
+    const handleMessageUpdated = (event) => {
+      if (event?.user?.id === authUser?._id && event?.status === "sent") {
+        setFailedRetryMessage(null);
+      }
+    };
 
     channel.on("typing.start", handleTypingStart);
     channel.on("typing.stop", handleTypingStop);
+    channel.on("message.failed", handleMessageFailed);
+    channel.on("message.updated", handleMessageUpdated);
 
     return () => {
       channel.off("typing.start", handleTypingStart);
       channel.off("typing.stop", handleTypingStop);
+      channel.off("message.failed", handleMessageFailed);
+      channel.off("message.updated", handleMessageUpdated);
     };
-  }, [channel]);
+  }, [authUser?._id, channel]);
 
   useEffect(() => {
     if (!isVoiceRecording) {
@@ -831,6 +894,18 @@ const ChatPage = () => {
       });
 
       toast.success("Voice call link sent successfully!");
+    }
+  };
+
+  const handleRetryFailedMessage = async () => {
+    if (!channel || !failedRetryMessage) return;
+
+    try {
+      await channel.retrySendMessage(failedRetryMessage);
+      setFailedRetryMessage(null);
+    } catch (error) {
+      console.error("Retrying failed message failed:", error);
+      toast.error("This message could not be retried. Please try again.");
     }
   };
 
@@ -1055,7 +1130,9 @@ const ChatPage = () => {
                       ? "typing..."
                       : isPeerOnline
                         ? "Online"
-                        : "Offline"}
+                        : peerLastSeen
+                          ? `Last active ${new Date(peerLastSeen).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+                          : "Offline"}
                   </p>
                 </div>
               </div>
@@ -1106,6 +1183,20 @@ const ChatPage = () => {
                     showUnreadNotificationAlways
                     Message={StoryReplyMessage}
                   />
+                  {failedRetryMessage && (
+                    <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Message failed to send. Retry now?</span>
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-warning text-white"
+                          onClick={handleRetryFailedMessage}
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <div className="chat-composer relative border-t border-slate-200 bg-white px-3 py-2 shadow-[0_-4px_12px_rgba(15,23,42,0.04)]">
                     {voiceUrl ? (
                       <div className="mb-3 flex items-center gap-3 rounded-3xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white px-3 py-2.5 shadow-sm">
