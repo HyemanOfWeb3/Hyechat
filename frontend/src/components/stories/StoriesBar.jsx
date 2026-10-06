@@ -1,13 +1,58 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImagePlus } from "lucide-react";
-import { createStory, getStories } from "../../lib/api.js";
+import { EyeOff, ImagePlus, Play } from "lucide-react";
+import {
+  createStory,
+  getHiddenStoryUsers,
+  getStories,
+  hideStoriesFromUser,
+  unhideStoriesFromUser,
+} from "../../lib/api.js";
 import useAuthUser from "../../hooks/useAuthUser.js";
 import StoryViewer from "./StoryViewer.jsx";
 import StoryMediaComposer from "./StoryMediaComposer.jsx";
 import VideoTrimEditor from "./VideoTrimEditor.jsx";
 
 const MAX_STORY_SIZE = 10 * 1024 * 1024;
+const IMAGE_COMPRESSION_THRESHOLD = 1024 * 1024;
+
+const compressStoryImage = async (file) => {
+  if (
+    !file.type.startsWith("image/") ||
+    file.size <= IMAGE_COMPRESSION_THRESHOLD ||
+    typeof createImageBitmap !== "function"
+  ) {
+    return file;
+  }
+
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1920 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) return file;
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise((resolve) =>
+      canvas.toBlob(resolve, "image/webp", 0.84),
+    );
+    if (!blob || blob.size >= file.size) return file;
+
+    const baseName = file.name.replace(/\.[^.]+$/, "") || "story-image";
+    return new File([blob], `${baseName}.webp`, {
+      type: "image/webp",
+      lastModified: Date.now(),
+    });
+  } catch (error) {
+    console.warn("Story image compression failed; using the original", error);
+    return file;
+  } finally {
+    bitmap?.close?.();
+  }
+};
 
 const getUserId = (user) => {
   if (!user) return "";
@@ -19,12 +64,35 @@ const getUserName = (user, fallback = "User") => {
   return user.fullName || user.name || fallback;
 };
 
+const StoryAvatar = ({ story, userImage, name }) => (
+  <div className="relative size-full overflow-hidden rounded-full bg-base-300">
+    {story?.mediaType === "image" && story.mediaUrl ? (
+      <img src={story.mediaUrl} alt={name} className="size-full object-cover" />
+    ) : userImage ? (
+      <img src={userImage} alt={name} className="size-full object-cover" />
+    ) : (
+      <div className="flex size-full items-center justify-center text-lg font-semibold opacity-70">
+        {name.charAt(0).toUpperCase()}
+      </div>
+    )}
+    {story?.mediaType === "video" && (
+      <span className="absolute inset-0 flex items-center justify-center bg-black/25 text-white">
+        <Play className="size-5 fill-current" aria-hidden="true" />
+      </span>
+    )}
+  </div>
+);
+
+const hasCurrentUserViewedStory = (story, currentUserId) =>
+  typeof story.viewedByMe === "boolean"
+    ? story.viewedByMe
+    : (story.viewers || []).some(
+        (viewer) => getUserId(viewer) === currentUserId,
+      );
+
 const getFirstUnviewedStoryIndex = (stories, currentUserId) => {
   const firstUnviewedIndex = stories.findIndex(
-    (story) =>
-      !(story.viewers || []).some(
-        (viewer) => getUserId(viewer) === currentUserId,
-      ),
+    (story) => !hasCurrentUserViewedStory(story, currentUserId),
   );
 
   return firstUnviewedIndex >= 0 ? firstUnviewedIndex : 0;
@@ -41,6 +109,9 @@ const StoriesBar = ({ chatClient }) => {
   const [selectionVersion, setSelectionVersion] = useState(0);
   const [originalVideo, setOriginalVideo] = useState(null);
   const [caption, setCaption] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [privacy, setPrivacy] = useState("friends");
+  const [showHiddenUsers, setShowHiddenUsers] = useState(false);
   const [isTrimmed, setIsTrimmed] = useState(false);
   const [videoToTrim, setVideoToTrim] = useState(null);
   const [isTrimEditorOpen, setIsTrimEditorOpen] = useState(false);
@@ -54,6 +125,12 @@ const StoriesBar = ({ chatClient }) => {
     queryFn: getStories,
     enabled: !!authUser,
     retry: false,
+  });
+
+  const { data: hiddenStoryUsers = [] } = useQuery({
+    queryKey: ["hiddenStoryUsers"],
+    queryFn: getHiddenStoryUsers,
+    enabled: !!authUser,
   });
 
   const stories = useMemo(
@@ -142,7 +219,12 @@ const StoriesBar = ({ chatClient }) => {
   };
 
   const { mutate: createStoryMutation, isPending } = useMutation({
-    mutationFn: async ({ file, text }) => {
+    mutationFn: async ({
+      file,
+      text,
+      prompt: storyPrompt,
+      privacy: storyPrivacy,
+    }) => {
       if (!chatClient)
         throw new Error("Chat is still loading. Please try again.");
       if (!file || !file.size)
@@ -150,11 +232,26 @@ const StoriesBar = ({ chatClient }) => {
       if (file.size > MAX_STORY_SIZE)
         throw new Error("Stories must be smaller than 10 MB.");
 
-      const isVideo = file.type.startsWith("video/");
+      let uploadFile = file;
+      let durationSeconds;
+      if (file.type.startsWith("video/")) {
+        durationSeconds = await validateVideoDuration(file);
+        if (durationSeconds > 60.5) {
+          throw new Error("Trim videos to 60 seconds or less before posting.");
+        }
+      } else {
+        uploadFile = await compressStoryImage(file);
+      }
+
+      if (uploadFile.size > MAX_STORY_SIZE) {
+        throw new Error("Stories must be 10 MB or smaller after processing.");
+      }
+
+      const isVideo = uploadFile.type.startsWith("video/");
       const uploadResponse = await chatClient.uploadFile(
-        file,
-        file.name,
-        file.type,
+        uploadFile,
+        uploadFile.name,
+        uploadFile.type,
       );
 
       if (!uploadResponse?.file) {
@@ -163,11 +260,27 @@ const StoriesBar = ({ chatClient }) => {
         );
       }
 
-      return createStory(
-        uploadResponse.file,
-        isVideo ? "video" : "image",
-        text,
-      );
+      try {
+        return await createStory(
+          uploadResponse.file,
+          isVideo ? "video" : "image",
+          text,
+          {
+          prompt: storyPrompt,
+          privacy: storyPrivacy,
+          mediaSize: uploadFile.size,
+          durationSeconds,
+          },
+        );
+      } catch (error) {
+        try {
+          if (isVideo) await chatClient.deleteFile(uploadResponse.file);
+          else await chatClient.deleteImage(uploadResponse.file);
+        } catch (cleanupError) {
+          console.warn("Could not clean up unlinked Story media", cleanupError);
+        }
+        throw error;
+      }
     },
     onSuccess: async () => {
       setErrorMessage("");
@@ -177,6 +290,8 @@ const StoriesBar = ({ chatClient }) => {
       setOriginalVideo(null);
       setVideoToTrim(null);
       setCaption("");
+      setPrompt("");
+      setPrivacy("friends");
       setIsTrimmed(false);
       await queryClient.invalidateQueries({ queryKey: ["stories"] });
     },
@@ -188,6 +303,29 @@ const StoriesBar = ({ chatClient }) => {
           "Unable to create your Story. Please try again.",
       );
     },
+  });
+
+  const { mutate: hideStoriesMutation } = useMutation({
+    mutationFn: hideStoriesFromUser,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["stories"] }),
+        queryClient.invalidateQueries({ queryKey: ["hiddenStoryUsers"] }),
+      ]);
+      setViewerGroupIndex(null);
+    },
+    onError: () => setErrorMessage("Unable to hide these Stories right now."),
+  });
+
+  const { mutate: unhideStoriesMutation } = useMutation({
+    mutationFn: unhideStoriesFromUser,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["stories"] }),
+        queryClient.invalidateQueries({ queryKey: ["hiddenStoryUsers"] }),
+      ]);
+    },
+    onError: () => setErrorMessage("Unable to unhide Stories right now."),
   });
 
   const validateVideoDuration = (file) => {
@@ -253,6 +391,8 @@ const StoriesBar = ({ chatClient }) => {
     setSelectedFile(file);
     setSelectionVersion((version) => version + 1);
     setCaption("");
+    setPrompt("");
+    setPrivacy("friends");
     setIsTrimmed(false);
   };
 
@@ -264,6 +404,8 @@ const StoriesBar = ({ chatClient }) => {
     setOriginalVideo(null);
     setVideoToTrim(null);
     setCaption("");
+    setPrompt("");
+    setPrivacy("friends");
     setIsTrimmed(false);
     setErrorMessage("");
   };
@@ -276,12 +418,16 @@ const StoriesBar = ({ chatClient }) => {
   const postStory = () => {
     if (!selectedFile || isPending) return;
     setErrorMessage("");
-    createStoryMutation({ file: selectedFile, text: caption });
+    createStoryMutation({
+      file: selectedFile,
+      text: caption,
+      prompt,
+      privacy,
+    });
   };
 
   const ownAvatar = authUser?.profilePic;
   const latestOwnStory = getLatestStory(ownGroup);
-  const ownStoryImage = latestOwnStory?.mediaUrl || ownAvatar;
 
   const openStoryGroup = (group) => {
     const groupIndex = viewerGroups.indexOf(group);
@@ -316,10 +462,8 @@ const StoriesBar = ({ chatClient }) => {
           <div
             className={`relative size-14 rounded-full p-0.5 ${
               ownGroup
-                ? ownGroup.stories.some((story) =>
-                    (story.viewers || []).some(
-                      (viewer) => getUserId(viewer) === currentUserId,
-                    ),
+                ? ownGroup.stories.some(
+                    (story) => (story.viewers || []).length > 0,
                   )
                   ? "bg-base-300"
                   : "bg-primary"
@@ -333,17 +477,11 @@ const StoriesBar = ({ chatClient }) => {
                 onClick={() => openStoryGroup(ownGroup)}
                 title="View your Story"
               >
-                {ownStoryImage || ownAvatar ? (
-                  <img
-                    src={ownStoryImage || ownAvatar}
-                    alt={getUserName(authUser, "Your Story")}
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <div className="flex size-full items-center justify-center text-lg font-semibold opacity-70">
-                    {getUserName(authUser, "You").charAt(0).toUpperCase()}
-                  </div>
-                )}
+                <StoryAvatar
+                  story={latestOwnStory}
+                  userImage={ownAvatar}
+                  name={getUserName(authUser, "You")}
+                />
               </button>
             ) : (
               <button
@@ -353,17 +491,11 @@ const StoriesBar = ({ chatClient }) => {
                 className="block size-full overflow-hidden rounded-full bg-base-300 disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label="Add a Story"
               >
-                {ownStoryImage ? (
-                  <img
-                    src={ownStoryImage}
-                    alt={getUserName(authUser, "Your Story")}
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <div className="flex size-full items-center justify-center text-lg font-semibold opacity-70">
-                    {getUserName(authUser, "You").charAt(0).toUpperCase()}
-                  </div>
-                )}
+                <StoryAvatar
+                  story={latestOwnStory}
+                  userImage={ownAvatar}
+                  name={getUserName(authUser, "You")}
+                />
               </button>
             )}
             {!ownGroup && (
@@ -392,7 +524,6 @@ const StoriesBar = ({ chatClient }) => {
           const name = getUserName(user);
           const avatar = user?.profilePic || user?.image;
           const latestStory = getLatestStory(group);
-          const latestStoryMedia = latestStory?.mediaUrl || avatar;
           return (
             <button
               key={getUserId(user)}
@@ -400,10 +531,7 @@ const StoriesBar = ({ chatClient }) => {
               onClick={() => openStoryGroup(group)}
               className={`flex w-16 shrink-0 flex-col items-center gap-2 text-center opacity-90 ${
                 group.stories.some(
-                  (story) =>
-                    !(story.viewers || []).some(
-                      (viewer) => getUserId(viewer) === currentUserId,
-                    ),
+                  (story) => !hasCurrentUserViewedStory(story, currentUserId),
                 )
                   ? ""
                   : "opacity-60"
@@ -413,27 +541,18 @@ const StoriesBar = ({ chatClient }) => {
               <div
                 className={`size-14 rounded-full p-0.5 ${
                   group.stories.some(
-                    (story) =>
-                      !(story.viewers || []).some(
-                        (viewer) => getUserId(viewer) === currentUserId,
-                      ),
+                    (story) => !hasCurrentUserViewedStory(story, currentUserId),
                   )
                     ? "bg-primary"
                     : "bg-base-300"
                 }`}
               >
                 <div className="size-full overflow-hidden rounded-full bg-base-300">
-                  {latestStoryMedia ? (
-                    <img
-                      src={latestStoryMedia}
-                      alt={name}
-                      className="size-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex size-full items-center justify-center text-lg font-semibold opacity-70">
-                      {name.charAt(0).toUpperCase()}
-                    </div>
-                  )}
+                  <StoryAvatar
+                    story={latestStory}
+                    userImage={avatar}
+                    name={name}
+                  />
                 </div>
               </div>
               <span className="w-full truncate text-xs">{name}</span>
@@ -447,6 +566,33 @@ const StoriesBar = ({ chatClient }) => {
       )}
       {successMessage && (
         <p className="mt-3 text-sm text-success">{successMessage}</p>
+      )}
+      {hiddenStoryUsers.length > 0 && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setShowHiddenUsers((shown) => !shown)}
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-xs font-medium text-base-content/70 hover:bg-base-200"
+            aria-expanded={showHiddenUsers}
+          >
+            <EyeOff className="size-4" />
+            Hidden Stories ({hiddenStoryUsers.length})
+          </button>
+          {showHiddenUsers && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {hiddenStoryUsers.map((user) => (
+                <button
+                  key={user._id}
+                  type="button"
+                  onClick={() => unhideStoriesMutation(user._id)}
+                  className="btn btn-outline btn-xs"
+                >
+                  Unhide {user.fullName || "user"}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
       {isError && !errorMessage && (
         <p className="mt-3 text-sm text-error">
@@ -467,6 +613,7 @@ const StoriesBar = ({ chatClient }) => {
           onStoryViewed={updateStoryInCache}
           onStoryDeleted={removeStoryFromCache}
           onStoryUnavailable={handleStoryUnavailable}
+          onHideStoriesFromUser={(userId) => hideStoriesMutation(userId)}
           onClose={() => setViewerGroupIndex(null)}
         />
       )}
@@ -477,6 +624,10 @@ const StoriesBar = ({ chatClient }) => {
           file={selectedFile}
           caption={caption}
           onCaptionChange={setCaption}
+          prompt={prompt}
+          onPromptChange={setPrompt}
+          privacy={privacy}
+          onPrivacyChange={setPrivacy}
           onCancel={cancelComposer}
           onReplace={openFilePicker}
           onResetTrim={resetTrim}

@@ -1,21 +1,32 @@
 import mongoose from "mongoose";
 import Story from "../models/Story.js";
-import { deleteStreamImage } from "../lib/stream.js";
+import User from "../models/User.js";
+import { deleteStreamStoryMedia } from "../lib/stream.js";
 import { createNotification } from "../services/notification.service.js";
 
 const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000;
 const MAX_MEDIA_URL_LENGTH = 2048;
+const MAX_STORY_SIZE = 10 * 1024 * 1024;
+const MAX_STORY_DURATION_SECONDS = 60.5;
 const STREAM_CDN_HOST_SUFFIX = "stream-io-cdn.com";
+const STORY_REPORT_REASONS = ["spam", "inappropriate", "harassment", "other"];
 
 const getVisibleUserIds = (user) => [
   user._id,
   ...(Array.isArray(user.friends) ? user.friends : []),
 ];
 
-const isVisibleToUser = (story, user) =>
-  getVisibleUserIds(user).some(
+const isVisibleToUser = (story, user) => {
+  if (story.user.toString() === user._id.toString()) return true;
+  if (story.privacy === "only_me") return false;
+  if ((user.hiddenStoryUsers || []).some((id) => id.toString() === story.user.toString())) {
+    return false;
+  }
+
+  return (user.friends || []).some(
     (userId) => userId.toString() === story.user.toString(),
   );
+};
 
 const isValidStreamImageUrl = (mediaUrl) => {
   if (typeof mediaUrl !== "string" || !mediaUrl.trim()) return false;
@@ -40,9 +51,12 @@ const isValidStreamImageUrl = (mediaUrl) => {
 };
 
 export async function createStory(req, res) {
-  const { mediaUrl, mediaType } = req.body || {};
+  const { mediaUrl, mediaType, mediaSize, durationSeconds, privacy } =
+    req.body || {};
   const caption =
     typeof req.body?.text === "string" ? req.body.text.trim() : "";
+  const prompt =
+    typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
 
   if (caption.length > 500) {
     return res.status(400).json({
@@ -64,12 +78,46 @@ export async function createStory(req, res) {
     return res.status(400).json({ message: "Invalid Story media URL" });
   }
 
+  if (
+    !Number.isFinite(Number(mediaSize)) ||
+      Number(mediaSize) <= 0 ||
+      Number(mediaSize) > MAX_STORY_SIZE
+  ) {
+    return res.status(400).json({ message: "Story media must be 10 MB or less" });
+  }
+
+  if (
+    mediaType === "video" &&
+    (durationSeconds === undefined ||
+      !Number.isFinite(Number(durationSeconds)) ||
+      Number(durationSeconds) <= 0 ||
+      Number(durationSeconds) > MAX_STORY_DURATION_SECONDS)
+  ) {
+    return res.status(400).json({
+      message: "Story videos must be 60 seconds or shorter",
+    });
+  }
+
+  if (prompt.length > 200) {
+    return res.status(400).json({ message: "Story prompts must be 200 characters or fewer" });
+  }
+
+  if (privacy !== undefined && !["friends", "only_me"].includes(privacy)) {
+    return res.status(400).json({ message: "Invalid Story privacy setting" });
+  }
+
   try {
     const createdAt = new Date();
     const story = await Story.create({
       user: req.user._id,
       mediaUrl: mediaUrl.trim(),
       mediaType,
+      ...(mediaSize !== undefined ? { mediaSize: Number(mediaSize) } : {}),
+      ...(mediaType === "video"
+        ? { durationSeconds: Number(durationSeconds) }
+        : {}),
+      privacy: privacy || "friends",
+      ...(prompt ? { prompt } : {}),
       ...(caption ? { text: caption } : {}),
       createdAt,
       expiresAt: new Date(createdAt.getTime() + STORY_LIFETIME_MS),
@@ -85,9 +133,19 @@ export async function createStory(req, res) {
 
 export async function getStories(req, res) {
   try {
+    const visibleUserQuery = {
+      $in: getVisibleUserIds(req.user),
+      ...(req.user.hiddenStoryUsers?.length
+        ? { $nin: req.user.hiddenStoryUsers }
+        : {}),
+    };
     const stories = await Story.find({
-      user: { $in: getVisibleUserIds(req.user) },
+      user: visibleUserQuery,
       expiresAt: { $gt: new Date() },
+      $or: [
+        { user: req.user._id },
+        { privacy: { $ne: "only_me" } },
+      ],
     })
       .populate("user", "fullName profilePic")
       .sort({ createdAt: 1 });
@@ -96,6 +154,10 @@ export async function getStories(req, res) {
       const storyObj = story.toObject();
       const ownerId = storyObj.user._id || storyObj.user;
       const isOwner = ownerId.toString() === req.user._id.toString();
+      storyObj.viewedByMe = isOwner || (storyObj.viewers || []).some(
+        (viewer) => viewer.toString() === req.user._id.toString(),
+      );
+      delete storyObj.reports;
 
       // Remove viewer list from non-owners
       if (!isOwner) {
@@ -145,7 +207,10 @@ export async function viewStory(req, res) {
     }
 
     if (story.user.toString() === req.user._id.toString()) {
-      return res.status(200).json(story);
+      const storyObj = story.toObject();
+      storyObj.viewedByMe = true;
+      delete storyObj.reports;
+      return res.status(200).json(storyObj);
     }
 
     const updatedStory = await Story.findOneAndUpdate(
@@ -159,6 +224,8 @@ export async function viewStory(req, res) {
     }
 
     const storyObj = updatedStory.toObject();
+    storyObj.viewedByMe = true;
+    delete storyObj.reports;
     if (storyObj.user.toString() !== req.user._id.toString()) {
       delete storyObj.viewers;
       // Remove reaction details from non-owners, keep only user's own reaction
@@ -236,7 +303,7 @@ export async function deleteStory(req, res) {
     // Attempt to clean up media, but don't fail the entire delete if media cleanup fails
     if (story.mediaUrl) {
       try {
-        await deleteStreamImage(story.mediaUrl);
+        await deleteStreamStoryMedia(story.mediaUrl, story.mediaType);
       } catch (error) {
         // Log media deletion error but continue with Story deletion from DB
         console.error(
@@ -327,24 +394,26 @@ export async function addReaction(req, res) {
     const userId = req.user._id;
     const isOwner = story.user.toString() === userId.toString();
 
-    // Atomically remove any existing reaction from this user then add the new one
-    const updatedStory = await Story.findOneAndUpdate(
-      { _id: id, expiresAt: { $gt: new Date() } },
-      {
-        $pull: { reactions: { user: userId } },
-      },
-      { new: false },
-    );
-
-    if (!updatedStory) {
-      return res.status(410).json({ message: "Story has expired" });
-    }
-
     const finalStory = await Story.findOneAndUpdate(
       { _id: id, expiresAt: { $gt: new Date() } },
-      {
-        $push: { reactions: { user: userId, type } },
-      },
+      [
+        {
+          $set: {
+            reactions: {
+              $concatArrays: [
+                {
+                  $filter: {
+                    input: { $ifNull: ["$reactions", []] },
+                    as: "reaction",
+                    cond: { $ne: ["$$reaction.user", userId] },
+                  },
+                },
+                [{ user: userId, type }],
+              ],
+            },
+          },
+        },
+      ],
       { new: true },
     );
 
@@ -423,5 +492,100 @@ export async function removeReaction(req, res) {
   } catch (error) {
     console.error("Error removing Story reaction", error.message);
     return res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+export async function getHiddenStoryUsers(req, res) {
+  try {
+    const user = await User.findById(req.user._id).populate(
+      "hiddenStoryUsers",
+      "fullName profilePic",
+    );
+    return res.status(200).json(user?.hiddenStoryUsers || []);
+  } catch (error) {
+    console.error("Error loading hidden Story users", error.message);
+    return res.status(500).json({ message: "Unable to load hidden Stories" });
+  }
+}
+
+export async function hideStoriesFromUser(req, res) {
+  const { userId } = req.params;
+  if (!mongoose.isValidObjectId(userId) || userId === req.user._id.toString()) {
+    return res.status(400).json({ message: "Invalid user to hide" });
+  }
+
+  try {
+    const targetExists = await User.exists({ _id: userId });
+    if (!targetExists) return res.status(404).json({ message: "User not found" });
+
+    await User.findByIdAndUpdate(req.user._id, {
+      $addToSet: { hiddenStoryUsers: userId },
+    });
+    return res.status(200).json({ success: true, hiddenUserId: userId });
+  } catch (error) {
+    console.error("Error hiding Story user", error.message);
+    return res.status(500).json({ message: "Unable to hide Stories" });
+  }
+}
+
+export async function unhideStoriesFromUser(req, res) {
+  const { userId } = req.params;
+  if (!mongoose.isValidObjectId(userId)) {
+    return res.status(400).json({ message: "Invalid user to unhide" });
+  }
+
+  try {
+    await User.findByIdAndUpdate(req.user._id, {
+      $pull: { hiddenStoryUsers: userId },
+    });
+    return res.status(200).json({ success: true, unhiddenUserId: userId });
+  } catch (error) {
+    console.error("Error unhiding Story user", error.message);
+    return res.status(500).json({ message: "Unable to unhide Stories" });
+  }
+}
+
+export async function reportStory(req, res) {
+  const { id } = req.params;
+  const { reason } = req.body || {};
+  if (!mongoose.isValidObjectId(id)) {
+    return res.status(400).json({ message: "Invalid Story ID" });
+  }
+  if (!STORY_REPORT_REASONS.includes(reason)) {
+    return res.status(400).json({ message: "Choose a valid report reason" });
+  }
+
+  try {
+    const story = await Story.findById(id);
+    if (!story || story.expiresAt <= new Date()) {
+      return res.status(404).json({ message: "Story is unavailable" });
+    }
+    if (story.user.toString() === req.user._id.toString()) {
+      return res.status(400).json({ message: "You cannot report your own Story" });
+    }
+    if (!isVisibleToUser(story, req.user)) {
+      return res.status(403).json({ message: "You cannot report this Story" });
+    }
+
+    const reportedStory = await Story.findOneAndUpdate(
+      {
+        _id: id,
+        expiresAt: { $gt: new Date() },
+        reports: { $not: { $elemMatch: { user: req.user._id } } },
+      },
+      {
+        $push: { reports: { user: req.user._id, reason, createdAt: new Date() } },
+      },
+      { new: true },
+    );
+
+    if (!reportedStory) {
+      return res.status(409).json({ message: "You already reported this Story" });
+    }
+
+    return res.status(201).json({ success: true });
+  } catch (error) {
+    console.error("Error reporting Story", error.message);
+    return res.status(500).json({ message: "Unable to report this Story" });
   }
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ImagePlus, RotateCcw, Scissors, X } from "lucide-react";
+import { STORY_PROMPTS } from "../../constants/storyPrompts.js";
 
 const MAX_CAPTION_LENGTH = 500;
 
@@ -14,6 +15,10 @@ const StoryMediaComposer = ({
   file,
   caption,
   onCaptionChange,
+  prompt,
+  onPromptChange,
+  privacy,
+  onPrivacyChange,
   onCancel,
   onReplace,
   onResetTrim,
@@ -66,7 +71,7 @@ const StoryMediaComposer = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2 sm:p-6"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="story-composer-title"
@@ -74,7 +79,7 @@ const StoryMediaComposer = ({
         if (event.target === event.currentTarget && !isSubmitting) onCancel();
       }}
     >
-      <section className="flex max-h-[calc(100dvh-1rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-2xl sm:max-h-[calc(100dvh-3rem)]">
+      <section className="flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-base-300 bg-base-100 pb-[env(safe-area-inset-bottom)] shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-xl sm:pb-0">
         <header className="flex items-center justify-between gap-3 border-b border-base-300 px-4 py-3 sm:px-5">
           <div className="min-w-0">
             <h2 id="story-composer-title" className="font-semibold">
@@ -150,6 +155,43 @@ const StoryMediaComposer = ({
           </div>
 
           <div className="flex min-w-0 flex-col gap-4">
+            <label className="form-control w-full">
+              <span className="mb-1 text-sm font-medium">
+                Language challenge (optional)
+              </span>
+              <select
+                value={prompt}
+                onChange={(event) => onPromptChange(event.target.value)}
+                className="select select-bordered select-sm w-full"
+                disabled={isSubmitting}
+              >
+                <option value="">No prompt</option>
+                {STORY_PROMPTS.map((challenge) => (
+                  <option key={challenge.text} value={challenge.text}>
+                    {challenge.text}
+                  </option>
+                ))}
+              </select>
+              {prompt && (
+                <span className="mt-1 text-xs opacity-60">
+                  Suggested language: {STORY_PROMPTS.find((item) => item.text === prompt)?.language}
+                </span>
+              )}
+            </label>
+
+            <label className="form-control w-full">
+              <span className="mb-1 text-sm font-medium">Story audience</span>
+              <select
+                value={privacy}
+                onChange={(event) => onPrivacyChange(event.target.value)}
+                className="select select-bordered select-sm w-full"
+                disabled={isSubmitting}
+              >
+                <option value="friends">Friends</option>
+                <option value="only_me">Only me</option>
+              </select>
+            </label>
+
             {isVideo && (
               <section className="space-y-3 rounded-lg border border-base-300 p-3">
                 <div className="flex items-center justify-between gap-3 text-sm">

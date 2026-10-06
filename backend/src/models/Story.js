@@ -17,11 +17,51 @@ const storySchema = new mongoose.Schema(
       required: true,
       enum: ["image", "video"],
     },
+    mediaSize: {
+      type: Number,
+      required: true,
+      min: 0,
+      max: 10 * 1024 * 1024,
+    },
+    durationSeconds: {
+      type: Number,
+      min: 0,
+      max: 60.5,
+    },
+    privacy: {
+      type: String,
+      enum: ["friends", "only_me"],
+      default: "friends",
+    },
+    prompt: {
+      type: String,
+      trim: true,
+      maxlength: 200,
+    },
     text: {
       type: String,
       trim: true,
       maxlength: 500,
     },
+    reports: [
+      {
+        _id: false,
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        reason: {
+          type: String,
+          enum: ["spam", "inappropriate", "harassment", "other"],
+          required: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     viewers: [
       {
         type: mongoose.Schema.Types.ObjectId,

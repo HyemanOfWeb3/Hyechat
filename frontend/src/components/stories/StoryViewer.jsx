@@ -5,7 +5,10 @@ import {
   ArrowLeft,
   ArrowRight,
   Eye,
+  EyeOff,
+  Flag,
   ImageOff,
+  Languages,
   LoaderCircle,
   Trash2,
   X,
@@ -16,6 +19,9 @@ import {
   getStoryViewers,
   addStoryReaction,
   removeStoryReaction,
+  reportStory,
+  getTranslationLanguages,
+  translateMessage,
 } from "../../lib/api.js";
 import { getLanguageFlag } from "../LanguageFlag.jsx";
 import { buildChatChannelId } from "../../lib/utils.js";
@@ -42,6 +48,7 @@ const StoryViewer = ({
   onStoryViewed,
   onStoryDeleted,
   onStoryUnavailable,
+  onHideStoriesFromUser,
   onClose,
 }) => {
   const queryClient = useQueryClient();
@@ -65,6 +72,11 @@ const StoryViewer = ({
   const [isPaused, setIsPaused] = useState(false);
   const [progress, setProgress] = useState(0);
   const [videoDuration, setVideoDuration] = useState(null);
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("inappropriate");
+  const [reportedStoryIds, setReportedStoryIds] = useState(new Set());
+  const [isTranslationOpen, setIsTranslationOpen] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState("");
 
   const setPauseReason = useCallback((reason, shouldPause) => {
     if (shouldPause) {
@@ -82,6 +94,9 @@ const StoryViewer = ({
     setImageError(false);
     setViewerError("");
     setVideoDuration(null);
+    setIsTranslationOpen(false);
+    setSelectedLanguage("");
+    setIsReportOpen(false);
   }, []);
 
   const availableGroups = useMemo(
@@ -101,9 +116,37 @@ const StoryViewer = ({
 
   const currentGroup = availableGroups[groupIndex];
   const currentStory = currentGroup?.stories[storyIndex];
+  const hasReportedStory = reportedStoryIds.has(currentStory?._id);
   const isOwner = currentGroup
     ? getUserId(currentGroup.user) === currentUserId
     : false;
+
+  const translationSource = [currentStory?.prompt, currentStory?.text]
+    .filter((text) => typeof text === "string" && text.trim())
+    .join("\n\n");
+  const canTranslateStory =
+    currentStory?.mediaType === "image" && Boolean(translationSource);
+  const languageQuery = useQuery({
+    queryKey: ["translationLanguages"],
+    queryFn: getTranslationLanguages,
+    enabled: isTranslationOpen && canTranslateStory,
+    staleTime: Infinity,
+  });
+  const targetLanguage =
+    selectedLanguage || languageQuery.data?.preferredLanguageCode || "";
+  const storyTranslationQuery = useQuery({
+    queryKey: [
+      "storyTranslation",
+      currentStory?._id,
+      targetLanguage,
+      translationSource,
+    ],
+    queryFn: () => translateMessage({ text: translationSource, targetLanguage }),
+    enabled:
+      isTranslationOpen && canTranslateStory && Boolean(targetLanguage),
+    retry: false,
+    staleTime: Infinity,
+  });
 
   const [isViewerListOpen, setIsViewerListOpen] = useState(false);
 
@@ -157,6 +200,22 @@ const StoryViewer = ({
       setViewerError(
         error.response?.data?.message ||
           "Unable to remove reaction. Please try again.",
+      );
+    },
+  });
+
+  const reportMutation = useMutation({
+    mutationFn: ({ storyId, reason }) => reportStory(storyId, reason),
+    onSuccess: (_data, variables) => {
+      setReportedStoryIds((ids) => new Set(ids).add(variables.storyId));
+      setIsReportOpen(false);
+    },
+    onError: (error) => {
+      if (error.response?.status === 409 && currentStory?._id) {
+        setReportedStoryIds((ids) => new Set(ids).add(currentStory._id));
+      }
+      setViewerError(
+        error.response?.data?.message || "Unable to report this Story.",
       );
     },
   });
@@ -412,6 +471,10 @@ const StoryViewer = ({
   }, [isViewerListOpen, setPauseReason]);
 
   useEffect(() => {
+    setPauseReason("report-dialog", isReportOpen);
+  }, [isReportOpen, setPauseReason]);
+
+  useEffect(() => {
     if (!currentStory?._id || imageLoading || imageError || isPaused) {
       return undefined;
     }
@@ -544,6 +607,18 @@ const StoryViewer = ({
     removeStory(currentStory._id);
   };
 
+  const handleHideStories = () => {
+    if (isOwner || !onHideStoriesFromUser) return;
+    if (!window.confirm(`Hide Stories from ${ownerName}?`)) return;
+    onHideStoriesFromUser(getUserId(currentGroup.user));
+  };
+
+  const handleReportStory = (event) => {
+    event.preventDefault();
+    if (!currentStory?._id || isOwner || hasReportedStory) return;
+    reportMutation.mutate({ storyId: currentStory._id, reason: reportReason });
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-6"
@@ -638,6 +713,31 @@ const StoryViewer = ({
             {isDeleting ? "Deleting..." : "Delete"}
           </button>
         )}
+        {!isOwner && (
+          <div className="absolute right-4 top-20 z-20 flex gap-2">
+            <button
+              type="button"
+              onClick={handleHideStories}
+              className="btn btn-sm min-h-11 gap-2 border-0 bg-black/60 text-white hover:bg-black/75"
+              aria-label={`Hide Stories from ${ownerName}`}
+            >
+              <EyeOff className="size-4" />
+              <span className="hidden sm:inline">Hide</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsReportOpen(true)}
+              disabled={hasReportedStory}
+              className="btn btn-sm min-h-11 gap-2 border-0 bg-black/60 text-white hover:bg-black/75"
+              aria-label="Report Story"
+            >
+              <Flag className="size-4" />
+              <span className="hidden sm:inline">
+                {hasReportedStory ? "Reported" : "Report"}
+              </span>
+            </button>
+          </div>
+        )}
 
         <div
           className="relative flex min-h-0 flex-1 items-center justify-center bg-black"
@@ -713,10 +813,22 @@ const StoryViewer = ({
             />
           )}
 
-          {currentStory.text?.trim() && (
-            <p className="pointer-events-none absolute bottom-4 left-1/2 z-10 max-h-32 w-[calc(100%-5rem)] -translate-x-1/2 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-black/60 px-3 py-2 text-center text-sm text-white shadow-lg sm:bottom-6 sm:max-h-40 sm:text-base">
-              {currentStory.text}
-            </p>
+          {(currentStory.prompt?.trim() || currentStory.text?.trim()) && (
+            <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 max-h-40 w-[calc(100%-5rem)] -translate-x-1/2 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-black/60 px-3 py-2 text-center text-sm text-white shadow-lg sm:bottom-6 sm:max-h-48 sm:text-base">
+              {currentStory.prompt?.trim() && (
+                <p className="mb-1 text-xs font-semibold text-white/75">
+                  Language challenge
+                </p>
+              )}
+              {currentStory.prompt?.trim() && (
+                <p className="font-medium">{currentStory.prompt}</p>
+              )}
+              {currentStory.text?.trim() && (
+                <p className={currentStory.prompt ? "mt-1" : ""}>
+                  {currentStory.text}
+                </p>
+              )}
+            </div>
           )}
 
           <button
@@ -738,6 +850,81 @@ const StoryViewer = ({
         </div>
 
         <div className="flex flex-col bg-base-100">
+          {canTranslateStory && (
+            <section className="border-t border-base-300 px-3 py-2">
+              <button
+                type="button"
+                onClick={() => setIsTranslationOpen((open) => !open)}
+                className="inline-flex min-h-10 items-center gap-2 rounded-full px-3 text-sm font-medium text-primary hover:bg-primary/10"
+                aria-expanded={isTranslationOpen}
+              >
+                <Languages className="size-4" />
+                {isTranslationOpen ? "Hide translation" : "Translate text"}
+              </button>
+              {isTranslationOpen && (
+                <div className="mt-2 space-y-2">
+                  <label className="sr-only" htmlFor="story-translation-language">
+                    Translate Story text to
+                  </label>
+                  <select
+                    id="story-translation-language"
+                    className="select select-bordered select-sm w-full"
+                    value={targetLanguage}
+                    onChange={(event) => setSelectedLanguage(event.target.value)}
+                    disabled={languageQuery.isLoading || languageQuery.isError}
+                  >
+                    <option value="">Choose a language</option>
+                    {(languageQuery.data?.languages || []).map((language) => (
+                      <option key={language.code} value={language.code}>
+                        {language.name}
+                      </option>
+                    ))}
+                  </select>
+                  {languageQuery.isLoading && (
+                    <p className="text-xs opacity-60">Loading languages…</p>
+                  )}
+                  {languageQuery.isError && (
+                    <p className="text-xs text-error">
+                      Could not load languages.{" "}
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => void languageQuery.refetch()}
+                      >
+                        Retry
+                      </button>
+                    </p>
+                  )}
+                  {storyTranslationQuery.isFetching && (
+                    <p className="text-xs opacity-60">Translating on request…</p>
+                  )}
+                  {storyTranslationQuery.isError && (
+                    <p className="text-xs text-error">
+                      Translation failed. {" "}
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => void storyTranslationQuery.refetch()}
+                      >
+                        Retry
+                      </button>
+                    </p>
+                  )}
+                  {storyTranslationQuery.data?.translatedText && (
+                    <div className="rounded-lg bg-primary/5 p-3 text-sm">
+                      <p className="mb-1 text-xs font-semibold text-primary">
+                        {storyTranslationQuery.data.targetLanguageName || targetLanguage}
+                      </p>
+                      <p className="whitespace-pre-wrap break-words">
+                        {storyTranslationQuery.data.translatedText}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
           {/* Reaction picker */}
           {!isOwner && (
             <div className="flex items-center justify-center gap-1 px-3 pt-2 pb-1 flex-wrap">
@@ -924,6 +1111,51 @@ const StoryViewer = ({
                 ))
               )}
             </div>
+          </div>
+        )}
+
+        {isReportOpen && (
+          <div className="absolute inset-0 z-40 flex items-end bg-black/60 sm:items-center sm:justify-center sm:p-4">
+            <form
+              onSubmit={handleReportStory}
+              className="w-full rounded-t-2xl bg-base-100 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl sm:max-w-sm sm:rounded-2xl sm:pb-4"
+            >
+              <h3 className="text-lg font-semibold">Report this Story</h3>
+              <p className="mt-1 text-sm opacity-70">
+                Your report is private. Thank you for helping keep HyeChat safe.
+              </p>
+              <label className="form-control mt-4">
+                <span className="mb-1 text-sm font-medium">Reason</span>
+                <select
+                  className="select select-bordered"
+                  value={reportReason}
+                  onChange={(event) => setReportReason(event.target.value)}
+                  disabled={reportMutation.isPending}
+                >
+                  <option value="inappropriate">Inappropriate content</option>
+                  <option value="harassment">Harassment</option>
+                  <option value="spam">Spam</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setIsReportOpen(false)}
+                  disabled={reportMutation.isPending}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-error text-white"
+                  disabled={reportMutation.isPending}
+                >
+                  {reportMutation.isPending ? "Submitting…" : "Submit report"}
+                </button>
+              </div>
+            </form>
           </div>
         )}
       </div>

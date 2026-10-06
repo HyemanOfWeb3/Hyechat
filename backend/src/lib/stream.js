@@ -51,6 +51,12 @@ export const deleteStreamImage = async (imageUrl) => {
   return streamClient.deleteImage(imageUrl);
 };
 
+export const deleteStreamStoryMedia = async (mediaUrl, mediaType) => {
+  return mediaType === "video"
+    ? streamClient.deleteFile(mediaUrl)
+    : streamClient.deleteImage(mediaUrl);
+};
+
 export const getStreamMessage = async (messageId) => {
   const response = await streamClient.getMessage(messageId);
   return response.message;

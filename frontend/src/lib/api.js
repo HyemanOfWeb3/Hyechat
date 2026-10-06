@@ -42,13 +42,46 @@ export const getStories = async () => {
   return res.data;
 };
 
-export const createStory = async (mediaUrl, mediaType = "image", text = "") => {
+export const createStory = async (
+  mediaUrl,
+  mediaType = "image",
+  text = "",
+  options = {},
+) => {
   const caption = typeof text === "string" ? text.trim() : "";
   const res = await axiosInstance.post("/stories", {
     mediaUrl,
     mediaType,
+    ...(options.prompt ? { prompt: options.prompt } : {}),
+    ...(options.privacy ? { privacy: options.privacy } : {}),
+    ...(Number.isFinite(options.mediaSize)
+      ? { mediaSize: options.mediaSize }
+      : {}),
+    ...(Number.isFinite(options.durationSeconds)
+      ? { durationSeconds: options.durationSeconds }
+      : {}),
     ...(caption ? { text: caption } : {}),
   });
+  return res.data;
+};
+
+export const getHiddenStoryUsers = async () => {
+  const res = await axiosInstance.get("/stories/hidden-users");
+  return res.data;
+};
+
+export const hideStoriesFromUser = async (userId) => {
+  const res = await axiosInstance.post(`/stories/hide/${userId}`);
+  return res.data;
+};
+
+export const unhideStoriesFromUser = async (userId) => {
+  const res = await axiosInstance.delete(`/stories/hide/${userId}`);
+  return res.data;
+};
+
+export const reportStory = async (storyId, reason) => {
+  const res = await axiosInstance.post(`/stories/${storyId}/report`, { reason });
   return res.data;
 };
 

@@ -3,7 +3,7 @@ import User from "../models/User.js";
 import FriendRequest from "../models/FriendRequest.js";
 import Story from "../models/Story.js";
 import Notification from "../models/Notification.js";
-import { upsertStreamUser } from "../lib/stream.js";
+import { deleteStreamStoryMedia, upsertStreamUser } from "../lib/stream.js";
 import { createNotification } from "../services/notification.service.js";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -157,6 +157,20 @@ export async function deleteMyAccount(req, res) {
     }
 
     const userId = user._id;
+    const stories = await Story.find({ user: userId }).select(
+      "mediaUrl mediaType",
+    );
+    const mediaCleanup = await Promise.allSettled(
+      stories.map((story) =>
+        deleteStreamStoryMedia(story.mediaUrl, story.mediaType),
+      ),
+    );
+    mediaCleanup.forEach((result) => {
+      if (result.status === "rejected") {
+        console.warn("Could not clean up Story media during account deletion");
+      }
+    });
+
     await Promise.all([
       Story.deleteMany({ user: userId }),
       Notification.deleteMany({

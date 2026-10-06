@@ -77,6 +77,12 @@ const userSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
+    hiddenStoryUsers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     resetPasswordToken: {
       type: String,
       default: null,
