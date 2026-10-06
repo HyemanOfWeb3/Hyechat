@@ -17,6 +17,7 @@ const MEMBER_PROJECTION =
 const createInviteToken = () => crypto.randomBytes(32).toString("base64url");
 const hashInviteToken = (token) =>
   crypto.createHash("sha256").update(token).digest("hex");
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const publicCommunity = (community, includeMembers = false) => {
   const data = community.toObject ? community.toObject() : { ...community };
@@ -74,6 +75,108 @@ export async function getMyCommunities(req, res) {
   }
 }
 
+export async function discoverCommunities(req, res) {
+  const query = typeof req.query.query === "string" ? req.query.query.trim() : "";
+  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(50, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
+  const filter = { privacy: "public" };
+
+  if (query) {
+    const search = { $regex: escapeRegex(query), $options: "i" };
+    filter.$or = [{ name: search }, { description: search }, { category: search }];
+  }
+
+  try {
+    const [communities, total] = await Promise.all([
+      Community.find(filter)
+        .select("name description avatar category privacy owner members createdAt updatedAt")
+        .populate("owner", "fullName profilePic")
+        .sort({ updatedAt: -1, _id: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      Community.countDocuments(filter),
+    ]);
+    return res.status(200).json({
+      communities: communities.map((community) => ({
+        ...publicCommunity(community),
+        isMember: Boolean(findMember(community, req.user._id)),
+      })),
+      pagination: { page, limit, hasMore: page * limit < total },
+    });
+  } catch (error) {
+    console.error("Error discovering communities", error.message);
+    return res.status(500).json({ message: "Unable to discover communities" });
+  }
+}
+
+export async function joinPublicCommunity(req, res) {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(404).json({ message: "Community not found" });
+  }
+
+  try {
+    const community = await Community.findOne({
+      _id: req.params.id,
+      privacy: "public",
+    });
+    if (!community) {
+      return res.status(404).json({ message: "Public community not found" });
+    }
+    if (findMember(community, req.user._id)) {
+      return res.status(200).json({
+        success: true,
+        community: publicCommunity(community),
+        alreadyMember: true,
+      });
+    }
+
+    const blocked = await User.findOne({
+      $or: [
+        { _id: req.user._id, blockedUsers: community.owner },
+        { _id: community.owner, blockedUsers: req.user._id },
+      ],
+    });
+    if (blocked) {
+      return res.status(403).json({ message: "You cannot join this community" });
+    }
+
+    const joinedCommunity = await Community.findOneAndUpdate(
+      { _id: community._id, privacy: "public", "members.user": { $ne: req.user._id } },
+      { $push: { members: { user: req.user._id, role: "member" } } },
+      { new: true, runValidators: true },
+    );
+    if (!joinedCommunity) {
+      const current = await Community.findById(community._id);
+      return res.status(200).json({
+        success: true,
+        community: publicCommunity(current),
+        alreadyMember: true,
+      });
+    }
+
+    try {
+      await addCommunityChannelMember({
+        channelId: joinedCommunity.streamChannelId,
+        userId: req.user._id,
+      });
+    } catch (streamError) {
+      await Community.updateOne(
+        { _id: joinedCommunity._id },
+        { $pull: { members: { user: req.user._id } } },
+      );
+      throw streamError;
+    }
+
+    return res.status(200).json({
+      success: true,
+      community: publicCommunity(joinedCommunity),
+    });
+  } catch (error) {
+    console.error("Error joining public community", error.message);
+    return res.status(500).json({ message: "Unable to join community" });
+  }
+}
+
 export async function createCommunity(req, res) {
   const {
     name,
@@ -81,6 +184,7 @@ export async function createCommunity(req, res) {
     avatar = "",
     category = "",
     rules = "",
+    privacy = "private",
   } = req.body || {};
   const cleanName = typeof name === "string" ? name.trim() : "";
   if (cleanName.length < 2 || cleanName.length > 80) {
@@ -96,6 +200,7 @@ export async function createCommunity(req, res) {
     avatar: typeof avatar === "string" ? avatar.trim() : "",
     category: typeof category === "string" ? category.trim() : "",
     rules: typeof rules === "string" ? rules.trim() : "",
+    privacy: privacy === "public" ? "public" : "private",
     owner: req.user._id,
     members: [{ user: req.user._id, role: "owner" }],
     streamChannelId: `community_${new mongoose.Types.ObjectId().toString()}`,

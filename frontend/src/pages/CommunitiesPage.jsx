@@ -38,6 +38,7 @@ const CommunitiesPage = () => {
     avatar: "",
     category: "",
     rules: "",
+    privacy: "private",
   });
   const communitiesQuery = useQuery({
     queryKey: ["communities"],
@@ -53,6 +54,7 @@ const CommunitiesPage = () => {
         avatar: "",
         category: "",
         rules: "",
+        privacy: "private",
       });
       setCreatedInvite(`${window.location.origin}/group/${inviteToken}`);
       setShowCreate(false);
@@ -81,7 +83,7 @@ const CommunitiesPage = () => {
             </p>
             <h1 className="mt-1 text-3xl font-bold">Communities</h1>
             <p className="mt-2 text-sm opacity-60">
-              Private spaces for language partners and group conversations.
+              Manage your groups and create public spaces people can discover.
             </p>
           </div>
           <button
@@ -118,11 +120,9 @@ const CommunitiesPage = () => {
                 <UsersRound className="size-5" />
               </div>
               <div>
-                <h2 className="text-xl font-bold">
-                  Create a private community
-                </h2>
+                <h2 className="text-xl font-bold">Create a community</h2>
                 <p className="text-sm opacity-60">
-                  Members can join only through a valid invite link.
+                    Choose invite-only private access or public discovery in Explore.
                 </p>
               </div>
             </div>
@@ -151,6 +151,19 @@ const CommunitiesPage = () => {
                   maxLength={50}
                   placeholder="Language exchange"
                 />
+              </label>
+              <label className="form-control">
+                <span className="label-text mb-2 font-semibold">Visibility</span>
+                <select
+                  className="select select-bordered"
+                  value={form.privacy}
+                  onChange={(event) =>
+                    setForm({ ...form, privacy: event.target.value })
+                  }
+                >
+                  <option value="private">Private · invite link only</option>
+                  <option value="public">Public · discoverable in Explore</option>
+                </select>
               </label>
               <label className="form-control md:col-span-2">
                 <span className="label-text mb-2 font-semibold">

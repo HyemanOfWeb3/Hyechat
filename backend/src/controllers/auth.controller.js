@@ -406,10 +406,23 @@ export async function onboard(req, res) {
       });
     }
 
+    const rawInterests = req.body?.interests;
+    const interests = (Array.isArray(rawInterests)
+      ? rawInterests
+      : typeof rawInterests === "string"
+        ? rawInterests.split(",")
+        : [])
+      .filter((interest) => typeof interest === "string")
+      .map((interest) => interest.trim())
+      .filter(Boolean)
+      .slice(0, 12)
+      .map((interest) => interest.slice(0, 40));
+
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       {
         ...req.body,
+        interests,
         isOnboarded: true,
       },
       { new: true },

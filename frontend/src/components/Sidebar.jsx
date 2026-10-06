@@ -93,7 +93,7 @@ const Sidebar = ({ collapsed = false, mobileOpen = false, onClose }) => {
             {navItem("/", "Home", HomeIcon)}
             {navItem("/chat", "Chats", MessageSquareIcon)}
             {navItem("/friends", "Friends", UsersIcon, friendRequestCount)}
-            {navItem("/discover", "Discover", CompassIcon)}
+            {navItem("/explore", "Explore", CompassIcon)}
             {navItem("/stories", "Stories", BookOpenIcon)}
           </div>
           <div className="space-y-1">

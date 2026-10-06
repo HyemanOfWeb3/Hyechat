@@ -49,6 +49,7 @@ const ProfilePage = () => {
     nativeLanguage: authUser.nativeLanguage || "",
     learningLanguage: authUser.learningLanguage || "",
     location: authUser.location || "",
+    interests: (authUser.interests || []).join(", "),
   };
 
   const profileMutation = useMutation({
@@ -369,6 +370,23 @@ const ProfilePage = () => {
                     maxLength={120}
                     placeholder="City, country"
                   />
+                </label>
+                <label className="form-control">
+                  <span className="label-text mb-2 font-semibold">
+                    Interests
+                  </span>
+                  <input
+                    className="input input-bordered w-full"
+                    value={profileData.interests}
+                    onChange={(event) =>
+                      setProfile({ ...profileData, interests: event.target.value })
+                    }
+                    placeholder="Cooking, hiking, films"
+                    maxLength={480}
+                  />
+                  <span className="mt-1 text-xs opacity-60">
+                    Separate interests with commas.
+                  </span>
                 </label>
                 <label className="form-control">
                   <span className="label-text mb-2 flex items-center gap-2 font-semibold">

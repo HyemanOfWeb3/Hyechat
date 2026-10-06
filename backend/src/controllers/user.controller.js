@@ -18,6 +18,7 @@ const profileFields = [
   "profilePic",
   "nativeLanguage",
   "learningLanguage",
+  "interests",
   "location",
 ];
 
@@ -115,6 +116,20 @@ export async function updateMyProfile(req, res) {
     const updates = {};
     for (const field of profileFields) {
       if (Object.prototype.hasOwnProperty.call(req.body || {}, field)) {
+        if (field === "interests") {
+          const submitted = req.body[field];
+          if (typeof submitted !== "string" && !Array.isArray(submitted)) {
+            return res.status(400).json({ message: "Interests must be a list of text values" });
+          }
+          const values = typeof submitted === "string" ? submitted.split(",") : submitted;
+          if (values.some((value) => typeof value !== "string")) {
+            return res.status(400).json({ message: "Interests must be text values" });
+          }
+          updates.interests = [...new Set(
+            values.map((value) => value.trim()).filter(Boolean),
+          )].slice(0, 12).map((value) => value.slice(0, 40));
+          continue;
+        }
         updates[field] =
           typeof req.body[field] === "string"
             ? req.body[field].trim()
@@ -128,6 +143,7 @@ export async function updateMyProfile(req, res) {
       bio: req.user.bio || "",
       profilePic: req.user.profilePic || "",
       location: req.user.location || "",
+      interests: req.user.interests || [],
       ...updates,
     };
 
@@ -270,7 +286,7 @@ export async function deleteMyAccount(req, res) {
 }
 
 const USER_PROJECTION =
-  "fullName profilePic bio nativeLanguage learningLanguage location";
+  "fullName profilePic bio nativeLanguage learningLanguage interests location";
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -301,12 +317,16 @@ const serializeUser = (
   relationship,
   mutualFriends = 0,
   requestId = null,
+  currentInterests = new Set(),
 ) => ({
   ...publicUser(user),
   relationship,
   relationshipStatus: relationship,
   requestId,
   mutualFriends,
+  sharedInterests: (user.interests || []).filter((interest) =>
+    currentInterests.has(interest.toLowerCase()),
+  ),
 });
 
 export async function getFriendsPage(req, res) {
@@ -357,7 +377,7 @@ export async function discoverUsers(req, res) {
   );
   try {
     const currentUser = await User.findById(req.user._id)
-      .select("friends blockedUsers")
+      .select("friends blockedUsers nativeLanguage learningLanguage interests")
       .lean();
     const excluded = [req.user._id, ...(currentUser?.blockedUsers || [])];
     const blockedBy = await User.find({ blockedUsers: req.user._id }).distinct(
@@ -365,14 +385,63 @@ export async function discoverUsers(req, res) {
     );
     excluded.push(...blockedBy);
     const filter = { _id: { $nin: excluded }, isOnboarded: true };
-    if (query) filter.fullName = { $regex: escapeRegex(query), $options: "i" };
+    if (query) {
+      const search = { $regex: escapeRegex(query), $options: "i" };
+      filter.$or = [
+        { fullName: search },
+        { nativeLanguage: search },
+        { learningLanguage: search },
+        { interests: search },
+      ];
+    }
+    const relevanceTerms = [];
+    if (currentUser?.learningLanguage) {
+      relevanceTerms.push({
+        $cond: [
+          { $eq: ["$nativeLanguage", currentUser.learningLanguage] },
+          3,
+          0,
+        ],
+      });
+    }
+    if (currentUser?.nativeLanguage) {
+      relevanceTerms.push({
+        $cond: [
+          { $eq: ["$learningLanguage", currentUser.nativeLanguage] },
+          2,
+          0,
+        ],
+      });
+    }
+    if (currentUser?.interests?.length) {
+      relevanceTerms.push({
+        $size: {
+          $setIntersection: [
+            {
+              $map: {
+                input: { $ifNull: ["$interests", []] },
+                as: "interest",
+                in: { $toLower: "$$interest" },
+              },
+            },
+            currentUser.interests.map((interest) => interest.toLowerCase()),
+          ],
+        },
+      });
+    }
     const [users, total, requests] = await Promise.all([
-      User.find(filter)
-        .select(USER_PROJECTION)
-        .sort({ fullName: 1, _id: 1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean(),
+      User.aggregate([
+        { $match: filter },
+        {
+          $addFields: {
+            relevanceScore: { $add: relevanceTerms.length ? relevanceTerms : [0] },
+          },
+        },
+        { $sort: { relevanceScore: -1, fullName: 1, _id: 1 } },
+        { $skip: (page - 1) * limit },
+        { $limit: limit },
+        { $project: { fullName: 1, profilePic: 1, bio: 1, nativeLanguage: 1, learningLanguage: 1, interests: 1, location: 1 } },
+      ]),
       User.countDocuments(filter),
       FriendRequest.find({
         $or: [{ sender: req.user._id }, { recipient: req.user._id }],
@@ -382,6 +451,9 @@ export async function discoverUsers(req, res) {
         .lean(),
     ]);
     const requestMap = new Map();
+    const currentInterests = new Set(
+      (currentUser?.interests || []).map((interest) => interest.toLowerCase()),
+    );
     requests.forEach((request) =>
       requestMap.set(
         request.sender.toString() === req.user._id.toString()
@@ -394,7 +466,13 @@ export async function discoverUsers(req, res) {
       users: users.map((user) => {
         const relationship = relationshipFor(currentUser, user._id, requestMap);
         const request = requestMap.get(user._id.toString());
-        return serializeUser(user, relationship, 0, request?._id || null);
+        return serializeUser(
+          user,
+          relationship,
+          0,
+          request?._id || null,
+          currentInterests,
+        );
       }),
       pagination: { page, limit, hasMore: page * limit < total },
     });

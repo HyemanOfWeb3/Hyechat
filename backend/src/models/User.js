@@ -33,6 +33,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    interests: {
+      type: [{ type: String, trim: true, maxlength: 40 }],
+      default: [],
+    },
     location: {
       type: String,
       default: "",

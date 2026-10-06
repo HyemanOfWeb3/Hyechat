@@ -193,6 +193,22 @@ export async function discoverUsers({ query = "", page = 1, limit = 20 } = {}) {
   return res.data;
 }
 
+export async function getDiscoverableCommunities({
+  query = "",
+  page = 1,
+  limit = 20,
+} = {}) {
+  const res = await axiosInstance.get("/communities/explore", {
+    params: { query, page, limit },
+  });
+  return res.data;
+}
+
+export async function joinPublicCommunity(communityId) {
+  const res = await axiosInstance.post(`/communities/${communityId}/join`);
+  return res.data;
+}
+
 export async function getRelationshipRequests() {
   const res = await axiosInstance.get("/users/relationship-requests");
   return res.data;
@@ -288,6 +304,23 @@ export async function blockUser(userId) {
 
 export async function getMyCommunities() {
   const res = await axiosInstance.get("/communities");
+  return res.data;
+}
+
+export async function getMarketplaceListings({
+  query = "",
+  type = "",
+  page = 1,
+  limit = 20,
+} = {}) {
+  const res = await axiosInstance.get("/marketplace", {
+    params: { query, type, page, limit },
+  });
+  return res.data;
+}
+
+export async function createMarketplaceListing(listingData) {
+  const res = await axiosInstance.post("/marketplace", listingData);
   return res.data;
 }
 

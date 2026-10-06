@@ -67,6 +67,34 @@ const UserCard = ({ user, action, busy }) => (
       {user.bio && (
         <p className="line-clamp-2 text-sm opacity-70">{user.bio}</p>
       )}
+      {(user.nativeLanguage || user.learningLanguage || user.interests?.length > 0) && (
+        <div className="flex flex-wrap gap-1.5">
+          {user.nativeLanguage && (
+            <span className="badge badge-outline badge-sm">
+              Speaks {user.nativeLanguage}
+            </span>
+          )}
+          {user.learningLanguage && (
+            <span className="badge badge-primary badge-outline badge-sm">
+              Learning {user.learningLanguage}
+            </span>
+          )}
+          {(user.interests || []).slice(0, 3).map((interest) => {
+            const isShared = (user.sharedInterests || []).some(
+              (sharedInterest) =>
+                sharedInterest.toLowerCase() === interest.toLowerCase(),
+            );
+            return (
+              <span
+                className={`badge badge-sm ${isShared ? "badge-secondary" : "badge-ghost"}`}
+                key={interest}
+              >
+                {isShared ? `Shared · ${interest}` : interest}
+              </span>
+            );
+          })}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2 text-xs opacity-60">
         {user.mutualFriends > 0 && (
           <span>
@@ -174,10 +202,15 @@ const BlockedUserCard = ({ user, onUnblock, busy }) => (
   </article>
 );
 
-const FriendsPage = ({ initialTab = "friends" }) => {
+const FriendsPage = ({
+  initialTab = "friends",
+  exploreMode = false,
+  searchQuery,
+}) => {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState(initialTab);
-  const [search, setSearch] = useState("");
+  const [localSearch, setLocalSearch] = useState("");
+  const search = searchQuery ?? localSearch;
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   useEffect(() => {
@@ -194,6 +227,7 @@ const FriendsPage = ({ initialTab = "friends" }) => {
     initialPageParam: 1,
     getNextPageParam: (lastPage) =>
       lastPage.pagination?.hasMore ? lastPage.pagination.page + 1 : undefined,
+    enabled: !exploreMode,
   });
   const discoveryQuery = useInfiniteQuery({
     queryKey: ["userDiscovery", debouncedSearch],
@@ -203,7 +237,10 @@ const FriendsPage = ({ initialTab = "friends" }) => {
     getNextPageParam: (lastPage) =>
       lastPage.pagination?.hasMore ? lastPage.pagination.page + 1 : undefined,
     enabled:
-      tab === "discover" || tab === "suggestions" || Boolean(debouncedSearch),
+      exploreMode ||
+      tab === "discover" ||
+      tab === "suggestions" ||
+      Boolean(debouncedSearch),
   });
   const blockedQuery = useInfiniteQuery({
     queryKey: ["blockedUsers"],
@@ -216,6 +253,7 @@ const FriendsPage = ({ initialTab = "friends" }) => {
   const requestsQuery = useQuery({
     queryKey: ["relationshipRequests"],
     queryFn: getRelationshipRequests,
+    enabled: !exploreMode,
   });
 
   const relationshipMutation = useMutation({
@@ -442,9 +480,9 @@ const FriendsPage = ({ initialTab = "friends" }) => {
   };
 
   return (
-    <div className="min-h-0 w-full flex-1 overflow-y-auto bg-base-100 px-4 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-10">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <header className="flex flex-col gap-4 border-b border-base-300 pb-5 sm:flex-row sm:items-end sm:justify-between">
+    <div className={exploreMode ? "w-full" : "min-h-0 w-full flex-1 overflow-y-auto bg-base-100 px-4 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-10"}>
+      <div className={exploreMode ? "w-full" : "mx-auto max-w-6xl space-y-6"}>
+        {!exploreMode && <header className="flex flex-col gap-4 border-b border-base-300 pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
               Community
@@ -461,20 +499,20 @@ const FriendsPage = ({ initialTab = "friends" }) => {
               className="grow"
               placeholder="Search people on HyeChat..."
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => setLocalSearch(event.target.value)}
             />
             <button
               type="button"
               className="btn btn-ghost btn-xs"
-              onClick={() => setSearch("")}
+              onClick={() => setLocalSearch("")}
               aria-label="Clear search"
             >
               {search && <X className="size-4" />}
             </button>
           </label>
-        </header>
+        </header>}
 
-        <div className="flex flex-wrap gap-2 border-b border-base-300 pb-3">
+        {!exploreMode && <div className="flex flex-wrap gap-2 border-b border-base-300 pb-3">
           {[
             ["friends", "All friends", friends.length],
             ["requests", "Requests", incoming.length],
@@ -493,7 +531,7 @@ const FriendsPage = ({ initialTab = "friends" }) => {
               {count ? <span className="badge badge-sm">{count}</span> : null}
             </button>
           ))}
-        </div>
+        </div>}
 
         {tab === "blocked" ? (
           <section>

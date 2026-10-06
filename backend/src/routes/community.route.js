@@ -4,6 +4,8 @@ import { protectRoute } from "../middleware/auth.middleware.js";
 import {
   createCommunity,
   getMyCommunities,
+  discoverCommunities,
+  joinPublicCommunity,
   getCommunity,
   getInvitePreview,
   joinByInvite,
@@ -28,8 +30,10 @@ const inviteLimiter = rateLimit({
 router.get("/invite/:token", inviteLimiter, getInvitePreview);
 router.use(protectRoute);
 router.post("/invite/:token/join", inviteLimiter, joinByInvite);
+router.get("/explore", discoverCommunities);
 router.get("/", getMyCommunities);
 router.post("/", createCommunity);
+router.post("/:id/join", joinPublicCommunity);
 router.get("/:id", getCommunity);
 router.patch("/:id", updateCommunity);
 router.post("/:id/invite/regenerate", inviteLimiter, regenerateInvite);

@@ -22,6 +22,7 @@ const OnboardingPage = lazy(() => import("./pages/OnboardingPage.jsx"));
 const TestingPage = lazy(() => import("./pages/Testing.jsx"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage.jsx"));
 const FriendsPage = lazy(() => import("./pages/FriendsPage.jsx"));
+const ExplorePage = lazy(() => import("./pages/ExplorePage.jsx"));
 const FeatureFoundationPage = lazy(
   () => import("./pages/FeatureFoundationPage.jsx"),
 );
@@ -151,11 +152,11 @@ const App = () => {
             }
           />
           <Route
-            path="/discover"
+            path="/explore"
             element={
               isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
-                  <FriendsPage initialTab="discover" />
+                  <ExplorePage />
                 </Layout>
               ) : (
                 <Navigate
@@ -164,6 +165,7 @@ const App = () => {
               )
             }
           />
+          <Route path="/discover" element={<Navigate to="/explore" replace />} />
           <Route
             path="/stories"
             element={

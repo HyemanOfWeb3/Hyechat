@@ -54,7 +54,7 @@ const communitySchema = new mongoose.Schema(
     },
     privacy: {
       type: String,
-      enum: ["private"],
+      enum: ["private", "public"],
       default: "private",
     },
     owner: {

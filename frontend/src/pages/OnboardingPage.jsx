@@ -21,6 +21,7 @@ const OnboardingPage = () => {
     bio: authUser?.bio || "",
     nativeLanguage: authUser?.nativeLanguage || "",
     learningLanguage: authUser?.learningLanguage || "",
+    interests: (authUser?.interests || []).join(", "),
     location: authUser?.location || "",
     profilePic: authUser?.profilePic || "",
   });
@@ -201,6 +202,25 @@ const OnboardingPage = () => {
                   }
                 />
               </div>
+            </div>
+
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text">Interests (optional)</span>
+              </label>
+              <input
+                type="text"
+                name="interests"
+                placeholder="Cooking, hiking, films"
+                className="input input-bordered w-full"
+                value={formState.interests}
+                onChange={(e) =>
+                  setFormState({ ...formState, interests: e.target.value })
+                }
+              />
+              <span className="mt-1 text-xs opacity-60">
+                Separate interests with commas to help find compatible language partners.
+              </span>
             </div>
 
             {/* SUBMIT BUTTON */}
