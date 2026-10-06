@@ -8,7 +8,9 @@ import {
 
 const getUserNotificationFilter = async (userId) => {
   const user = await User.findById(userId).select("notificationPreferences");
-  const disabledTypes = getDisabledNotificationTypes(user?.notificationPreferences || {});
+  const disabledTypes = getDisabledNotificationTypes(
+    user?.notificationPreferences || {},
+  );
   return disabledTypes.length ? { type: { $nin: disabledTypes } } : {};
 };
 
@@ -29,8 +31,15 @@ export async function getNotifications(req, res) {
         .skip(skip)
         .limit(limit)
         .populate("actor", ACTOR_PROJECTION),
-      Notification.countDocuments({ recipient: req.user._id, ...filteredQuery }),
-      Notification.countDocuments({ recipient: req.user._id, read: false, ...filteredQuery }),
+      Notification.countDocuments({
+        recipient: req.user._id,
+        ...filteredQuery,
+      }),
+      Notification.countDocuments({
+        recipient: req.user._id,
+        read: false,
+        ...filteredQuery,
+      }),
     ]);
 
     return res.status(200).json({
@@ -64,11 +73,9 @@ export async function markAsRead(req, res) {
     }
 
     if (notification.recipient.toString() !== req.user._id.toString()) {
-      return res
-        .status(403)
-        .json({
-          message: "You are not authorized to update this notification",
-        });
+      return res.status(403).json({
+        message: "You are not authorized to update this notification",
+      });
     }
 
     notification.read = true;
@@ -115,11 +122,9 @@ export async function deleteNotification(req, res) {
     }
 
     if (notification.recipient.toString() !== req.user._id.toString()) {
-      return res
-        .status(403)
-        .json({
-          message: "You are not authorized to delete this notification",
-        });
+      return res.status(403).json({
+        message: "You are not authorized to delete this notification",
+      });
     }
 
     await Notification.deleteOne({ _id: notification._id });

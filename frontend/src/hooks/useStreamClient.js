@@ -17,7 +17,10 @@ const attachStreamConnectionHandlers = (clientInstance) => {
   });
 
   clientInstance.on("connection.changed", (event) => {
-    console.info("Stream connection changed:", event?.online ? "online" : "offline");
+    console.info(
+      "Stream connection changed:",
+      event?.online ? "online" : "offline",
+    );
   });
 
   clientInstance.__hyechatHandlersBound = true;

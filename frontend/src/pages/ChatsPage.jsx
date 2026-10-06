@@ -33,7 +33,13 @@ const ChatsPage = () => {
       const channels = await streamClient.queryChannels(
         { type: "messaging", members: { $in: [authUser._id] } },
         { last_message_at: -1 },
-        { limit: 20, offset: pageParam, state: true, watch: true, presence: true },
+        {
+          limit: 20,
+          offset: pageParam,
+          state: true,
+          watch: true,
+          presence: true,
+        },
       );
       return channels;
     },
@@ -78,7 +84,13 @@ const ChatsPage = () => {
     return () => {
       isActive = false;
     };
-  }, [authUser, streamClient, connectionState, reloadKey, conversationQuery.data]);
+  }, [
+    authUser,
+    streamClient,
+    connectionState,
+    reloadKey,
+    conversationQuery.data,
+  ]);
 
   const friendById = useMemo(
     () => new Map(friends.map((friend) => [friend._id, friend])),
@@ -107,7 +119,10 @@ const ChatsPage = () => {
   };
 
   const handleLoadMore = () => {
-    if (conversationQuery.hasNextPage && !conversationQuery.isFetchingNextPage) {
+    if (
+      conversationQuery.hasNextPage &&
+      !conversationQuery.isFetchingNextPage
+    ) {
       void conversationQuery.fetchNextPage();
     }
   };

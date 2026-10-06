@@ -81,7 +81,9 @@ export const unhideStoriesFromUser = async (userId) => {
 };
 
 export const reportStory = async (storyId, reason) => {
-  const res = await axiosInstance.post(`/stories/${storyId}/report`, { reason });
+  const res = await axiosInstance.post(`/stories/${storyId}/report`, {
+    reason,
+  });
   return res.data;
 };
 

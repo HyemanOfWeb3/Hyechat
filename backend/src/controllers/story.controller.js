@@ -20,9 +20,10 @@ const normalizeViewerIds = (viewers = []) => {
   const uniqueViewerIds = new Set();
 
   (Array.isArray(viewers) ? viewers : []).forEach((viewer) => {
-    const viewerId = viewer && typeof viewer.toString === "function"
-      ? viewer.toString()
-      : viewer;
+    const viewerId =
+      viewer && typeof viewer.toString === "function"
+        ? viewer.toString()
+        : viewer;
 
     if (viewerId) uniqueViewerIds.add(viewerId);
   });
@@ -37,7 +38,8 @@ const sanitizeStoryForUser = (storyObj, currentUserId) => {
 
   const sanitizedStory = { ...storyObj };
   sanitizedStory.viewedByMe =
-    isOwner || normalizedViewers.some((viewerId) => viewerId === currentUserId.toString());
+    isOwner ||
+    normalizedViewers.some((viewerId) => viewerId === currentUserId.toString());
 
   delete sanitizedStory.reports;
 
@@ -59,7 +61,11 @@ const sanitizeStoryForUser = (storyObj, currentUserId) => {
 const isVisibleToUser = (story, user) => {
   if (story.user.toString() === user._id.toString()) return true;
   if (story.privacy === "only_me") return false;
-  if ((user.hiddenStoryUsers || []).some((id) => id.toString() === story.user.toString())) {
+  if (
+    (user.hiddenStoryUsers || []).some(
+      (id) => id.toString() === story.user.toString(),
+    )
+  ) {
     return false;
   }
 
@@ -120,10 +126,12 @@ export async function createStory(req, res) {
 
   if (
     !Number.isFinite(Number(mediaSize)) ||
-      Number(mediaSize) <= 0 ||
-      Number(mediaSize) > MAX_STORY_SIZE
+    Number(mediaSize) <= 0 ||
+    Number(mediaSize) > MAX_STORY_SIZE
   ) {
-    return res.status(400).json({ message: "Story media must be 10 MB or less" });
+    return res
+      .status(400)
+      .json({ message: "Story media must be 10 MB or less" });
   }
 
   if (
@@ -139,7 +147,9 @@ export async function createStory(req, res) {
   }
 
   if (prompt.length > 200) {
-    return res.status(400).json({ message: "Story prompts must be 200 characters or fewer" });
+    return res
+      .status(400)
+      .json({ message: "Story prompts must be 200 characters or fewer" });
   }
 
   if (privacy !== undefined && !["friends", "only_me"].includes(privacy)) {
@@ -182,10 +192,7 @@ export async function getStories(req, res) {
     const stories = await Story.find({
       user: visibleUserQuery,
       expiresAt: { $gt: new Date() },
-      $or: [
-        { user: req.user._id },
-        { privacy: { $ne: "only_me" } },
-      ],
+      $or: [{ user: req.user._id }, { privacy: { $ne: "only_me" } }],
     })
       .populate("user", "fullName profilePic")
       .sort({ createdAt: 1 });
@@ -522,7 +529,8 @@ export async function hideStoriesFromUser(req, res) {
 
   try {
     const targetExists = await User.exists({ _id: userId });
-    if (!targetExists) return res.status(404).json({ message: "User not found" });
+    if (!targetExists)
+      return res.status(404).json({ message: "User not found" });
 
     await User.findByIdAndUpdate(req.user._id, {
       $addToSet: { hiddenStoryUsers: userId },
@@ -567,7 +575,9 @@ export async function reportStory(req, res) {
       return res.status(404).json({ message: "Story is unavailable" });
     }
     if (story.user.toString() === req.user._id.toString()) {
-      return res.status(400).json({ message: "You cannot report your own Story" });
+      return res
+        .status(400)
+        .json({ message: "You cannot report your own Story" });
     }
     if (!isVisibleToUser(story, req.user)) {
       return res.status(403).json({ message: "You cannot report this Story" });
@@ -580,13 +590,17 @@ export async function reportStory(req, res) {
         reports: { $not: { $elemMatch: { user: req.user._id } } },
       },
       {
-        $push: { reports: { user: req.user._id, reason, createdAt: new Date() } },
+        $push: {
+          reports: { user: req.user._id, reason, createdAt: new Date() },
+        },
       },
       { new: true },
     );
 
     if (!reportedStory) {
-      return res.status(409).json({ message: "You already reported this Story" });
+      return res
+        .status(409)
+        .json({ message: "You already reported this Story" });
     }
 
     return res.status(201).json({ success: true });

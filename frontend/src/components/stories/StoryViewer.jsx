@@ -141,9 +141,9 @@ const StoryViewer = ({
       targetLanguage,
       translationSource,
     ],
-    queryFn: () => translateMessage({ text: translationSource, targetLanguage }),
-    enabled:
-      isTranslationOpen && canTranslateStory && Boolean(targetLanguage),
+    queryFn: () =>
+      translateMessage({ text: translationSource, targetLanguage }),
+    enabled: isTranslationOpen && canTranslateStory && Boolean(targetLanguage),
     retry: false,
     staleTime: Infinity,
   });
@@ -863,14 +863,19 @@ const StoryViewer = ({
               </button>
               {isTranslationOpen && (
                 <div className="mt-2 space-y-2">
-                  <label className="sr-only" htmlFor="story-translation-language">
+                  <label
+                    className="sr-only"
+                    htmlFor="story-translation-language"
+                  >
                     Translate Story text to
                   </label>
                   <select
                     id="story-translation-language"
                     className="select select-bordered select-sm w-full"
                     value={targetLanguage}
-                    onChange={(event) => setSelectedLanguage(event.target.value)}
+                    onChange={(event) =>
+                      setSelectedLanguage(event.target.value)
+                    }
                     disabled={languageQuery.isLoading || languageQuery.isError}
                   >
                     <option value="">Choose a language</option>
@@ -896,11 +901,13 @@ const StoryViewer = ({
                     </p>
                   )}
                   {storyTranslationQuery.isFetching && (
-                    <p className="text-xs opacity-60">Translating on request…</p>
+                    <p className="text-xs opacity-60">
+                      Translating on request…
+                    </p>
                   )}
                   {storyTranslationQuery.isError && (
                     <p className="text-xs text-error">
-                      Translation failed. {" "}
+                      Translation failed.{" "}
                       <button
                         type="button"
                         className="underline"
@@ -913,7 +920,8 @@ const StoryViewer = ({
                   {storyTranslationQuery.data?.translatedText && (
                     <div className="rounded-lg bg-primary/5 p-3 text-sm">
                       <p className="mb-1 text-xs font-semibold text-primary">
-                        {storyTranslationQuery.data.targetLanguageName || targetLanguage}
+                        {storyTranslationQuery.data.targetLanguageName ||
+                          targetLanguage}
                       </p>
                       <p className="whitespace-pre-wrap break-words">
                         {storyTranslationQuery.data.translatedText}

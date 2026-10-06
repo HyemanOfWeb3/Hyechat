@@ -174,7 +174,8 @@ const StoryMediaComposer = ({
               </select>
               {prompt && (
                 <span className="mt-1 text-xs opacity-60">
-                  Suggested language: {STORY_PROMPTS.find((item) => item.text === prompt)?.language}
+                  Suggested language:{" "}
+                  {STORY_PROMPTS.find((item) => item.text === prompt)?.language}
                 </span>
               )}
             </label>

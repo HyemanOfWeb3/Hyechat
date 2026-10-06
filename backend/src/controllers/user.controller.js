@@ -46,14 +46,20 @@ export async function getMyProfile(req, res) {
 
 export async function getNotificationPreferences(req, res) {
   try {
-    const user = await User.findById(req.user._id).select("notificationPreferences");
+    const user = await User.findById(req.user._id).select(
+      "notificationPreferences",
+    );
     return res.status(200).json({
       success: true,
-      preferences: normalizeNotificationPreferences(user?.notificationPreferences),
+      preferences: normalizeNotificationPreferences(
+        user?.notificationPreferences,
+      ),
     });
   } catch (error) {
     console.error("Error getting notification preferences", error.message);
-    return res.status(500).json({ message: "Unable to load notification preferences" });
+    return res
+      .status(500)
+      .json({ message: "Unable to load notification preferences" });
   }
 }
 
@@ -65,22 +71,38 @@ export async function updateNotificationPreferences(req, res) {
       typeof submittedPreferences !== "object" ||
       Array.isArray(submittedPreferences)
     ) {
-      return res.status(400).json({ message: "Invalid notification preferences" });
+      return res
+        .status(400)
+        .json({ message: "Invalid notification preferences" });
     }
 
     for (const [category, channels] of Object.entries(submittedPreferences)) {
       if (!Object.hasOwn(DEFAULT_NOTIFICATION_PREFERENCES, category)) {
-        return res.status(400).json({ message: `Unknown notification category: ${category}` });
+        return res
+          .status(400)
+          .json({ message: `Unknown notification category: ${category}` });
       }
-      if (!channels || typeof channels !== "object" || Array.isArray(channels)) {
-        return res.status(400).json({ message: `Invalid settings for ${category}` });
+      if (
+        !channels ||
+        typeof channels !== "object" ||
+        Array.isArray(channels)
+      ) {
+        return res
+          .status(400)
+          .json({ message: `Invalid settings for ${category}` });
       }
       for (const [channel, enabled] of Object.entries(channels)) {
-        if (!Object.hasOwn(DEFAULT_NOTIFICATION_PREFERENCES[category], channel)) {
-          return res.status(400).json({ message: `Unknown channel for ${category}` });
+        if (
+          !Object.hasOwn(DEFAULT_NOTIFICATION_PREFERENCES[category], channel)
+        ) {
+          return res
+            .status(400)
+            .json({ message: `Unknown channel for ${category}` });
         }
         if (typeof enabled !== "boolean") {
-          return res.status(400).json({ message: `${category}.${channel} must be a boolean` });
+          return res
+            .status(400)
+            .json({ message: `${category}.${channel} must be a boolean` });
         }
       }
     }
@@ -96,18 +118,25 @@ export async function updateNotificationPreferences(req, res) {
     );
     const nextPreferences = { ...currentPreferences };
     for (const [category, channels] of Object.entries(submittedPreferences)) {
-      nextPreferences[category] = { ...currentPreferences[category], ...channels };
+      nextPreferences[category] = {
+        ...currentPreferences[category],
+        ...channels,
+      };
     }
     user.notificationPreferences = nextPreferences;
     await user.save();
 
     return res.status(200).json({
       success: true,
-      preferences: normalizeNotificationPreferences(user.notificationPreferences),
+      preferences: normalizeNotificationPreferences(
+        user.notificationPreferences,
+      ),
     });
   } catch (error) {
     console.error("Error updating notification preferences", error.message);
-    return res.status(500).json({ message: "Unable to update notification preferences" });
+    return res
+      .status(500)
+      .json({ message: "Unable to update notification preferences" });
   }
 }
 
@@ -294,7 +323,7 @@ const getTargetUser = async (id, currentUserId) => {
   if (!mongoose.isValidObjectId(id) || id === currentUserId.toString())
     return null;
   return User.findById(id).select(
-    "_id friends blockedUsers fullName profilePic bio nativeLanguage learningLanguage location",
+    "_id friends blockedUsers fullName profilePic bio nativeLanguage learningLanguage interests location",
   );
 };
 

@@ -278,10 +278,10 @@ const StoriesBar = ({ chatClient }) => {
           isVideo ? "video" : "image",
           text,
           {
-          prompt: storyPrompt,
-          privacy: storyPrivacy,
-          mediaSize: uploadFile.size,
-          durationSeconds,
+            prompt: storyPrompt,
+            privacy: storyPrivacy,
+            mediaSize: uploadFile.size,
+            durationSeconds,
           },
         );
       } catch (error) {

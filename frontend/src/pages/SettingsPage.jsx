@@ -90,12 +90,14 @@ const SettingsPage = () => {
     },
     onError: (error) =>
       toast.error(
-        error.response?.data?.message || "Unable to save notification preferences",
+        error.response?.data?.message ||
+          "Unable to save notification preferences",
       ),
   });
 
   const handlePreferenceToggle = (category, channel) => {
-    const current = notificationPreferences?.[category] || defaultPreferences[category];
+    const current =
+      notificationPreferences?.[category] || defaultPreferences[category];
     const nextPreferences = {
       ...notificationPreferences,
       [category]: {
@@ -163,7 +165,8 @@ const SettingsPage = () => {
           </SettingsRow>
           <div className="space-y-3 py-4">
             {notificationCategories.map(({ key, label }) => {
-              const current = notificationPreferences?.[key] || defaultPreferences[key];
+              const current =
+                notificationPreferences?.[key] || defaultPreferences[key];
               return (
                 <div
                   key={key}

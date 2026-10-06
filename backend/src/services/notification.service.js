@@ -59,15 +59,17 @@ const NOTIFICATION_TYPES_BY_CATEGORY = {
 };
 
 const categoryForNotificationType = (type) => {
-  return Object.entries(NOTIFICATION_TYPES_BY_CATEGORY).find(([, types]) =>
-    types.includes(type),
-  )?.[0] || null;
+  return (
+    Object.entries(NOTIFICATION_TYPES_BY_CATEGORY).find(([, types]) =>
+      types.includes(type),
+    )?.[0] || null
+  );
 };
 
 export const getDisabledNotificationTypes = (preferences = {}) => {
   const normalized = normalizeNotificationPreferences(preferences);
   return Object.entries(NOTIFICATION_TYPES_BY_CATEGORY).flatMap(
-    ([category, types]) => normalized[category].inApp ? [] : types,
+    ([category, types]) => (normalized[category].inApp ? [] : types),
   );
 };
 
