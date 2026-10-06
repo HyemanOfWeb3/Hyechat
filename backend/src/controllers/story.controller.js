@@ -16,6 +16,46 @@ const getVisibleUserIds = (user) => [
   ...(Array.isArray(user.friends) ? user.friends : []),
 ];
 
+const normalizeViewerIds = (viewers = []) => {
+  const uniqueViewerIds = new Set();
+
+  (Array.isArray(viewers) ? viewers : []).forEach((viewer) => {
+    const viewerId = viewer && typeof viewer.toString === "function"
+      ? viewer.toString()
+      : viewer;
+
+    if (viewerId) uniqueViewerIds.add(viewerId);
+  });
+
+  return Array.from(uniqueViewerIds);
+};
+
+const sanitizeStoryForUser = (storyObj, currentUserId) => {
+  const ownerId = storyObj.user?._id || storyObj.user;
+  const isOwner = ownerId && ownerId.toString() === currentUserId.toString();
+  const normalizedViewers = normalizeViewerIds(storyObj.viewers);
+
+  const sanitizedStory = { ...storyObj };
+  sanitizedStory.viewedByMe =
+    isOwner || normalizedViewers.some((viewerId) => viewerId === currentUserId.toString());
+
+  delete sanitizedStory.reports;
+
+  if (!isOwner) {
+    sanitizedStory.viewers = [];
+    if (Array.isArray(sanitizedStory.reactions)) {
+      const userReaction = sanitizedStory.reactions.find(
+        (reaction) => reaction.user.toString() === currentUserId.toString(),
+      );
+      sanitizedStory.reactions = userReaction ? [userReaction] : [];
+    }
+    return sanitizedStory;
+  }
+
+  sanitizedStory.viewers = normalizedViewers;
+  return sanitizedStory;
+};
+
 const isVisibleToUser = (story, user) => {
   if (story.user.toString() === user._id.toString()) return true;
   if (story.privacy === "only_me") return false;
@@ -150,30 +190,9 @@ export async function getStories(req, res) {
       .populate("user", "fullName profilePic")
       .sort({ createdAt: 1 });
 
-    const sanitizedStories = stories.map((story) => {
-      const storyObj = story.toObject();
-      const ownerId = storyObj.user._id || storyObj.user;
-      const isOwner = ownerId.toString() === req.user._id.toString();
-      storyObj.viewedByMe = isOwner || (storyObj.viewers || []).some(
-        (viewer) => viewer.toString() === req.user._id.toString(),
-      );
-      delete storyObj.reports;
-
-      // Remove viewer list from non-owners
-      if (!isOwner) {
-        delete storyObj.viewers;
-      }
-
-      // Remove reaction details from non-owners, keep only user's own reaction
-      if (!isOwner && storyObj.reactions) {
-        const userReaction = storyObj.reactions.find(
-          (r) => r.user.toString() === req.user._id.toString(),
-        );
-        storyObj.reactions = userReaction ? [userReaction] : [];
-      }
-
-      return storyObj;
-    });
+    const sanitizedStories = stories.map((story) =>
+      sanitizeStoryForUser(story.toObject(), req.user._id),
+    );
 
     return res.status(200).json(sanitizedStories);
   } catch (error) {
@@ -207,10 +226,9 @@ export async function viewStory(req, res) {
     }
 
     if (story.user.toString() === req.user._id.toString()) {
-      const storyObj = story.toObject();
-      storyObj.viewedByMe = true;
-      delete storyObj.reports;
-      return res.status(200).json(storyObj);
+      return res
+        .status(200)
+        .json(sanitizeStoryForUser(story.toObject(), req.user._id));
     }
 
     const updatedStory = await Story.findOneAndUpdate(
@@ -223,21 +241,9 @@ export async function viewStory(req, res) {
       return res.status(410).json({ message: "Story has expired" });
     }
 
-    const storyObj = updatedStory.toObject();
-    storyObj.viewedByMe = true;
-    delete storyObj.reports;
-    if (storyObj.user.toString() !== req.user._id.toString()) {
-      delete storyObj.viewers;
-      // Remove reaction details from non-owners, keep only user's own reaction
-      if (storyObj.reactions) {
-        const userReaction = storyObj.reactions.find(
-          (r) => r.user.toString() === req.user._id.toString(),
-        );
-        storyObj.reactions = userReaction ? [userReaction] : [];
-      }
-    }
-
-    return res.status(200).json(storyObj);
+    return res
+      .status(200)
+      .json(sanitizeStoryForUser(updatedStory.toObject(), req.user._id));
   } catch (error) {
     console.error("Error viewing Story", error.message);
     return res.status(500).json({ message: "Internal Server Error" });

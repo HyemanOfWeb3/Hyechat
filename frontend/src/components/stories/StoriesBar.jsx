@@ -170,18 +170,30 @@ const StoriesBar = ({ chatClient }) => {
 
   const updateStoryInCache = (updatedStory) => {
     queryClient.setQueryData(["stories"], (currentStories = []) =>
-      currentStories.map((story) =>
-        story._id === updatedStory._id
-          ? {
-              ...story,
-              ...updatedStory,
-              user:
-                typeof updatedStory.user === "object"
-                  ? updatedStory.user
-                  : story.user,
-            }
-          : story,
-      ),
+      currentStories.map((story) => {
+        if (story._id !== updatedStory._id) return story;
+
+        const mergedStory = {
+          ...story,
+          ...updatedStory,
+          user:
+            typeof updatedStory.user === "object"
+              ? updatedStory.user
+              : story.user,
+          viewedByMe:
+            typeof updatedStory.viewedByMe === "boolean"
+              ? updatedStory.viewedByMe
+              : story.viewedByMe,
+          viewers: Array.isArray(updatedStory.viewers)
+            ? updatedStory.viewers
+            : story.viewers || [],
+          reactions: Array.isArray(updatedStory.reactions)
+            ? updatedStory.reactions
+            : story.reactions || [],
+        };
+
+        return mergedStory;
+      }),
     );
   };
 
