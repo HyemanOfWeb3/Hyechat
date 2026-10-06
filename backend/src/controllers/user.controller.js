@@ -3,6 +3,8 @@ import User from "../models/User.js";
 import FriendRequest from "../models/FriendRequest.js";
 import Story from "../models/Story.js";
 import Notification from "../models/Notification.js";
+import MarketplaceListing from "../models/MarketplaceListing.js";
+import MarketplaceListingReport from "../models/MarketplaceListingReport.js";
 import { deleteStreamStoryMedia, upsertStreamUser } from "../lib/stream.js";
 import {
   createNotification,
@@ -148,15 +150,22 @@ export async function updateMyProfile(req, res) {
         if (field === "interests") {
           const submitted = req.body[field];
           if (typeof submitted !== "string" && !Array.isArray(submitted)) {
-            return res.status(400).json({ message: "Interests must be a list of text values" });
+            return res
+              .status(400)
+              .json({ message: "Interests must be a list of text values" });
           }
-          const values = typeof submitted === "string" ? submitted.split(",") : submitted;
+          const values =
+            typeof submitted === "string" ? submitted.split(",") : submitted;
           if (values.some((value) => typeof value !== "string")) {
-            return res.status(400).json({ message: "Interests must be text values" });
+            return res
+              .status(400)
+              .json({ message: "Interests must be text values" });
           }
-          updates.interests = [...new Set(
-            values.map((value) => value.trim()).filter(Boolean),
-          )].slice(0, 12).map((value) => value.slice(0, 40));
+          updates.interests = [
+            ...new Set(values.map((value) => value.trim()).filter(Boolean)),
+          ]
+            .slice(0, 12)
+            .map((value) => value.slice(0, 40));
           continue;
         }
         updates[field] =
@@ -278,6 +287,9 @@ export async function deleteMyAccount(req, res) {
     }
 
     const userId = user._id;
+    const marketplaceListingIds = await MarketplaceListing.find({
+      seller: userId,
+    }).distinct("_id");
     const stories = await Story.find({ user: userId }).select(
       "mediaUrl mediaType",
     );
@@ -294,6 +306,17 @@ export async function deleteMyAccount(req, res) {
 
     await Promise.all([
       Story.deleteMany({ user: userId }),
+      MarketplaceListing.deleteMany({ seller: userId }),
+      MarketplaceListingReport.deleteMany({
+        $or: [
+          { reporter: userId },
+          { listing: { $in: marketplaceListingIds } },
+        ],
+      }),
+      User.updateMany(
+        { savedMarketplaceListings: { $in: marketplaceListingIds } },
+        { $pull: { savedMarketplaceListings: { $in: marketplaceListingIds } } },
+      ),
       Notification.deleteMany({
         $or: [{ recipient: userId }, { actor: userId }],
       }),
@@ -463,13 +486,25 @@ export async function discoverUsers(req, res) {
         { $match: filter },
         {
           $addFields: {
-            relevanceScore: { $add: relevanceTerms.length ? relevanceTerms : [0] },
+            relevanceScore: {
+              $add: relevanceTerms.length ? relevanceTerms : [0],
+            },
           },
         },
         { $sort: { relevanceScore: -1, fullName: 1, _id: 1 } },
         { $skip: (page - 1) * limit },
         { $limit: limit },
-        { $project: { fullName: 1, profilePic: 1, bio: 1, nativeLanguage: 1, learningLanguage: 1, interests: 1, location: 1 } },
+        {
+          $project: {
+            fullName: 1,
+            profilePic: 1,
+            bio: 1,
+            nativeLanguage: 1,
+            learningLanguage: 1,
+            interests: 1,
+            location: 1,
+          },
+        },
       ]),
       User.countDocuments(filter),
       FriendRequest.find({

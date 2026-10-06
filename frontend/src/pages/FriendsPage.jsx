@@ -67,7 +67,9 @@ const UserCard = ({ user, action, busy }) => (
       {user.bio && (
         <p className="line-clamp-2 text-sm opacity-70">{user.bio}</p>
       )}
-      {(user.nativeLanguage || user.learningLanguage || user.interests?.length > 0) && (
+      {(user.nativeLanguage ||
+        user.learningLanguage ||
+        user.interests?.length > 0) && (
         <div className="flex flex-wrap gap-1.5">
           {user.nativeLanguage && (
             <span className="badge badge-outline badge-sm">
@@ -480,58 +482,68 @@ const FriendsPage = ({
   };
 
   return (
-    <div className={exploreMode ? "w-full" : "min-h-0 w-full flex-1 overflow-y-auto bg-base-100 px-4 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-10"}>
+    <div
+      className={
+        exploreMode
+          ? "w-full"
+          : "min-h-0 w-full flex-1 overflow-y-auto bg-base-100 px-4 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-10"
+      }
+    >
       <div className={exploreMode ? "w-full" : "mx-auto max-w-6xl space-y-6"}>
-        {!exploreMode && <header className="flex flex-col gap-4 border-b border-base-300 pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
-              Community
-            </p>
-            <h1 className="mt-1 text-3xl font-bold">Friends</h1>
-            <p className="mt-2 text-sm opacity-60">
-              Find language partners and grow your HyeChat circle.
-            </p>
-          </div>
-          <label className="input input-bordered flex w-full items-center gap-2 sm:max-w-sm">
-            <Search className="size-4 opacity-60" />
-            <input
-              type="search"
-              className="grow"
-              placeholder="Search people on HyeChat..."
-              value={search}
-              onChange={(event) => setLocalSearch(event.target.value)}
-            />
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs"
-              onClick={() => setLocalSearch("")}
-              aria-label="Clear search"
-            >
-              {search && <X className="size-4" />}
-            </button>
-          </label>
-        </header>}
+        {!exploreMode && (
+          <header className="flex flex-col gap-4 border-b border-base-300 pb-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
+                Community
+              </p>
+              <h1 className="mt-1 text-3xl font-bold">Friends</h1>
+              <p className="mt-2 text-sm opacity-60">
+                Find language partners and grow your HyeChat circle.
+              </p>
+            </div>
+            <label className="input input-bordered flex w-full items-center gap-2 sm:max-w-sm">
+              <Search className="size-4 opacity-60" />
+              <input
+                type="search"
+                className="grow"
+                placeholder="Search people on HyeChat..."
+                value={search}
+                onChange={(event) => setLocalSearch(event.target.value)}
+              />
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs"
+                onClick={() => setLocalSearch("")}
+                aria-label="Clear search"
+              >
+                {search && <X className="size-4" />}
+              </button>
+            </label>
+          </header>
+        )}
 
-        {!exploreMode && <div className="flex flex-wrap gap-2 border-b border-base-300 pb-3">
-          {[
-            ["friends", "All friends", friends.length],
-            ["requests", "Requests", incoming.length],
-            ["sent", "Sent", outgoing.length],
-            ["suggestions", "Suggestions", null],
-            ["discover", "Discover", null],
-            ["blocked", "Blocked users", blockedUsers.length],
-          ].map(([id, label, count]) => (
-            <button
-              type="button"
-              key={id}
-              onClick={() => setTab(id)}
-              className={`btn btn-sm ${tab === id ? "btn-primary" : "btn-ghost"}`}
-            >
-              {label}
-              {count ? <span className="badge badge-sm">{count}</span> : null}
-            </button>
-          ))}
-        </div>}
+        {!exploreMode && (
+          <div className="flex flex-wrap gap-2 border-b border-base-300 pb-3">
+            {[
+              ["friends", "All friends", friends.length],
+              ["requests", "Requests", incoming.length],
+              ["sent", "Sent", outgoing.length],
+              ["suggestions", "Suggestions", null],
+              ["discover", "Discover", null],
+              ["blocked", "Blocked users", blockedUsers.length],
+            ].map(([id, label, count]) => (
+              <button
+                type="button"
+                key={id}
+                onClick={() => setTab(id)}
+                className={`btn btn-sm ${tab === id ? "btn-primary" : "btn-ghost"}`}
+              >
+                {label}
+                {count ? <span className="badge badge-sm">{count}</span> : null}
+              </button>
+            ))}
+          </div>
+        )}
 
         {tab === "blocked" ? (
           <section>

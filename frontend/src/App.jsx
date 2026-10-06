@@ -165,7 +165,10 @@ const App = () => {
               )
             }
           />
-          <Route path="/discover" element={<Navigate to="/explore" replace />} />
+          <Route
+            path="/discover"
+            element={<Navigate to="/explore" replace />}
+          />
           <Route
             path="/stories"
             element={

@@ -312,17 +312,102 @@ export async function getMyCommunities() {
 export async function getMarketplaceListings({
   query = "",
   type = "",
+  category = "",
+  minPrice = "",
+  maxPrice = "",
+  location = "",
+  seller = "",
   page = 1,
   limit = 20,
 } = {}) {
   const res = await axiosInstance.get("/marketplace", {
-    params: { query, type, page, limit },
+    params: {
+      query,
+      type,
+      category,
+      minPrice,
+      maxPrice,
+      location,
+      seller,
+      page,
+      limit,
+    },
+  });
+  return res.data;
+}
+
+export async function getMarketplaceListing(listingId) {
+  const res = await axiosInstance.get(`/marketplace/${listingId}`);
+  return res.data;
+}
+
+export async function getMarketplaceCategories() {
+  const res = await axiosInstance.get("/marketplace/categories");
+  return res.data;
+}
+
+export async function getMyMarketplaceListings({ page = 1, limit = 20 } = {}) {
+  const res = await axiosInstance.get("/marketplace/mine", {
+    params: { page, limit },
+  });
+  return res.data;
+}
+
+export async function getSavedMarketplaceListingIds() {
+  const res = await axiosInstance.get("/marketplace/saved/ids");
+  return res.data;
+}
+
+export async function getSavedMarketplaceListings({
+  page = 1,
+  limit = 20,
+} = {}) {
+  const res = await axiosInstance.get("/marketplace/saved", {
+    params: { page, limit },
   });
   return res.data;
 }
 
 export async function createMarketplaceListing(listingData) {
   const res = await axiosInstance.post("/marketplace", listingData);
+  return res.data;
+}
+
+export async function saveMarketplaceListing(listingId) {
+  const res = await axiosInstance.post(`/marketplace/${listingId}/save`);
+  return res.data;
+}
+
+export async function unsaveMarketplaceListing(listingId) {
+  const res = await axiosInstance.delete(`/marketplace/${listingId}/save`);
+  return res.data;
+}
+
+export async function reportMarketplaceListing(listingId, report) {
+  const res = await axiosInstance.post(
+    `/marketplace/${listingId}/report`,
+    report,
+  );
+  return res.data;
+}
+
+export async function updateMarketplaceListingStatus(listingId, status) {
+  const res = await axiosInstance.patch(`/marketplace/${listingId}/status`, {
+    status,
+  });
+  return res.data;
+}
+
+export async function getMarketplaceModerationReports() {
+  const res = await axiosInstance.get("/marketplace/moderation/reports");
+  return res.data;
+}
+
+export async function resolveMarketplaceModerationReport(reportId, decision) {
+  const res = await axiosInstance.patch(
+    `/marketplace/moderation/reports/${reportId}`,
+    { decision },
+  );
   return res.data;
 }
 

@@ -87,6 +87,16 @@ const userSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
+    savedMarketplaceListings: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "MarketplaceListing",
+      },
+    ],
+    isMarketplaceModerator: {
+      type: Boolean,
+      default: false,
+    },
     notificationPreferences: {
       messages: {
         inApp: { type: Boolean, default: true },

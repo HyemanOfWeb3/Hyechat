@@ -76,20 +76,30 @@ export async function getMyCommunities(req, res) {
 }
 
 export async function discoverCommunities(req, res) {
-  const query = typeof req.query.query === "string" ? req.query.query.trim() : "";
+  const query =
+    typeof req.query.query === "string" ? req.query.query.trim() : "";
   const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-  const limit = Math.min(50, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
+  const limit = Math.min(
+    50,
+    Math.max(1, Number.parseInt(req.query.limit, 10) || 20),
+  );
   const filter = { privacy: "public" };
 
   if (query) {
     const search = { $regex: escapeRegex(query), $options: "i" };
-    filter.$or = [{ name: search }, { description: search }, { category: search }];
+    filter.$or = [
+      { name: search },
+      { description: search },
+      { category: search },
+    ];
   }
 
   try {
     const [communities, total] = await Promise.all([
       Community.find(filter)
-        .select("name description avatar category privacy owner members createdAt updatedAt")
+        .select(
+          "name description avatar category privacy owner members createdAt updatedAt",
+        )
         .populate("owner", "fullName profilePic")
         .sort({ updatedAt: -1, _id: -1 })
         .skip((page - 1) * limit)
@@ -137,11 +147,17 @@ export async function joinPublicCommunity(req, res) {
       ],
     });
     if (blocked) {
-      return res.status(403).json({ message: "You cannot join this community" });
+      return res
+        .status(403)
+        .json({ message: "You cannot join this community" });
     }
 
     const joinedCommunity = await Community.findOneAndUpdate(
-      { _id: community._id, privacy: "public", "members.user": { $ne: req.user._id } },
+      {
+        _id: community._id,
+        privacy: "public",
+        "members.user": { $ne: req.user._id },
+      },
       { $push: { members: { user: req.user._id, role: "member" } } },
       { new: true, runValidators: true },
     );
@@ -367,11 +383,9 @@ export async function updateCommunity(req, res) {
         community[field] = req.body[field].trim();
     }
     if (community.name.length < 2 || community.name.length > 80)
-      return res
-        .status(400)
-        .json({
-          message: "Community name must be between 2 and 80 characters",
-        });
+      return res.status(400).json({
+        message: "Community name must be between 2 and 80 characters",
+      });
     if (community.description.length > 500)
       return res
         .status(400)

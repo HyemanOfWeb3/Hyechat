@@ -122,7 +122,8 @@ const CommunitiesPage = () => {
               <div>
                 <h2 className="text-xl font-bold">Create a community</h2>
                 <p className="text-sm opacity-60">
-                    Choose invite-only private access or public discovery in Explore.
+                  Choose invite-only private access or public discovery in
+                  Explore.
                 </p>
               </div>
             </div>
@@ -153,7 +154,9 @@ const CommunitiesPage = () => {
                 />
               </label>
               <label className="form-control">
-                <span className="label-text mb-2 font-semibold">Visibility</span>
+                <span className="label-text mb-2 font-semibold">
+                  Visibility
+                </span>
                 <select
                   className="select select-bordered"
                   value={form.privacy}
@@ -162,7 +165,9 @@ const CommunitiesPage = () => {
                   }
                 >
                   <option value="private">Private · invite link only</option>
-                  <option value="public">Public · discoverable in Explore</option>
+                  <option value="public">
+                    Public · discoverable in Explore
+                  </option>
                 </select>
               </label>
               <label className="form-control md:col-span-2">

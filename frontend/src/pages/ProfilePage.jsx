@@ -379,7 +379,10 @@ const ProfilePage = () => {
                     className="input input-bordered w-full"
                     value={profileData.interests}
                     onChange={(event) =>
-                      setProfile({ ...profileData, interests: event.target.value })
+                      setProfile({
+                        ...profileData,
+                        interests: event.target.value,
+                      })
                     }
                     placeholder="Cooking, hiking, films"
                     maxLength={480}

@@ -219,7 +219,8 @@ const OnboardingPage = () => {
                 }
               />
               <span className="mt-1 text-xs opacity-60">
-                Separate interests with commas to help find compatible language partners.
+                Separate interests with commas to help find compatible language
+                partners.
               </span>
             </div>
 
