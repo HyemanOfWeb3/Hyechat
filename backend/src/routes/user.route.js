@@ -22,6 +22,8 @@ import {
   unblockUser,
   getMutualFriends,
   getBlockedUsers,
+  getNotificationPreferences,
+  updateNotificationPreferences,
 } from "../controllers/user.controller.js";
 
 const router = express.Router();
@@ -33,6 +35,8 @@ const searchLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 120 });
 
 router.get("/me", getMyProfile);
 router.patch("/me", updateMyProfile);
+router.get("/me/notification-preferences", getNotificationPreferences);
+router.patch("/me/notification-preferences", updateNotificationPreferences);
 router.post("/me/password", changeMyPassword);
 router.delete("/me", deleteMyAccount);
 

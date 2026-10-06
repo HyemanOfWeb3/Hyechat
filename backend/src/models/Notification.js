@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 const NOTIFICATION_TYPES = [
+  "message",
   "story_reaction",
   "story_reply",
   "friend_request",
@@ -8,6 +9,11 @@ const NOTIFICATION_TYPES = [
   "friend_declined",
   "friend_cancelled",
   "friend_removed",
+  "community_activity",
+  "call",
+  "marketplace",
+  "mention",
+  "language_partner_activity",
 ];
 
 const notificationSchema = new mongoose.Schema(

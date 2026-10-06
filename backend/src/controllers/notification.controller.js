@@ -1,5 +1,16 @@
 import mongoose from "mongoose";
 import Notification from "../models/Notification.js";
+import User from "../models/User.js";
+import {
+  getDisabledNotificationTypes,
+  normalizeNotificationPreferences,
+} from "../services/notification.service.js";
+
+const getUserNotificationFilter = async (userId) => {
+  const user = await User.findById(userId).select("notificationPreferences");
+  const disabledTypes = getDisabledNotificationTypes(user?.notificationPreferences || {});
+  return disabledTypes.length ? { type: { $nin: disabledTypes } } : {};
+};
 
 const ACTOR_PROJECTION =
   "fullName profilePic nativeLanguage learningLanguage location";
@@ -11,14 +22,15 @@ export async function getNotifications(req, res) {
   const skip = (page - 1) * limit;
 
   try {
+    const filteredQuery = await getUserNotificationFilter(req.user._id);
     const [notifications, total, unreadCount] = await Promise.all([
-      Notification.find({ recipient: req.user._id })
+      Notification.find({ recipient: req.user._id, ...filteredQuery })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .populate("actor", ACTOR_PROJECTION),
-      Notification.countDocuments({ recipient: req.user._id }),
-      Notification.countDocuments({ recipient: req.user._id, read: false }),
+      Notification.countDocuments({ recipient: req.user._id, ...filteredQuery }),
+      Notification.countDocuments({ recipient: req.user._id, read: false, ...filteredQuery }),
     ]);
 
     return res.status(200).json({

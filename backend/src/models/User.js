@@ -83,6 +83,44 @@ const userSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
+    notificationPreferences: {
+      messages: {
+        inApp: { type: Boolean, default: true },
+        email: { type: Boolean, default: false },
+      },
+      friendRequests: {
+        inApp: { type: Boolean, default: true },
+        email: { type: Boolean, default: false },
+      },
+      storyReactions: {
+        inApp: { type: Boolean, default: true },
+        email: { type: Boolean, default: false },
+      },
+      storyReplies: {
+        inApp: { type: Boolean, default: true },
+        email: { type: Boolean, default: false },
+      },
+      communityActivity: {
+        inApp: { type: Boolean, default: true },
+        email: { type: Boolean, default: false },
+      },
+      calls: {
+        inApp: { type: Boolean, default: true },
+        email: { type: Boolean, default: false },
+      },
+      marketplace: {
+        inApp: { type: Boolean, default: true },
+        email: { type: Boolean, default: false },
+      },
+      mentions: {
+        inApp: { type: Boolean, default: true },
+        email: { type: Boolean, default: false },
+      },
+      languagePartnerActivity: {
+        inApp: { type: Boolean, default: true },
+        email: { type: Boolean, default: false },
+      },
+    },
     resetPasswordToken: {
       type: String,
       default: null,

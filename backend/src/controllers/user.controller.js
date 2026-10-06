@@ -4,7 +4,11 @@ import FriendRequest from "../models/FriendRequest.js";
 import Story from "../models/Story.js";
 import Notification from "../models/Notification.js";
 import { deleteStreamStoryMedia, upsertStreamUser } from "../lib/stream.js";
-import { createNotification } from "../services/notification.service.js";
+import {
+  createNotification,
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  normalizeNotificationPreferences,
+} from "../services/notification.service.js";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const profileFields = [
@@ -27,11 +31,83 @@ const publicUser = (user) => {
   delete data.emailVerificationAttempts;
   delete data.emailVerificationLastSentAt;
   delete data.emailVerificationResendCount;
-  return data;
+  return {
+    ...data,
+    notificationPreferences: normalizeNotificationPreferences(
+      data.notificationPreferences,
+    ),
+  };
 };
 
 export async function getMyProfile(req, res) {
   res.status(200).json({ success: true, user: publicUser(req.user) });
+}
+
+export async function getNotificationPreferences(req, res) {
+  try {
+    const user = await User.findById(req.user._id).select("notificationPreferences");
+    return res.status(200).json({
+      success: true,
+      preferences: normalizeNotificationPreferences(user?.notificationPreferences),
+    });
+  } catch (error) {
+    console.error("Error getting notification preferences", error.message);
+    return res.status(500).json({ message: "Unable to load notification preferences" });
+  }
+}
+
+export async function updateNotificationPreferences(req, res) {
+  try {
+    const submittedPreferences = req.body;
+    if (
+      !submittedPreferences ||
+      typeof submittedPreferences !== "object" ||
+      Array.isArray(submittedPreferences)
+    ) {
+      return res.status(400).json({ message: "Invalid notification preferences" });
+    }
+
+    for (const [category, channels] of Object.entries(submittedPreferences)) {
+      if (!Object.hasOwn(DEFAULT_NOTIFICATION_PREFERENCES, category)) {
+        return res.status(400).json({ message: `Unknown notification category: ${category}` });
+      }
+      if (!channels || typeof channels !== "object" || Array.isArray(channels)) {
+        return res.status(400).json({ message: `Invalid settings for ${category}` });
+      }
+      for (const [channel, enabled] of Object.entries(channels)) {
+        if (!Object.hasOwn(DEFAULT_NOTIFICATION_PREFERENCES[category], channel)) {
+          return res.status(400).json({ message: `Unknown channel for ${category}` });
+        }
+        if (typeof enabled !== "boolean") {
+          return res.status(400).json({ message: `${category}.${channel} must be a boolean` });
+        }
+      }
+    }
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const currentPreferences = normalizeNotificationPreferences(
+      user.notificationPreferences,
+    );
+    const nextPreferences = { ...currentPreferences };
+    for (const [category, channels] of Object.entries(submittedPreferences)) {
+      nextPreferences[category] = { ...currentPreferences[category], ...channels };
+    }
+    user.notificationPreferences = nextPreferences;
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      preferences: normalizeNotificationPreferences(user.notificationPreferences),
+    });
+  } catch (error) {
+    console.error("Error updating notification preferences", error.message);
+    return res.status(500).json({ message: "Unable to update notification preferences" });
+  }
 }
 
 export async function updateMyProfile(req, res) {

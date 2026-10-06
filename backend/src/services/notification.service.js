@@ -1,8 +1,86 @@
 import Notification from "../models/Notification.js";
+import User from "../models/User.js";
 import { publishNotification } from "../lib/ably.js";
 
 const notificationActorProjection =
   "_id fullName profilePic nativeLanguage learningLanguage";
+
+export const DEFAULT_NOTIFICATION_PREFERENCES = {
+  messages: { inApp: true, email: false },
+  friendRequests: { inApp: true, email: false },
+  storyReactions: { inApp: true, email: false },
+  storyReplies: { inApp: true, email: false },
+  communityActivity: { inApp: true, email: false },
+  calls: { inApp: true, email: false },
+  marketplace: { inApp: true, email: false },
+  mentions: { inApp: true, email: false },
+  languagePartnerActivity: { inApp: true, email: false },
+};
+
+export const normalizeNotificationPreferences = (preferences = {}) => {
+  return Object.fromEntries(
+    Object.entries(DEFAULT_NOTIFICATION_PREFERENCES).map(
+      ([categoryKey, defaults]) => {
+        const current = preferences?.[categoryKey] || {};
+        return [
+          categoryKey,
+          {
+            inApp:
+              current.inApp !== undefined
+                ? Boolean(current.inApp)
+                : defaults.inApp,
+            email:
+              current.email !== undefined
+                ? Boolean(current.email)
+                : defaults.email,
+          },
+        ];
+      },
+    ),
+  );
+};
+
+const NOTIFICATION_TYPES_BY_CATEGORY = {
+  messages: ["message"],
+  friendRequests: [
+    "friend_request",
+    "friend_accepted",
+    "friend_declined",
+    "friend_cancelled",
+    "friend_removed",
+  ],
+  storyReactions: ["story_reaction"],
+  storyReplies: ["story_reply"],
+  communityActivity: ["community_activity"],
+  calls: ["call"],
+  marketplace: ["marketplace"],
+  mentions: ["mention"],
+  languagePartnerActivity: ["language_partner_activity"],
+};
+
+const categoryForNotificationType = (type) => {
+  return Object.entries(NOTIFICATION_TYPES_BY_CATEGORY).find(([, types]) =>
+    types.includes(type),
+  )?.[0] || null;
+};
+
+export const getDisabledNotificationTypes = (preferences = {}) => {
+  const normalized = normalizeNotificationPreferences(preferences);
+  return Object.entries(NOTIFICATION_TYPES_BY_CATEGORY).flatMap(
+    ([category, types]) => normalized[category].inApp ? [] : types,
+  );
+};
+
+export const isNotificationEnabledForUser = async ({ recipient, type }) => {
+  const category = categoryForNotificationType(type);
+  if (!category) return true;
+
+  const user = await User.findById(recipient).select("notificationPreferences");
+  const preferences = normalizeNotificationPreferences(
+    user?.notificationPreferences || {},
+  );
+  return !!preferences[category]?.inApp;
+};
 
 const emitPersistedNotification = async (notification) => {
   try {
@@ -49,6 +127,11 @@ export async function createNotification({
   reactionType = null,
   messageId = null,
 }) {
+  const inAppEnabled = await isNotificationEnabledForUser({ recipient, type });
+  if (!inAppEnabled) {
+    return null;
+  }
+
   if (type === "story_reply" && messageId) {
     const notification = await Notification.findOneAndUpdate(
       { type: "story_reply", messageId },

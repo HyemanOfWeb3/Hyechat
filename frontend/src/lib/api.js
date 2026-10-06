@@ -132,6 +132,19 @@ export const getAuthUser = async () => {
   }
 };
 
+export const getNotificationPreferences = async () => {
+  const res = await axiosInstance.get("/users/me/notification-preferences");
+  return res.data.preferences;
+};
+
+export const updateNotificationPreferences = async (preferences) => {
+  const res = await axiosInstance.patch(
+    "/users/me/notification-preferences",
+    preferences,
+  );
+  return res.data.preferences;
+};
+
 export const getNotifications = async ({ page = 1, limit = 20 } = {}) => {
   const res = await axiosInstance.get("/notifications", {
     params: { page, limit },
