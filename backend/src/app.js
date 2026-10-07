@@ -14,6 +14,10 @@ import marketplaceRoutes from "./routes/marketplace.route.js";
 import searchRoutes from "./routes/search.route.js";
 import callHistoryRoutes from "./routes/callHistory.route.js";
 import translationRoutes from "./routes/translation.route.js";
+import {
+  getProfileOpenGraph,
+  getProfileShareImage,
+} from "./controllers/user.controller.js";
 
 const app = express();
 app.disable("x-powered-by");
@@ -37,6 +41,11 @@ app.use(
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok" });
 });
+
+// Dynamic Open Graph share preview & image endpoints
+app.get("/api/og/profile/:userId", getProfileOpenGraph);
+app.get("/api/og/image/:userId", getProfileShareImage);
+app.get("/profile/:userId", getProfileOpenGraph);
 
 app.use(
   "/api/webhooks/stream",

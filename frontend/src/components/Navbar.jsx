@@ -124,27 +124,39 @@ const Navbar = ({ onMenuClick, onCollapseClick, sidebarCollapsed }) => {
 
           <ThemeSelector />
 
-          {/* User Avatar */}
-          <Link
-            to="/profile"
-            className="avatar"
-            aria-label="Open profile settings"
-          >
-            <div className="w-9 rounded-full">
-              {authUser?.profilePic ? (
-                <img src={authUser.profilePic} alt="User Avatar" />
-              ) : (
-                <div className="flex h-full items-center justify-center bg-primary text-primary-content">
-                  {authUser?.fullName?.charAt(0).toUpperCase() || "U"}
+          {authUser ? (
+            <>
+              {/* User Avatar */}
+              <Link
+                to="/profile"
+                className="avatar"
+                aria-label="Open profile settings"
+              >
+                <div className="w-9 rounded-full">
+                  {authUser?.profilePic ? (
+                    <img src={authUser.profilePic} alt="User Avatar" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center bg-primary text-primary-content">
+                      {authUser?.fullName?.charAt(0).toUpperCase() || "U"}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </Link>
+              </Link>
 
-          {/* Logout Button */}
-          <button onClick={logoutMutation} className="btn btn-ghost btn-circle">
-            <LogOutIcon className="h-6 w-6 text-base-content opacity-70" />
-          </button>
+              {/* Logout Button */}
+              <button
+                onClick={logoutMutation}
+                className="btn btn-ghost btn-circle"
+                aria-label="Log out"
+              >
+                <LogOutIcon className="h-6 w-6 text-base-content opacity-70" />
+              </button>
+            </>
+          ) : (
+            <Link to="/login" className="btn btn-primary btn-sm">
+              Log in
+            </Link>
+          )}
         </div>
       </div>
     </nav>

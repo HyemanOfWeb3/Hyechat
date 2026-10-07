@@ -37,3 +37,32 @@ export const protectRoute = async (req, res, next) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+export const optionalProtectRoute = async (req, res, next) => {
+  try {
+    const token = req.cookies?.jwt;
+    if (!token) {
+      req.user = null;
+      return next();
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    } catch {
+      req.user = null;
+      return next();
+    }
+
+    const user = await User.findById(decoded.userId).select(
+      "-password -emailVerificationOTPHash -emailVerificationExpiresAt -emailVerificationAttempts -emailVerificationLastSentAt -emailVerificationResendCount -resetPasswordToken -resetPasswordExpires",
+    );
+
+    req.user = user || null;
+    next();
+  } catch {
+    req.user = null;
+    next();
+  }
+};
+

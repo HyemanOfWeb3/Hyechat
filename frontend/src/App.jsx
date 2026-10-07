@@ -142,15 +142,11 @@ const App = () => {
           <Route
             path="/profile/:userId"
             element={
-              isAuthenticated && isEmailVerified && isOnboarded ? (
-                <Layout showSidebar={true}>
-                  <UserProfilePage />
-                </Layout>
-              ) : (
-                <Navigate
-                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
-                />
-              )
+              <Layout
+                showSidebar={isAuthenticated && isEmailVerified && isOnboarded}
+              >
+                <UserProfilePage />
+              </Layout>
             }
           />
           <Route

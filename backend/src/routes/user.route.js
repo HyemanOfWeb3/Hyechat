@@ -1,6 +1,9 @@
 import express from "express";
 import rateLimit from "express-rate-limit";
-import { protectRoute } from "../middleware/auth.middleware.js";
+import {
+  protectRoute,
+  optionalProtectRoute,
+} from "../middleware/auth.middleware.js";
 import {
   acceptFriendRequest,
   getFriendRequests,
@@ -29,14 +32,17 @@ import {
 
 const router = express.Router();
 
-//application of middleware to all routes
-router.use(protectRoute);
 const relationshipLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 60 });
 const searchLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 120 });
 
+// Publicly viewable profile route with optional authentication
+router.get("/:userId/profile", searchLimiter, optionalProtectRoute, getPublicUserProfile);
+
+// Protected routes below
+router.use(protectRoute);
+
 router.get("/me", getMyProfile);
 router.patch("/me", updateMyProfile);
-router.get("/:userId/profile", searchLimiter, getPublicUserProfile);
 router.get("/me/notification-preferences", getNotificationPreferences);
 router.patch("/me/notification-preferences", updateNotificationPreferences);
 router.post("/me/password", changeMyPassword);

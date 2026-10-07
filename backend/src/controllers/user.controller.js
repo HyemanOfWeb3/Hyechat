@@ -11,6 +11,7 @@ import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   normalizeNotificationPreferences,
 } from "../services/notification.service.js";
+import { validateAndNormalizeSocialLinks } from "../lib/socialLinks.js";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const profileFields = [
@@ -22,6 +23,7 @@ const profileFields = [
   "learningLanguage",
   "interests",
   "location",
+  "socialLinks",
 ];
 
 const publicUser = (user) => {
@@ -51,6 +53,7 @@ const publicUserCard = (user) => ({
   learningLanguage: user.learningLanguage || "",
   interests: user.interests || [],
   location: user.location || "",
+  socialLinks: user.socialLinks || null,
 });
 
 export async function getMyProfile(req, res) {
@@ -65,21 +68,27 @@ export async function getPublicUserProfile(req, res) {
 
   try {
     const user = await User.findById(userId).select(
-      "fullName profilePic bio nativeLanguage learningLanguage interests location emailVerified isOnboarded friends blockedUsers",
+      "fullName profilePic bio nativeLanguage learningLanguage interests location emailVerified isOnboarded friends blockedUsers socialLinks",
     );
     if (!user || !user.isOnboarded) {
       return res.status(404).json({ message: "Profile not found" });
     }
 
-    const viewerId = req.user._id.toString();
+    const viewerId = req.user ? req.user._id.toString() : null;
     const targetId = user._id.toString();
-    const isSelf = viewerId === targetId;
-    const blockedByMe = (req.user.blockedUsers || []).some(
-      (id) => id.toString() === targetId,
-    );
-    const blockedByThem = (user.blockedUsers || []).some(
-      (id) => id.toString() === viewerId,
-    );
+    const isSelf = viewerId ? viewerId === targetId : false;
+
+    let blockedByMe = false;
+    let blockedByThem = false;
+
+    if (viewerId) {
+      blockedByMe = (req.user.blockedUsers || []).some(
+        (id) => id.toString() === targetId,
+      );
+      blockedByThem = (user.blockedUsers || []).some(
+        (id) => id.toString() === viewerId,
+      );
+    }
 
     // A block initiated by the viewed user makes the profile unavailable.
     if (blockedByThem) {
@@ -88,7 +97,7 @@ export async function getPublicUserProfile(req, res) {
 
     let relationshipStatus = isSelf ? "self" : blockedByMe ? "blocked" : "none";
     let requestId = null;
-    if (!isSelf && !blockedByMe) {
+    if (viewerId && !isSelf && !blockedByMe) {
       const areFriends = (user.friends || []).some(
         (id) => id.toString() === viewerId,
       );
@@ -123,6 +132,12 @@ export async function getPublicUserProfile(req, res) {
         interests: user.interests || [],
         location: user.location,
         emailVerified: Boolean(user.emailVerified),
+        socialLinks: {
+          x: user.socialLinks?.x || null,
+          instagram: user.socialLinks?.instagram || null,
+          facebook: user.socialLinks?.facebook || null,
+          tiktok: user.socialLinks?.tiktok || null,
+        },
         relationship: {
           status: relationshipStatus,
           requestId,
@@ -259,6 +274,17 @@ export async function updateMyProfile(req, res) {
             .map((value) => value.slice(0, 40));
           continue;
         }
+        if (field === "socialLinks") {
+          try {
+            updates.socialLinks = validateAndNormalizeSocialLinks(
+              req.body.socialLinks,
+              req.user.socialLinks || {},
+            );
+          } catch (validationErr) {
+            return res.status(400).json({ message: validationErr.message });
+          }
+          continue;
+        }
         updates[field] =
           typeof req.body[field] === "string"
             ? req.body[field].trim()
@@ -273,6 +299,7 @@ export async function updateMyProfile(req, res) {
       profilePic: req.user.profilePic || "",
       location: req.user.location || "",
       interests: req.user.interests || [],
+      socialLinks: req.user.socialLinks || {},
       ...updates,
     };
 
@@ -1027,3 +1054,199 @@ export async function getOutgoingFriendReqs(req, res) {
     res.status(500).json({ message: "Internal Server Error" });
   }
 }
+
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+export async function getProfileOpenGraph(req, res) {
+  const { userId } = req.params;
+  const baseUrl = (process.env.CLIENT_URL || "").split(",")[0]?.trim() || "https://hyechat.vercel.app";
+  const fallbackTitle = "HyeChat — Global Language Exchange & Chat";
+  const fallbackDesc = "Connect with native speakers and language partners around the world.";
+  const fallbackImage = `${baseUrl}/hyechat-preview.svg`;
+
+  if (!mongoose.isValidObjectId(userId)) {
+    return res.status(200).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${fallbackTitle}</title>
+  <meta property="og:title" content="${fallbackTitle}">
+  <meta property="og:description" content="${fallbackDesc}">
+  <meta property="og:image" content="${fallbackImage}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta http-equiv="refresh" content="0;url=/">
+</head>
+<body><p>Redirecting to HyeChat...</p></body>
+</html>`);
+  }
+
+  try {
+    const user = await User.findById(userId).select(
+      "fullName profilePic bio nativeLanguage learningLanguage location emailVerified isOnboarded socialLinks",
+    );
+
+    if (!user || !user.isOnboarded) {
+      return res.status(200).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${fallbackTitle}</title>
+  <meta property="og:title" content="${fallbackTitle}">
+  <meta property="og:description" content="${fallbackDesc}">
+  <meta property="og:image" content="${fallbackImage}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta http-equiv="refresh" content="0;url=/">
+</head>
+<body><p>Profile unavailable. Redirecting to HyeChat...</p></body>
+</html>`);
+    }
+
+    const name = escapeHtml(user.fullName);
+    const summary = user.bio?.trim()
+      ? escapeHtml(user.bio.trim().slice(0, 200))
+      : escapeHtml(`Connect with ${user.fullName} on HyeChat — Global Language Exchange & Chat.`);
+    const profileUrl = `${baseUrl}/profile/${encodeURIComponent(user._id.toString())}`;
+    const imageUrl = user.profilePic && /^https?:\/\//i.test(user.profilePic)
+      ? user.profilePic
+      : `${baseUrl}/api/og/image/${encodeURIComponent(user._id.toString())}`;
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${name} on HyeChat</title>
+  <meta name="description" content="${summary}">
+
+  <!-- Open Graph / Facebook / WhatsApp / Telegram -->
+  <meta property="og:type" content="profile">
+  <meta property="og:site_name" content="HyeChat">
+  <meta property="og:title" content="${name} on HyeChat">
+  <meta property="og:description" content="${summary}">
+  <meta property="og:url" content="${profileUrl}">
+  <meta property="og:image" content="${imageUrl}">
+  <meta property="og:image:alt" content="${name}'s HyeChat profile">
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@HyeChat">
+  <meta name="twitter:title" content="${name} on HyeChat">
+  <meta name="twitter:description" content="${summary}">
+  <meta name="twitter:image" content="${imageUrl}">
+
+  <link rel="canonical" href="${profileUrl}">
+  <meta http-equiv="refresh" content="0;url=/profile/${encodeURIComponent(user._id.toString())}">
+</head>
+<body style="font-family:system-ui,-apple-system,sans-serif;background:#0d1117;color:#f0f6fc;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:1rem;text-align:center;">
+  <div style="max-width:480px;background:#161b22;border:1px solid #30363d;border-radius:16px;padding:24px;">
+    <h1 style="margin:0 0 8px;font-size:24px;">${name}</h1>
+    <p style="margin:0 0 16px;color:#8b949e;font-size:14px;">${summary}</p>
+    <a href="/profile/${encodeURIComponent(user._id.toString())}" style="display:inline-block;background:#3b82f6;color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:14px;">View Profile on HyeChat &rarr;</a>
+  </div>
+</body>
+</html>`;
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=600, s-maxage=3600");
+    return res.status(200).send(html);
+  } catch (error) {
+    console.error("Error generating Open Graph preview", error.message);
+    return res.status(500).send("Unable to load profile preview");
+  }
+}
+
+export async function getProfileShareImage(req, res) {
+  const { userId } = req.params;
+  try {
+    let name = "HyeChat User";
+    let bio = "Language learner and community member on HyeChat.";
+    let languages = "English";
+
+    if (mongoose.isValidObjectId(userId)) {
+      const user = await User.findById(userId).select("fullName bio nativeLanguage learningLanguage");
+      if (user) {
+        name = escapeHtml(user.fullName || "HyeChat User");
+        bio = escapeHtml((user.bio?.trim() || "Connect and exchange languages on HyeChat.").slice(0, 110));
+        const langs = [user.nativeLanguage, user.learningLanguage].filter(Boolean);
+        if (langs.length) {
+          languages = escapeHtml(langs.map((l) => l.charAt(0).toUpperCase() + l.slice(1)).join(" • "));
+        }
+      }
+    }
+
+    const initials = escapeHtml(name.charAt(0).toUpperCase());
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0f1d"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="avatarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="1050" cy="120" r="320" fill="#6366f1" opacity="0.12"/>
+  <circle cx="150" cy="520" r="260" fill="#ec4899" opacity="0.10"/>
+
+  <!-- Card Frame -->
+  <rect x="80" y="60" width="1040" height="510" rx="32" fill="#131b2e" stroke="#25324e" stroke-width="2"/>
+
+  <!-- Brand Header -->
+  <g transform="translate(140, 120)">
+    <circle cx="24" cy="24" r="24" fill="url(#primaryGrad)"/>
+    <path d="M24 10 L24 38 M10 24 L38 24 M14 14 L34 34 M14 34 L34 14" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+    <text x="64" y="34" font-family="system-ui, -apple-system, sans-serif" font-size="32" font-weight="800" fill="#ffffff" letter-spacing="1">HyeChat</text>
+    <rect x="220" y="10" width="120" height="30" rx="15" fill="#1e293b"/>
+    <text x="242" y="30" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="700" fill="#38bdf8" letter-spacing="1">PROFILE</text>
+  </g>
+
+  <!-- Avatar -->
+  <g transform="translate(140, 210)">
+    <circle cx="65" cy="65" r="65" fill="url(#avatarGrad)"/>
+    <text x="65" y="85" font-family="system-ui, -apple-system, sans-serif" font-size="58" font-weight="800" fill="#ffffff" text-anchor="middle">${initials}</text>
+  </g>
+
+  <!-- User Details -->
+  <g transform="translate(300, 225)">
+    <text x="0" y="40" font-family="system-ui, -apple-system, sans-serif" font-size="44" font-weight="800" fill="#ffffff">${name}</text>
+    <rect x="0" y="60" width="180" height="28" rx="14" fill="#065f46" opacity="0.8"/>
+    <text x="14" y="79" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="700" fill="#34d399">✓ EMAIL VERIFIED</text>
+    <text x="0" y="125" font-family="system-ui, -apple-system, sans-serif" font-size="22" fill="#94a3b8">${bio}</text>
+  </g>
+
+  <!-- Footer Pills -->
+  <g transform="translate(140, 470)">
+    <rect x="0" y="0" width="300" height="42" rx="21" fill="#1e293b"/>
+    <text x="20" y="27" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="#cbd5e1">🌍 ${languages}</text>
+    
+    <text x="820" y="27" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="#64748b" text-anchor="end">hyechat.vercel.app</text>
+  </g>
+</svg>`;
+
+    res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=604800");
+    return res.status(200).send(svg);
+  } catch (error) {
+    console.error("Error generating profile share image", error.message);
+    return res.status(500).send("Unable to generate image");
+  }
+}
+

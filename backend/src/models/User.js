@@ -41,6 +41,24 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    socialLinks: {
+      x: {
+        type: String,
+        default: null,
+      },
+      instagram: {
+        type: String,
+        default: null,
+      },
+      facebook: {
+        type: String,
+        default: null,
+      },
+      tiktok: {
+        type: String,
+        default: null,
+      },
+    },
     isOnboarded: {
       type: Boolean,
       default: false,

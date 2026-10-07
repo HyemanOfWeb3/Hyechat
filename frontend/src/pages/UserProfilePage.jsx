@@ -1,18 +1,22 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
   ArrowLeft,
   BadgeCheck,
   BookOpen,
-  Link2,
+  Globe,
   MapPin,
   MessageCircle,
+  Share2,
   ShieldBan,
   UserPlus,
   Users,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import useAuthUser from "../hooks/useAuthUser.js";
+import SocialIcon from "../components/SocialIcon.jsx";
+import ProfileShareModal from "../components/ProfileShareModal.jsx";
 import {
   acceptFriendRequest,
   blockUser,
@@ -55,6 +59,8 @@ const UserProfilePage = () => {
   const navigate = useNavigate();
   const { authUser } = useAuthUser();
   const queryClient = useQueryClient();
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
   const profileQuery = useQuery({
     queryKey: ["userProfile", userId],
     queryFn: () => getPublicUserProfile(userId),
@@ -65,6 +71,15 @@ const UserProfilePage = () => {
   const relationship = profile?.relationship || {};
   const isSelf = relationship.status === "self" || profile?._id === authUser?._id;
   const isBlocked = relationship.status === "blocked";
+
+  useEffect(() => {
+    if (profile?.fullName) {
+      document.title = `${profile.fullName} | HyeChat`;
+    }
+    return () => {
+      document.title = "HyeChat — Global Language Exchange & Chat";
+    };
+  }, [profile?.fullName]);
 
   const refreshRelationshipData = () => {
     queryClient.invalidateQueries({ queryKey: ["userProfile", userId] });
@@ -105,27 +120,8 @@ const UserProfilePage = () => {
       toast.error(error.response?.data?.message || "Unable to update this relationship"),
   });
 
-  const shareProfile = async () => {
-    const profileUrl = new URL(
-      `/profile/${encodeURIComponent(userId)}`,
-      window.location.origin,
-    ).toString();
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `${profile.fullName} on HyeChat`,
-          text: `View ${profile.fullName}'s HyeChat profile`,
-          url: profileUrl,
-        });
-      } else {
-        await copyToClipboard(profileUrl);
-        toast.success("Profile link copied");
-      }
-    } catch (error) {
-      if (error?.name !== "AbortError") {
-        toast.error("Unable to share this profile");
-      }
-    }
+  const shareProfile = () => {
+    setIsShareModalOpen(true);
   };
 
   const handleBack = () => {
@@ -186,16 +182,48 @@ const UserProfilePage = () => {
   }
 
   const hasLanguages = Boolean(profile.nativeLanguage || profile.learningLanguage);
-  const canInteract = !isSelf && !isBlocked;
+  const canInteract = !isSelf && !isBlocked && Boolean(authUser);
+  const activeSocials = Object.entries(profile.socialLinks || {}).filter(
+    ([, url]) => Boolean(url && typeof url === "string" && url.trim()),
+  );
 
   return (
     <div className="w-full flex-1 overflow-y-auto bg-base-100 px-4 py-5 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-8 lg:px-10">
       <div className="mx-auto max-w-3xl space-y-5">
+        {!authUser && (
+          <div className="alert alert-info shadow-xs rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
+            <span>
+              You are viewing <strong>{profile.fullName}</strong>&apos;s public profile. Sign in to connect and practice languages!
+            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link to="/login" className="btn btn-xs btn-primary font-semibold">
+                Log in
+              </Link>
+              <Link to="/signup" className="btn btn-xs btn-outline font-semibold">
+                Sign up
+              </Link>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-2">
           <button type="button" className="btn btn-ghost btn-sm" onClick={handleBack}>
             <ArrowLeft className="size-4" /> Back
           </button>
-          {isSelf && <Link to="/profile" className="btn btn-outline btn-sm">Edit profile</Link>}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="btn btn-outline btn-sm gap-2"
+              onClick={shareProfile}
+            >
+              <Share2 className="size-4" /> Share profile
+            </button>
+            {isSelf && (
+              <Link to="/profile" className="btn btn-outline btn-sm">
+                Edit profile
+              </Link>
+            )}
+          </div>
         </div>
 
         <header className="overflow-hidden rounded-3xl border border-base-300 bg-base-200 shadow-sm">
@@ -268,8 +296,8 @@ const UserProfilePage = () => {
                   <ShieldBan className="size-4" />
                 </button>
               )}
-              <button type="button" className="btn btn-ghost min-h-11 flex-1 sm:flex-none" onClick={shareProfile}>
-                <Link2 className="size-4" /> Share profile
+              <button type="button" className="btn btn-ghost min-h-11 flex-1 sm:flex-none gap-2" onClick={shareProfile}>
+                <Share2 className="size-4" /> Share profile
               </button>
             </div>
             {isBlocked && relationship.blockedByMe && (
@@ -284,6 +312,32 @@ const UserProfilePage = () => {
             {profile.bio?.trim() || "No bio yet."}
           </p>
         </section>
+
+        {activeSocials.length > 0 && (
+          <section className="rounded-2xl border border-base-300 bg-base-200 p-5 sm:p-6" aria-labelledby="profile-socials-heading">
+            <h2 id="profile-socials-heading" className="text-xs font-bold uppercase tracking-[0.16em] opacity-55">
+              Socials
+            </h2>
+            <div className="mt-3 flex flex-wrap gap-2.5">
+              {activeSocials.map(([platform, url]) => {
+                const label = platform.charAt(0).toUpperCase() + platform.slice(1);
+                return (
+                  <a
+                    key={platform}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-outline btn-sm gap-2 rounded-xl transition-all hover:scale-105"
+                    aria-label={`Open ${profile.fullName}'s ${label} profile`}
+                  >
+                    <SocialIcon platform={platform} className="size-4" />
+                    <span>{label}</span>
+                  </a>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         <section className="rounded-2xl border border-base-300 bg-base-200 p-5 sm:p-6" aria-labelledby="profile-languages-heading">
           <h2 id="profile-languages-heading" className="flex items-center gap-2 text-lg font-bold">
@@ -322,6 +376,12 @@ const UserProfilePage = () => {
           )}
         </section>
       </div>
+
+      <ProfileShareModal
+        profile={profile}
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+      />
     </div>
   );
 };

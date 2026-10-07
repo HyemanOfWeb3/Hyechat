@@ -3,6 +3,17 @@
   "outputDirectory": "frontend/dist",
   "rewrites": [
     { "source": "/health", "destination": "/api" },
+    {
+      "source": "/profile/:userId",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(bot|facebookexternalhit|twitterbot|whatsapp|telegram|discord|slack|linkedin|preview|curl).*"
+        }
+      ],
+      "destination": "/api"
+    },
     { "source": "/api/:path*", "destination": "/api" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]

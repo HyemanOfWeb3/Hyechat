@@ -8,6 +8,7 @@ import {
   Loader2,
   MapPin,
   Save,
+  Share2,
   ShieldAlert,
   UserRound,
 } from "lucide-react";
@@ -20,6 +21,12 @@ import {
   updateMyProfile,
 } from "../lib/api.js";
 import { LANGUAGES } from "../constants/index.js";
+import SocialIcon from "../components/SocialIcon.jsx";
+import ProfileShareModal from "../components/ProfileShareModal.jsx";
+import {
+  SOCIAL_PLATFORMS,
+  validateAndNormalizeClientSocialLink,
+} from "../lib/socialLinks.js";
 
 const getErrorMessage = (error, fallback) =>
   error?.response?.data?.message || fallback;
@@ -33,6 +40,8 @@ const ProfilePage = () => {
   const [pendingProfileImage, setPendingProfileImage] = useState(null);
   const [profileImagePreview, setProfileImagePreview] = useState("");
   const [isUploadingProfileImage, setIsUploadingProfileImage] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [socialErrors, setSocialErrors] = useState({});
   const [passwords, setPasswords] = useState({
     currentPassword: "",
     newPassword: "",
@@ -50,6 +59,12 @@ const ProfilePage = () => {
     learningLanguage: authUser.learningLanguage || "",
     location: authUser.location || "",
     interests: (authUser.interests || []).join(", "),
+    socialLinks: {
+      x: authUser?.socialLinks?.x || "",
+      instagram: authUser?.socialLinks?.instagram || "",
+      facebook: authUser?.socialLinks?.facebook || "",
+      tiktok: authUser?.socialLinks?.tiktok || "",
+    },
   };
 
   const profileMutation = useMutation({
@@ -88,13 +103,51 @@ const ProfilePage = () => {
       toast.error(getErrorMessage(error, "Unable to delete account")),
   });
 
+  const handleSocialChange = (platformId, value) => {
+    const current = profile || profileData;
+    setProfile({
+      ...current,
+      socialLinks: {
+        ...(current.socialLinks || {}),
+        [platformId]: value,
+      },
+    });
+    if (socialErrors[platformId]) {
+      setSocialErrors((prev) => ({ ...prev, [platformId]: null }));
+    }
+  };
+
   const handleProfileSubmit = (event) => {
     event.preventDefault();
     if (!profileData.fullName.trim() || !profileData.email.trim()) {
       toast.error("Full name and email are required");
       return;
     }
-    profileMutation.mutate(profileData);
+
+    const nextSocials = {};
+    const errors = {};
+    for (const p of SOCIAL_PLATFORMS) {
+      const rawVal = profileData.socialLinks?.[p.id] || "";
+      const validation = validateAndNormalizeClientSocialLink(p.id, rawVal);
+      if (!validation.valid) {
+        errors[p.id] = validation.error;
+      } else {
+        nextSocials[p.id] = validation.normalizedUrl;
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setSocialErrors(errors);
+      const firstError = Object.values(errors)[0];
+      toast.error(firstError || "Please check your social media links");
+      return;
+    }
+
+    setSocialErrors({});
+    profileMutation.mutate({
+      ...profileData,
+      socialLinks: nextSocials,
+    });
   };
 
   const handlePasswordSubmit = (event) => {
@@ -200,9 +253,18 @@ const ProfilePage = () => {
               Manage your HyeChat identity and account security.
             </p>
           </div>
-          <Link to={`/profile/${authUser._id}`} className="btn btn-outline btn-sm">
-            View public profile
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="btn btn-outline btn-sm gap-2"
+              onClick={() => setIsShareModalOpen(true)}
+            >
+              <Share2 className="size-4" /> Share profile
+            </button>
+            <Link to={`/profile/${authUser._id}`} className="btn btn-outline btn-sm">
+              View public profile
+            </Link>
+          </div>
         </header>
 
         <section className="card border border-base-300 bg-base-200 shadow-sm">
@@ -407,6 +469,55 @@ const ProfilePage = () => {
                   </div>
                 </label>
               </div>
+
+              <div className="divider my-0 justify-start text-sm font-bold">
+                Social links
+              </div>
+              <p className="-mt-3 text-xs text-base-content/60">
+                Add your social media accounts to display on your public profile. Enter your @username or profile URL.
+              </p>
+              <div className="grid gap-4 md:grid-cols-2">
+                {SOCIAL_PLATFORMS.map((platform) => {
+                  const val = profileData.socialLinks?.[platform.id] || "";
+                  const error = socialErrors[platform.id];
+                  return (
+                    <label key={platform.id} className="form-control">
+                      <span className="label-text mb-2 flex items-center justify-between font-semibold">
+                        <span className="inline-flex items-center gap-2">
+                          <SocialIcon platform={platform.id} className="size-4" />
+                          {platform.label}
+                        </span>
+                        {val && (
+                          <button
+                            type="button"
+                            className="text-xs text-base-content/50 hover:text-error"
+                            onClick={() => handleSocialChange(platform.id, "")}
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </span>
+                      <input
+                        type="text"
+                        className={`input input-bordered w-full ${error ? "input-error" : ""}`}
+                        placeholder={platform.placeholder}
+                        value={val}
+                        onChange={(e) =>
+                          handleSocialChange(platform.id, e.target.value)
+                        }
+                        maxLength={150}
+                      />
+                      {error ? (
+                        <span className="mt-1 text-xs text-error">{error}</span>
+                      ) : (
+                        <span className="mt-1 text-xs text-base-content/50">
+                          {platform.helper}
+                        </span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <button
                   type="button"
@@ -563,6 +674,16 @@ const ProfilePage = () => {
           </div>
         </section>
       </div>
+
+      <ProfileShareModal
+        profile={{
+          ...authUser,
+          ...profileData,
+          _id: authUser._id,
+        }}
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+      />
     </div>
   );
 };
