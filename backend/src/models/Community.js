@@ -92,6 +92,11 @@ const communitySchema = new mongoose.Schema(
 
 communitySchema.index({ "members.user": 1 });
 communitySchema.index({ owner: 1, createdAt: -1 });
+communitySchema.index({
+  name: "text",
+  description: "text",
+  category: "text",
+});
 
 const Community = mongoose.model("Community", communitySchema);
 

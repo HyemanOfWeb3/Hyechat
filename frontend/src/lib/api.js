@@ -195,6 +195,20 @@ export async function discoverUsers({ query = "", page = 1, limit = 20 } = {}) {
   return res.data;
 }
 
+export async function searchGlobalCategory(
+  category,
+  { query, page = 1, limit = 8 } = {},
+) {
+  const allowedCategories = ["people", "communities", "marketplace"];
+  if (!allowedCategories.includes(category)) {
+    throw new Error("Unsupported search category");
+  }
+  const res = await axiosInstance.get(`/search/${category}`, {
+    params: { query, page, limit },
+  });
+  return res.data;
+}
+
 export async function getDiscoverableCommunities({
   query = "",
   page = 1,

@@ -1,5 +1,6 @@
 import useAuthUser from "../hooks/useAuthUser.js";
-import { useLocation, Link } from "react-router-dom";
+import { useLocation, Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import useLogout from "../hooks/useLogout.js";
 import {
   BellIcon,
@@ -8,6 +9,7 @@ import {
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   ShipWheelIcon,
+  SearchIcon,
 } from "lucide-react";
 import ThemeSelector from "./ThemeSelector.jsx";
 import useUnreadNotificationsCount from "../hooks/useUnreadNotificationsCount.js";
@@ -15,6 +17,8 @@ import useUnreadNotificationsCount from "../hooks/useUnreadNotificationsCount.js
 const Navbar = ({ onMenuClick, onCollapseClick, sidebarCollapsed }) => {
   const { authUser } = useAuthUser();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [globalSearch, setGlobalSearch] = useState("");
   const isChatPage = location.pathname?.startsWith("/chat");
 
   //   const queryClient = useQueryClient();
@@ -26,6 +30,14 @@ const Navbar = ({ onMenuClick, onCollapseClick, sidebarCollapsed }) => {
 
   const { logoutMutation } = useLogout();
   const unreadCount = useUnreadNotificationsCount();
+
+  const submitGlobalSearch = (event) => {
+    event.preventDefault();
+    const query = globalSearch.trim();
+    if (query.length < 2) return;
+    navigate(`/search?query=${encodeURIComponent(query)}`);
+    setGlobalSearch("");
+  };
 
   return (
     <nav className="bg-base-200 border-b border-base-300 sticky top-0 z-30 h-16 flex items-center">
@@ -73,6 +85,29 @@ const Navbar = ({ onMenuClick, onCollapseClick, sidebarCollapsed }) => {
           )}
 
           <div className="flex items-center gap-3 sm:gap-4 ml-auto">
+            <form
+              onSubmit={submitGlobalSearch}
+              className="input input-bordered hidden h-10 w-48 items-center gap-2 md:flex lg:w-72"
+              role="search"
+            >
+              <SearchIcon className="size-4 shrink-0 opacity-50" />
+              <input
+                type="search"
+                value={globalSearch}
+                onChange={(event) => setGlobalSearch(event.target.value)}
+                className="min-w-0 grow"
+                placeholder="Search HyeChat"
+                aria-label="Search HyeChat"
+                minLength={2}
+              />
+            </form>
+            <Link
+              to="/search"
+              className="btn btn-ghost btn-circle md:hidden"
+              aria-label="Search HyeChat"
+            >
+              <SearchIcon className="size-5 text-base-content opacity-70" />
+            </Link>
             <Link
               to="/notifications"
               className="btn btn-ghost btn-circle relative"

@@ -85,6 +85,12 @@ marketplaceListingSchema.index({ status: 1, createdAt: -1 });
 marketplaceListingSchema.index({ type: 1, status: 1, createdAt: -1 });
 marketplaceListingSchema.index({ category: 1, status: 1, createdAt: -1 });
 marketplaceListingSchema.index({ seller: 1, status: 1, createdAt: -1 });
+marketplaceListingSchema.index({
+  title: "text",
+  description: "text",
+  category: "text",
+  location: "text",
+});
 
 const MarketplaceListing = mongoose.model(
   "MarketplaceListing",

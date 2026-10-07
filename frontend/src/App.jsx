@@ -23,6 +23,7 @@ const TestingPage = lazy(() => import("./pages/Testing.jsx"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage.jsx"));
 const FriendsPage = lazy(() => import("./pages/FriendsPage.jsx"));
 const ExplorePage = lazy(() => import("./pages/ExplorePage.jsx"));
+const GlobalSearchPage = lazy(() => import("./pages/GlobalSearchPage.jsx"));
 const FeatureFoundationPage = lazy(
   () => import("./pages/FeatureFoundationPage.jsx"),
 );
@@ -157,6 +158,20 @@ const App = () => {
               isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
                   <ExplorePage />
+                </Layout>
+              ) : (
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
+              )
+            }
+          />
+          <Route
+            path="/search"
+            element={
+              isAuthenticated && isEmailVerified && isOnboarded ? (
+                <Layout showSidebar={true}>
+                  <GlobalSearchPage />
                 </Layout>
               ) : (
                 <Navigate

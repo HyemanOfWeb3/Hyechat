@@ -11,6 +11,7 @@ import notificationRoutes from "./routes/notification.route.js";
 import streamWebhookRoutes from "./routes/streamWebhook.route.js";
 import communityRoutes from "./routes/community.route.js";
 import marketplaceRoutes from "./routes/marketplace.route.js";
+import searchRoutes from "./routes/search.route.js";
 import callHistoryRoutes from "./routes/callHistory.route.js";
 import translationRoutes from "./routes/translation.route.js";
 
@@ -54,6 +55,7 @@ app.use("/api/stories", storyRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/communities", communityRoutes);
 app.use("/api/marketplace", marketplaceRoutes);
+app.use("/api/search", searchRoutes);
 app.use("/api/call-history", callHistoryRoutes);
 
 export default app;

@@ -149,6 +149,12 @@ const userSchema = new mongoose.Schema(
 
 userSchema.index({ fullName: 1 });
 userSchema.index({ blockedUsers: 1 });
+userSchema.index({
+  fullName: "text",
+  nativeLanguage: "text",
+  learningLanguage: "text",
+  interests: "text",
+});
 
 //pre hook
 userSchema.pre("save", async function () {
