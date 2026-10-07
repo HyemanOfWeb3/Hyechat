@@ -252,6 +252,13 @@ export async function getMyProfile() {
   return res.data;
 }
 
+export async function getPublicUserProfile(userId) {
+  const res = await axiosInstance.get(
+    `/users/${encodeURIComponent(userId)}/profile`,
+  );
+  return res.data;
+}
+
 export async function updateMyProfile(profileData) {
   const res = await axiosInstance.patch("/users/me", profileData);
   return res.data;

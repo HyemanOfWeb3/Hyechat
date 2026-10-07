@@ -1,5 +1,11 @@
 import { useNavigate } from "react-router-dom";
-import { CheckIcon, MessageCircleIcon, Trash2Icon } from "lucide-react";
+import {
+  CheckIcon,
+  MessageCircleIcon,
+  Trash2Icon,
+  UserRoundIcon,
+} from "lucide-react";
+import UserProfileLink from "./UserProfileLink.jsx";
 
 const formatRelativeTime = (value) => {
   if (!value) return "just now";
@@ -133,6 +139,16 @@ const NotificationItem = ({
               )}
               <span className="hidden sm:inline">Read</span>
             </button>
+          )}
+          {actor?._id && (
+            <UserProfileLink
+              userId={actor._id}
+              className="btn btn-ghost btn-square btn-sm"
+              aria-label={`View ${actorName}'s profile`}
+              title="View profile"
+            >
+              <UserRoundIcon className="size-4" aria-hidden="true" />
+            </UserProfileLink>
           )}
           <button
             type="button"

@@ -22,6 +22,7 @@ import {
   unblockUser,
   getMutualFriends,
   getBlockedUsers,
+  getPublicUserProfile,
   getNotificationPreferences,
   updateNotificationPreferences,
 } from "../controllers/user.controller.js";
@@ -35,6 +36,7 @@ const searchLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 120 });
 
 router.get("/me", getMyProfile);
 router.patch("/me", updateMyProfile);
+router.get("/:userId/profile", searchLimiter, getPublicUserProfile);
 router.get("/me/notification-preferences", getNotificationPreferences);
 router.patch("/me/notification-preferences", updateNotificationPreferences);
 router.post("/me/password", changeMyPassword);

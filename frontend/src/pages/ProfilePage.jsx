@@ -11,7 +11,7 @@ import {
   ShieldAlert,
   UserRound,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import useAuthUser from "../hooks/useAuthUser.js";
 import useStreamClient from "../hooks/useStreamClient.js";
 import {
@@ -56,6 +56,7 @@ const ProfilePage = () => {
     mutationFn: updateMyProfile,
     onSuccess: ({ user }) => {
       queryClient.setQueryData(["authUser"], { success: true, user });
+      queryClient.invalidateQueries({ queryKey: ["userProfile", user._id] });
       toast.success("Profile updated");
     },
     onError: (error) =>
@@ -187,16 +188,21 @@ const ProfilePage = () => {
   return (
     <div className="w-full overflow-y-auto bg-base-100 px-4 py-6 sm:px-6 lg:px-10">
       <div className="mx-auto max-w-5xl space-y-6">
-        <header className="border-b border-base-300 pb-5">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
-            Account
-          </p>
-          <h1 className="mt-1 text-3xl font-bold text-base-content">
-            Profile settings
-          </h1>
-          <p className="mt-2 text-sm text-base-content/60">
-            Manage your HyeChat identity and account security.
-          </p>
+        <header className="flex flex-col gap-3 border-b border-base-300 pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
+              Account
+            </p>
+            <h1 className="mt-1 text-3xl font-bold text-base-content">
+              Profile settings
+            </h1>
+            <p className="mt-2 text-sm text-base-content/60">
+              Manage your HyeChat identity and account security.
+            </p>
+          </div>
+          <Link to={`/profile/${authUser._id}`} className="btn btn-outline btn-sm">
+            View public profile
+          </Link>
         </header>
 
         <section className="card border border-base-300 bg-base-200 shadow-sm">

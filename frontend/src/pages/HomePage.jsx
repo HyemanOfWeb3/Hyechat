@@ -16,6 +16,7 @@ import {
   UsersIcon,
 } from "lucide-react";
 import FriendCard from "../components/FriendCard.jsx";
+import UserProfileLink from "../components/UserProfileLink.jsx";
 import NoFriendsFound from "../components/NoFriendsFound.jsx";
 import { getLanguageFlag } from "../components/LanguageFlag.jsx";
 import { capitalize } from "../lib/utils.js";
@@ -174,17 +175,20 @@ const HomePage = () => {
                   >
                     <div className="card-body p-5 space-y-4">
                       <div className="flex items-center gap-3">
-                        <div className="avatar size-16 rounded-full">
-                          <img
-                            src={user.profilePic}
-                            alt={`${user.fullName}'s profile`}
-                          />
-                        </div>
+                        <UserProfileLink userId={user._id} className="avatar size-16 rounded-full shrink-0">
+                          {user.profilePic ? (
+                            <img src={user.profilePic} alt={`${user.fullName}'s profile`} />
+                          ) : (
+                            <span className="flex size-full items-center justify-center rounded-full bg-base-300 text-xl font-semibold">
+                              {user.fullName?.charAt(0)?.toUpperCase() || "U"}
+                            </span>
+                          )}
+                        </UserProfileLink>
 
                         <div>
-                          <h3 className="font-semibold text-lg">
+                          <UserProfileLink userId={user._id} className="font-semibold text-lg hover:text-primary">
                             {user.fullName}
-                          </h3>
+                          </UserProfileLink>
                           {user.location && (
                             <div className="flex items-center text-xs opacity-70 mt-1">
                               <MapPinIcon className="size-3 mr-1" />

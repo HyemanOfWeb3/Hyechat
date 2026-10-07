@@ -21,6 +21,7 @@ const ChatsPage = lazy(() => import("./pages/ChatsPage.jsx"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage.jsx"));
 const TestingPage = lazy(() => import("./pages/Testing.jsx"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage.jsx"));
+const UserProfilePage = lazy(() => import("./pages/UserProfilePage.jsx"));
 const FriendsPage = lazy(() => import("./pages/FriendsPage.jsx"));
 const ExplorePage = lazy(() => import("./pages/ExplorePage.jsx"));
 const GlobalSearchPage = lazy(() => import("./pages/GlobalSearchPage.jsx"));
@@ -130,6 +131,20 @@ const App = () => {
               isAuthenticated && isEmailVerified && isOnboarded ? (
                 <Layout showSidebar={true}>
                   <ProfilePage />
+                </Layout>
+              ) : (
+                <Navigate
+                  to={!isAuthenticated ? "/login" : authenticatedRedirect}
+                />
+              )
+            }
+          />
+          <Route
+            path="/profile/:userId"
+            element={
+              isAuthenticated && isEmailVerified && isOnboarded ? (
+                <Layout showSidebar={true}>
+                  <UserProfilePage />
                 </Layout>
               ) : (
                 <Navigate

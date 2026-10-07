@@ -12,6 +12,7 @@ import {
 import toast from "react-hot-toast";
 import { deleteCallHistory, getCallHistory } from "../lib/api.js";
 import useAuthUser from "../hooks/useAuthUser.js";
+import UserProfileLink from "../components/UserProfileLink.jsx";
 
 const formatDuration = (seconds) => {
   if (!seconds) return "—";
@@ -111,7 +112,11 @@ const CallsPage = () => {
                   key={call._id}
                   className="flex items-center gap-3 border-b border-base-300 px-4 py-4 last:border-0"
                 >
-                  <div className="avatar shrink-0">
+                  <UserProfileLink
+                    userId={other?._id}
+                    className="avatar shrink-0"
+                    aria-label={`View ${other?.fullName || "call participant"}'s profile`}
+                  >
                     <div className="size-11 rounded-full bg-base-300">
                       {other?.profilePic ? (
                         <img src={other.profilePic} alt={other.fullName} />
@@ -121,11 +126,11 @@ const CallsPage = () => {
                         </span>
                       )}
                     </div>
-                  </div>
+                  </UserProfileLink>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">
+                    <UserProfileLink userId={other?._id} className="truncate font-semibold hover:text-primary">
                       {other?.fullName || "Call participant"}
-                    </p>
+                    </UserProfileLink>
                     <p className="flex items-center gap-1 text-sm opacity-65">
                       {outgoing ? (
                         <ArrowUpRight className="size-3.5" />

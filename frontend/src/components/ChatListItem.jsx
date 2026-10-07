@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, UserRound } from "lucide-react";
+import UserProfileLink from "./UserProfileLink.jsx";
 
 const formatTimestamp = (value) => {
   if (!value) return "";
@@ -83,57 +84,69 @@ const ChatListItem = ({ channel, currentUserId, friendById }) => {
   if (!safeChatTargetId && !isCommunity) return null;
 
   return (
-    <Link
-      to={
-        isCommunity
-          ? `/communities/${channel.data.community_id}`
-          : `/chat/${encodeURIComponent(safeChatTargetId)}`
-      }
-      aria-label={`Open chat with ${name}`}
-      className="flex min-w-0 items-center gap-3 border-b border-base-300 px-4 py-4 transition-colors last:border-b-0 hover:bg-base-300/60 active:bg-base-300/80"
-    >
-      <div className="relative shrink-0">
-        <div className="avatar">
-          <div className="size-12 rounded-full bg-base-300">
-            {avatar ? (
-              <img src={avatar} alt={`${name}'s profile`} />
-            ) : (
-              <div className="flex size-full items-center justify-center text-lg font-semibold opacity-70">
-                {name.charAt(0).toUpperCase()}
-              </div>
-            )}
+    <div className="flex min-w-0 items-center gap-2 border-b border-base-300 px-3 py-2 last:border-b-0">
+      <Link
+        to={
+          isCommunity
+            ? `/communities/${channel.data.community_id}`
+            : `/chat/${encodeURIComponent(safeChatTargetId)}`
+        }
+        aria-label={`Open chat with ${name}`}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-2 transition-colors hover:bg-base-300/60 active:bg-base-300/80"
+      >
+        <div className="relative shrink-0">
+          <div className="avatar">
+            <div className="size-12 rounded-full bg-base-300">
+              {avatar ? (
+                <img src={avatar} alt={`${name}'s profile`} />
+              ) : (
+                <div className="flex size-full items-center justify-center text-lg font-semibold opacity-70">
+                  {name.charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-        {(peerOnline || friend?.isOnline) && (
-          <span className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-base-200 bg-success" />
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="truncate font-semibold">{name}</h3>
-          <time className="shrink-0 text-xs opacity-60">
-            {formatTimestamp(timestamp)}
-          </time>
-        </div>
-        <div className="mt-1 flex items-center justify-between gap-3">
-          <p className="truncate text-sm opacity-70">{preview}</p>
-          {unreadCount > 0 && (
-            <span className="badge badge-primary badge-sm shrink-0">
-              {unreadCount}
-            </span>
+          {(peerOnline || friend?.isOnline) && (
+            <span className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-base-200 bg-success" />
           )}
         </div>
-        <div className="mt-1 text-[11px] text-slate-500">
-          {peerOnline
-            ? "Online"
-            : lastSeen
-              ? `Last active ${formatTimestamp(lastSeen)}`
-              : "Offline"}
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="truncate font-semibold">{name}</h3>
+            <time className="shrink-0 text-xs opacity-60">
+              {formatTimestamp(timestamp)}
+            </time>
+          </div>
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <p className="truncate text-sm opacity-70">{preview}</p>
+            {unreadCount > 0 && (
+              <span className="badge badge-primary badge-sm shrink-0">
+                {unreadCount}
+              </span>
+            )}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500">
+            {peerOnline
+              ? "Online"
+              : lastSeen
+                ? `Last active ${formatTimestamp(lastSeen)}`
+                : "Offline"}
+          </div>
         </div>
-      </div>
-      <MessageCircle className="size-4 shrink-0 opacity-40" />
-    </Link>
+        <MessageCircle className="size-4 shrink-0 opacity-40" />
+      </Link>
+      {!isCommunity && userId && (
+        <UserProfileLink
+          userId={userId}
+          className="btn btn-ghost btn-square btn-sm min-h-11 min-w-11"
+          aria-label={`View ${name}'s profile`}
+          title="View profile"
+        >
+          <UserRound className="size-4" />
+        </UserProfileLink>
+      )}
+    </div>
   );
 };
 

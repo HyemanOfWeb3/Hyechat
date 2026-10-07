@@ -15,6 +15,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { joinPublicCommunity, searchGlobalCategory } from "../lib/api.js";
+import UserProfileLink from "../components/UserProfileLink.jsx";
 
 const categories = [
   { id: "people", label: "People", icon: UsersRound, verb: "people" },
@@ -78,7 +79,11 @@ const ResultSection = ({ id, title, icon: Icon, query, search, renderItem }) => 
 
 const PersonResult = ({ person }) => (
   <article className="flex min-w-0 items-center gap-3 rounded-xl border border-base-300 bg-base-200 p-3">
-    <div className="avatar shrink-0">
+    <UserProfileLink
+      userId={person._id}
+      className="avatar shrink-0"
+      aria-label={`View ${person.fullName}'s profile`}
+    >
       <div className="size-12 rounded-full bg-base-300">
         {person.profilePic ? (
           <img src={person.profilePic} alt="" loading="lazy" />
@@ -88,12 +93,12 @@ const PersonResult = ({ person }) => (
           </span>
         )}
       </div>
-    </div>
+    </UserProfileLink>
     <div className="min-w-0 flex-1">
-      <p className="flex items-center gap-1 truncate font-semibold">
+      <UserProfileLink userId={person._id} className="flex items-center gap-1 truncate font-semibold hover:text-primary">
         {person.fullName}
         {person.emailVerified && <BadgeCheck className="size-4 shrink-0 text-info" aria-label="Email verified" />}
-      </p>
+      </UserProfileLink>
       <p className="truncate text-xs opacity-60">
         {person.nativeLanguage && `Speaks ${person.nativeLanguage}`}
         {person.nativeLanguage && person.learningLanguage && " · "}

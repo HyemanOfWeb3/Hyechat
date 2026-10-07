@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import UserProfileLink from "../components/UserProfileLink.jsx";
 import {
   acceptFriendRequest,
   blockUser,
@@ -53,16 +54,22 @@ const UserCard = ({ user, action, busy }) => (
   <article className="card border border-base-300 bg-base-200 shadow-sm transition-shadow hover:shadow-md">
     <div className="card-body gap-4 p-4">
       <div className="flex min-w-0 items-center gap-3">
-        <Avatar user={user} />
-        <div className="min-w-0">
-          <h3 className="truncate font-bold">{user.fullName}</h3>
+        <UserProfileLink
+          userId={user._id}
+          className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          aria-label={`View ${user.fullName}'s profile`}
+        >
+          <Avatar user={user} />
+          <div className="min-w-0">
+            <h3 className="truncate font-bold">{user.fullName}</h3>
           {user.location && (
             <p className="mt-1 flex items-center gap-1 truncate text-xs opacity-60">
               <MapPin className="size-3" />
               {user.location}
             </p>
           )}
-        </div>
+          </div>
+        </UserProfileLink>
       </div>
       {user.bio && (
         <p className="line-clamp-2 text-sm opacity-70">{user.bio}</p>
@@ -186,7 +193,9 @@ const BlockedUserCard = ({ user, onUnblock, busy }) => (
     <div className="card-body flex-row items-center gap-3 p-4">
       <Avatar user={user} />
       <div className="min-w-0 flex-1">
-        <h3 className="truncate font-bold">{user.fullName}</h3>
+        <UserProfileLink userId={user._id} className="truncate font-bold hover:text-primary">
+          {user.fullName}
+        </UserProfileLink>
         {user.location && (
           <p className="truncate text-xs opacity-60">{user.location}</p>
         )}
@@ -606,12 +615,12 @@ const FriendsPage = ({
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Link
-                      to={`/chat/${user._id}`}
+                    <UserProfileLink
+                      userId={user._id}
                       className="btn btn-ghost btn-sm"
                     >
                       View profile
-                    </Link>
+                    </UserProfileLink>
                     {tab === "requests" ? (
                       <>
                         <button

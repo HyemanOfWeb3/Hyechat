@@ -12,6 +12,7 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import useStreamClient from "../hooks/useStreamClient.js";
 import { CommunityAvatar } from "./CommunityChatHeader.jsx";
+import UserProfileLink from "./UserProfileLink.jsx";
 
 const CommunityInfoDrawer = ({
   community,
@@ -296,23 +297,28 @@ const CommunityInfoDrawer = ({
                     key={userId}
                     className="flex items-center gap-3 rounded-xl px-2 py-2.5 hover:bg-base-200"
                   >
-                    <div className="avatar shrink-0">
-                      <div className="size-9 rounded-full bg-base-300">
-                        {user?.profilePic ? (
-                          <img src={user.profilePic} alt={user.fullName} />
-                        ) : (
-                          <span className="flex size-full items-center justify-center text-sm font-bold">
-                            {user?.fullName?.charAt(0) || "U"}
-                          </span>
-                        )}
+                    <UserProfileLink
+                      userId={userId}
+                      className="flex min-w-0 flex-1 items-center gap-3 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                    >
+                      <div className="avatar shrink-0">
+                        <div className="size-9 rounded-full bg-base-300">
+                          {user?.profilePic ? (
+                            <img src={user.profilePic} alt={`${user.fullName}'s profile`} />
+                          ) : (
+                            <span className="flex size-full items-center justify-center text-sm font-bold">
+                              {user?.fullName?.charAt(0) || "U"}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">
-                        {user?.fullName || "Member"}
-                      </p>
-                      <p className="text-xs opacity-55">{member.role}</p>
-                    </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">
+                          {user?.fullName || "Member"}
+                        </p>
+                        <p className="text-xs opacity-55">{member.role}</p>
+                      </div>
+                    </UserProfileLink>
                     {isOwner && !isMemberOwner && (
                       <select
                         className="select select-bordered select-xs w-24"

@@ -42,8 +42,99 @@ const publicUser = (user) => {
   };
 };
 
+const publicUserCard = (user) => ({
+  _id: user._id,
+  fullName: user.fullName || "",
+  profilePic: user.profilePic || "",
+  bio: user.bio || "",
+  nativeLanguage: user.nativeLanguage || "",
+  learningLanguage: user.learningLanguage || "",
+  interests: user.interests || [],
+  location: user.location || "",
+});
+
 export async function getMyProfile(req, res) {
   res.status(200).json({ success: true, user: publicUser(req.user) });
+}
+
+export async function getPublicUserProfile(req, res) {
+  const { userId } = req.params;
+  if (!mongoose.isValidObjectId(userId)) {
+    return res.status(404).json({ message: "Profile not found" });
+  }
+
+  try {
+    const user = await User.findById(userId).select(
+      "fullName profilePic bio nativeLanguage learningLanguage interests location emailVerified isOnboarded friends blockedUsers",
+    );
+    if (!user || !user.isOnboarded) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    const viewerId = req.user._id.toString();
+    const targetId = user._id.toString();
+    const isSelf = viewerId === targetId;
+    const blockedByMe = (req.user.blockedUsers || []).some(
+      (id) => id.toString() === targetId,
+    );
+    const blockedByThem = (user.blockedUsers || []).some(
+      (id) => id.toString() === viewerId,
+    );
+
+    // A block initiated by the viewed user makes the profile unavailable.
+    if (blockedByThem) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    let relationshipStatus = isSelf ? "self" : blockedByMe ? "blocked" : "none";
+    let requestId = null;
+    if (!isSelf && !blockedByMe) {
+      const areFriends = (user.friends || []).some(
+        (id) => id.toString() === viewerId,
+      );
+      if (areFriends) {
+        relationshipStatus = "friends";
+      } else {
+        const request = await FriendRequest.findOne({
+          status: "pending",
+          $or: [
+            { sender: req.user._id, recipient: user._id },
+            { sender: user._id, recipient: req.user._id },
+          ],
+        }).select("_id sender recipient");
+        if (request) {
+          requestId = request._id;
+          relationshipStatus =
+            request.sender.toString() === viewerId
+              ? "pending_outgoing"
+              : "pending_incoming";
+        }
+      }
+    }
+
+    return res.status(200).json({
+      profile: {
+        _id: user._id,
+        fullName: user.fullName,
+        profilePic: user.profilePic,
+        bio: user.bio,
+        nativeLanguage: user.nativeLanguage,
+        learningLanguage: user.learningLanguage,
+        interests: user.interests || [],
+        location: user.location,
+        emailVerified: Boolean(user.emailVerified),
+        relationship: {
+          status: relationshipStatus,
+          requestId,
+          blockedByMe,
+          blockedByThem,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error getting public user profile", error.message);
+    return res.status(500).json({ message: "Unable to load profile" });
+  }
 }
 
 export async function getNotificationPreferences(req, res) {
@@ -735,16 +826,24 @@ export async function getRecommendedUsers(req, res) {
   try {
     const currentUserId = req.user._id;
     const currentUser = req.user;
+    const blockedBy = await User.find({ blockedUsers: currentUserId }).distinct(
+      "_id",
+    );
+    const excludedIds = [
+      currentUserId,
+      ...(currentUser.friends || []),
+      ...(currentUser.blockedUsers || []),
+      ...blockedBy,
+    ];
 
     const recommendedUsers = await User.find({
-      $and: [
-        { _id: { $ne: currentUserId } }, // Exclude current user
-        { _id: { $nin: currentUser.friends } }, // Exclude friends
-        { isOnboarded: true }, // Only include onboarded users
-      ],
-    });
+      _id: { $nin: excludedIds },
+      isOnboarded: true,
+    })
+      .select(USER_PROJECTION)
+      .limit(50);
 
-    res.status(200).json(recommendedUsers);
+    res.status(200).json(recommendedUsers.map(publicUserCard));
   } catch (error) {
     console.error("Error in getRecommendedUsers", error.message);
     res.status(500).json({ message: "Internal Server Error" });

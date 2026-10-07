@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import useAuthUser from "../../hooks/useAuthUser.js";
+import UserProfileLink from "../UserProfileLink.jsx";
 import {
   createMarketplaceListing,
   getMarketplaceCategories,
@@ -173,9 +174,12 @@ const MarketplaceCard = ({
               )}
             </div>
           </div>
-          <span className="truncate">
+          <UserProfileLink
+            userId={listing.seller?._id}
+            className="truncate hover:text-primary"
+          >
             {listing.seller?.fullName || "HyeChat seller"}
-          </span>
+          </UserProfileLink>
           {listing.seller?.emailVerified && (
             <BadgeCheck
               className="size-4 shrink-0 text-info"
@@ -1263,7 +1267,11 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                     Seller profile
                   </p>
                   <div className="flex items-center gap-3">
-                    <div className="avatar">
+                    <UserProfileLink
+                      userId={selectedListing.seller?._id}
+                      className="avatar"
+                      aria-label={`View ${selectedListing.seller?.fullName || "seller"}'s profile`}
+                    >
                       <div className="size-14 rounded-full bg-base-300">
                         {selectedListing.seller?.profilePic ? (
                           <img src={selectedListing.seller.profilePic} alt="" />
@@ -1275,9 +1283,12 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                           </span>
                         )}
                       </div>
-                    </div>
+                    </UserProfileLink>
                     <div className="min-w-0">
-                      <p className="flex items-center gap-1 font-semibold">
+                      <UserProfileLink
+                        userId={selectedListing.seller?._id}
+                        className="flex items-center gap-1 font-semibold hover:text-primary"
+                      >
                         {selectedListing.seller?.fullName || "HyeChat seller"}
                         {selectedListing.seller?.emailVerified && (
                           <BadgeCheck
@@ -1285,7 +1296,7 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                             aria-label="Email verified"
                           />
                         )}
-                      </p>
+                      </UserProfileLink>
                       {selectedListing.seller?.emailVerified && (
                         <p className="text-xs text-info">Email verified</p>
                       )}

@@ -30,6 +30,7 @@ import {
   Languages,
   Copy,
   Forward,
+  UserRound,
 } from "lucide-react";
 
 import {
@@ -55,6 +56,7 @@ import ChatImageGalleryUI from "../components/ChatImageGalleryUI.jsx";
 import { getHyeChatCallDetails } from "../lib/hyeChatCall.js";
 import StoryReplyPreview from "../components/stories/StoryReplyPreview.jsx";
 import VoiceNoteTranslation from "../components/VoiceNoteTranslation.jsx";
+import UserProfileLink from "../components/UserProfileLink.jsx";
 import { buildChatChannelId } from "../lib/utils.js";
 import { getStreamVideoClient } from "../lib/streamVideoClient.js";
 
@@ -447,6 +449,16 @@ const StoryReplyMessage = ({ message: messageProp }) => {
       )}
       <div className="flex flex-col gap-1">
         <MessageUI />
+        {message?.user?.id && (
+          <UserProfileLink
+            userId={message.user.id}
+            className="inline-flex min-h-9 w-fit items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            aria-label={`View ${message.user.name || "sender"}'s profile`}
+          >
+            <UserRound className="size-3.5" aria-hidden="true" />
+            View profile
+          </UserProfileLink>
+        )}
         {canCopyOrForward && (
           <div className="flex flex-wrap items-center gap-1">
             {message.text?.trim() && (
@@ -1324,7 +1336,11 @@ const ChatPage = () => {
                     >
                       <ArrowLeft className="size-5" aria-hidden="true" />
                     </button>
-                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-sm font-semibold text-slate-700">
+                    <UserProfileLink
+                      userId={peerUser?.id}
+                      className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-sm font-semibold text-slate-700"
+                      aria-label={`View ${peerUser?.name || "user"}'s profile`}
+                    >
                       {peerUser?.image ? (
                         <img
                           src={peerUser.image}
@@ -1334,12 +1350,15 @@ const ChatPage = () => {
                       ) : (
                         (peerUser?.name || "U").charAt(0).toUpperCase()
                       )}
-                    </div>
+                    </UserProfileLink>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-semibold text-slate-900">
+                        <UserProfileLink
+                          userId={peerUser?.id}
+                          className="truncate text-sm font-semibold text-slate-900 hover:underline"
+                        >
                           {peerUser?.name || "Chat"}
-                        </p>
+                        </UserProfileLink>
                         <span
                           className={`h-2.5 w-2.5 rounded-full ${
                             isTyping

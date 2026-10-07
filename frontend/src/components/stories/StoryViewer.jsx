@@ -24,6 +24,7 @@ import {
   translateMessage,
 } from "../../lib/api.js";
 import { getLanguageFlag } from "../LanguageFlag.jsx";
+import UserProfileLink from "../UserProfileLink.jsx";
 import { buildChatChannelId } from "../../lib/utils.js";
 
 const getUserId = (user) => {
@@ -672,7 +673,11 @@ const StoryViewer = ({
           >
             <ArrowLeft className="size-5" />
           </button>
-          <div className="flex min-w-0 items-center gap-3">
+          <UserProfileLink
+            userId={getUserId(currentGroup.user)}
+            className="flex min-w-0 items-center gap-3 rounded-lg text-left text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+            aria-label={`View ${ownerName}'s profile`}
+          >
             <div className="size-10 shrink-0 overflow-hidden rounded-full border-2 border-white/80 bg-base-300">
               {ownerAvatar ? (
                 <img
@@ -687,7 +692,7 @@ const StoryViewer = ({
               )}
             </div>
             <p className="truncate font-semibold">{ownerName}</p>
-          </div>
+          </UserProfileLink>
           <button
             type="button"
             onClick={closeViewer}
