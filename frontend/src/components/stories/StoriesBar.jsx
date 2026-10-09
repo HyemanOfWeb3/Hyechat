@@ -12,6 +12,11 @@ import useAuthUser from "../../hooks/useAuthUser.js";
 import StoryViewer from "./StoryViewer.jsx";
 import StoryMediaComposer from "./StoryMediaComposer.jsx";
 import VideoTrimEditor from "./VideoTrimEditor.jsx";
+import UserAvatar from "../UserAvatar.jsx";
+import {
+  getStoryViewCount,
+  mergeStoryCacheUpdate,
+} from "../../lib/storyCache.js";
 
 const MAX_STORY_SIZE = 10 * 1024 * 1024;
 const IMAGE_COMPRESSION_THRESHOLD = 1024 * 1024;
@@ -64,24 +69,40 @@ const getUserName = (user, fallback = "User") => {
   return user.fullName || user.name || fallback;
 };
 
-const StoryAvatar = ({ story, userImage, name }) => (
-  <div className="relative size-full overflow-hidden rounded-full bg-base-300">
-    {story?.mediaType === "image" && story.mediaUrl ? (
-      <img src={story.mediaUrl} alt={name} className="size-full object-cover" />
-    ) : userImage ? (
-      <img src={userImage} alt={name} className="size-full object-cover" />
-    ) : (
-      <div className="flex size-full items-center justify-center text-lg font-semibold opacity-70">
-        {name.charAt(0).toUpperCase()}
-      </div>
-    )}
-    {story?.mediaType === "video" && (
-      <span className="absolute inset-0 flex items-center justify-center bg-black/25 text-white">
-        <Play className="size-5 fill-current" aria-hidden="true" />
-      </span>
-    )}
-  </div>
-);
+const StoryAvatar = ({ story, userImage, name, userId }) => {
+  const [failedStoryImage, setFailedStoryImage] = useState("");
+  const showStoryImage =
+    story?.mediaType === "image" &&
+    story.mediaUrl &&
+    story.mediaUrl !== failedStoryImage;
+
+  return (
+    <div className="relative size-full overflow-hidden rounded-full bg-base-300">
+      {showStoryImage ? (
+        <img
+          src={story.mediaUrl}
+          alt={name}
+          className="size-full object-cover"
+          onError={() => setFailedStoryImage(story.mediaUrl)}
+        />
+      ) : (
+        <UserAvatar
+          src={userImage}
+          name={name}
+          userId={userId}
+          alt=""
+          className="size-full text-lg"
+          loading="eager"
+        />
+      )}
+      {story?.mediaType === "video" && (
+        <span className="absolute inset-0 flex items-center justify-center bg-black/25 text-white">
+          <Play className="size-5 fill-current" aria-hidden="true" />
+        </span>
+      )}
+    </div>
+  );
+};
 
 const hasCurrentUserViewedStory = (story, currentUserId) =>
   typeof story.viewedByMe === "boolean"
@@ -173,26 +194,7 @@ const StoriesBar = ({ chatClient }) => {
       currentStories.map((story) => {
         if (story._id !== updatedStory._id) return story;
 
-        const mergedStory = {
-          ...story,
-          ...updatedStory,
-          user:
-            typeof updatedStory.user === "object"
-              ? updatedStory.user
-              : story.user,
-          viewedByMe:
-            typeof updatedStory.viewedByMe === "boolean"
-              ? updatedStory.viewedByMe
-              : story.viewedByMe,
-          viewers: Array.isArray(updatedStory.viewers)
-            ? updatedStory.viewers
-            : story.viewers || [],
-          reactions: Array.isArray(updatedStory.reactions)
-            ? updatedStory.reactions
-            : story.reactions || [],
-        };
-
-        return mergedStory;
+        return mergeStoryCacheUpdate(story, updatedStory);
       }),
     );
   };
@@ -474,9 +476,7 @@ const StoriesBar = ({ chatClient }) => {
           <div
             className={`relative size-14 rounded-full p-0.5 ${
               ownGroup
-                ? ownGroup.stories.some(
-                    (story) => (story.viewers || []).length > 0,
-                  )
+                ? ownGroup.stories.some((story) => getStoryViewCount(story) > 0)
                   ? "bg-base-300"
                   : "bg-primary"
                 : "border-2 border-dashed border-primary/60"
@@ -493,6 +493,7 @@ const StoriesBar = ({ chatClient }) => {
                   story={latestOwnStory}
                   userImage={ownAvatar}
                   name={getUserName(authUser, "You")}
+                  userId={getUserId(authUser)}
                 />
               </button>
             ) : (
@@ -507,6 +508,7 @@ const StoriesBar = ({ chatClient }) => {
                   story={latestOwnStory}
                   userImage={ownAvatar}
                   name={getUserName(authUser, "You")}
+                  userId={getUserId(authUser)}
                 />
               </button>
             )}
@@ -564,6 +566,7 @@ const StoriesBar = ({ chatClient }) => {
                     story={latestStory}
                     userImage={avatar}
                     name={name}
+                    userId={getUserId(user)}
                   />
                 </div>
               </div>

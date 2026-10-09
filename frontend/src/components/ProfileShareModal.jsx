@@ -10,6 +10,12 @@ import {
   X,
 } from "lucide-react";
 import SocialIcon from "./SocialIcon.jsx";
+import { getSafeSocialLinks } from "../lib/safeSocialLinks.js";
+import {
+  buildProfileShareDetails,
+  shareProfileOrCopy,
+} from "../lib/profileSharing.js";
+import UserAvatar from "./UserAvatar.jsx";
 
 const copyToClipboard = async (value) => {
   if (navigator.clipboard?.writeText) {
@@ -34,7 +40,7 @@ export const ProfileShareModal = ({ profile, isOpen, onClose }) => {
   if (!isOpen || !profile) return null;
 
   const origin = window.location.origin;
-  const canonicalUrl = `${origin}/profile/${encodeURIComponent(profile._id)}`;
+  const { canonicalUrl, shareData } = buildProfileShareDetails(profile, origin);
 
   const handleCopyLink = async () => {
     try {
@@ -48,38 +54,22 @@ export const ProfileShareModal = ({ profile, isOpen, onClose }) => {
   };
 
   const handleNativeShare = async () => {
-    const summary = profile.bio?.trim()
-      ? profile.bio.trim().slice(0, 120)
-      : "Connect and learn languages with me on HyeChat.";
-
-    const shareData = {
-      title: `${profile.fullName} on HyeChat`,
-      text: `${profile.fullName} on HyeChat\n${summary}\n\nView my profile:`,
-      url: canonicalUrl,
-    };
-
-    try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-      } else {
-        await handleCopyLink();
-      }
-    } catch (error) {
-      if (error?.name !== "AbortError") {
-        await handleCopyLink();
-      }
-    }
+    await shareProfileOrCopy({
+      share: navigator.share?.bind(navigator),
+      copy: handleCopyLink,
+      shareData,
+    });
   };
 
-  const activeSocials = Object.entries(profile.socialLinks || {}).filter(
-    ([, url]) => Boolean(url && typeof url === "string" && url.trim()),
-  );
+  const activeSocials = getSafeSocialLinks(profile.socialLinks);
 
   const speaks = profile.nativeLanguage
-    ? profile.nativeLanguage.charAt(0).toUpperCase() + profile.nativeLanguage.slice(1)
+    ? profile.nativeLanguage.charAt(0).toUpperCase() +
+      profile.nativeLanguage.slice(1)
     : null;
   const learning = profile.learningLanguage
-    ? profile.learningLanguage.charAt(0).toUpperCase() + profile.learningLanguage.slice(1)
+    ? profile.learningLanguage.charAt(0).toUpperCase() +
+      profile.learningLanguage.slice(1)
     : null;
 
   return (
@@ -97,7 +87,10 @@ export const ProfileShareModal = ({ profile, isOpen, onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-base-300">
           <div>
-            <h3 id="share-modal-title" className="text-lg font-bold text-base-content">
+            <h3
+              id="share-modal-title"
+              className="text-lg font-bold text-base-content"
+            >
               Share profile
             </h3>
             <p className="text-xs text-base-content/60">
@@ -133,21 +126,14 @@ export const ProfileShareModal = ({ profile, isOpen, onClose }) => {
 
           {/* Profile Identity */}
           <div className="mt-4 flex flex-col items-center text-center">
-            <div className="avatar ring-4 ring-primary/20 ring-offset-2 ring-offset-base-200 rounded-full shadow-md">
-              <div className="size-20 overflow-hidden rounded-full bg-base-300 sm:size-24">
-                {profile.profilePic ? (
-                  <img
-                    src={profile.profilePic}
-                    alt={`${profile.fullName}'s avatar`}
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <span className="flex size-full items-center justify-center text-3xl font-bold opacity-60">
-                    {profile.fullName?.charAt(0)?.toUpperCase() || "U"}
-                  </span>
-                )}
-              </div>
-            </div>
+            <UserAvatar
+              src={profile.profilePic}
+              name={profile.fullName}
+              userId={profile._id}
+              alt={`${profile.fullName || "HyeChat user"}'s avatar`}
+              className="size-20 text-2xl ring-4 ring-primary/20 ring-offset-2 ring-offset-base-200 shadow-md sm:size-24"
+              loading="eager"
+            />
 
             <h4 className="mt-3 break-words text-xl font-bold text-base-content">
               {profile.fullName}
@@ -200,7 +186,7 @@ export const ProfileShareModal = ({ profile, isOpen, onClose }) => {
           {/* Card Footer URL pill */}
           <div className="mt-4 pt-3 border-t border-base-300/70 text-center">
             <span className="text-[11px] font-mono text-base-content/50 break-all">
-              hyechat.vercel.app/profile/{profile._id?.slice(-8)}
+              {canonicalUrl}
             </span>
           </div>
         </div>

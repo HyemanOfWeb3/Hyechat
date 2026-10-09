@@ -9,12 +9,14 @@ import {
 
 const router = express.Router();
 router.use(protectRoute);
-router.use(rateLimit({
-  windowMs: 60 * 1000,
-  limit: 60,
-  standardHeaders: "draft-7",
-  legacyHeaders: false,
-}));
+router.use(
+  rateLimit({
+    windowMs: 60 * 1000,
+    limit: 60,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+  }),
+);
 
 router.get("/people", searchPeople);
 router.get("/communities", searchCommunities);

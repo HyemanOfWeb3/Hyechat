@@ -17,6 +17,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { getIncomingFriendRequestCount } from "../lib/api.js";
 import useUnreadNotificationsCount from "../hooks/useUnreadNotificationsCount.js";
+import UserAvatar from "./UserAvatar.jsx";
 
 const Sidebar = ({ collapsed = false, mobileOpen = false, onClose }) => {
   const { authUser } = useAuthUser();
@@ -131,11 +132,13 @@ const Sidebar = ({ collapsed = false, mobileOpen = false, onClose }) => {
           className={`mt-auto border-t border-base-300 p-4 ${collapsed ? "lg:px-2" : ""}`}
         >
           <div className="flex items-center gap-3">
-            <div className="avatar">
-              <div className="w-10 rounded-full">
-                <img src={authUser?.profilePic} alt="User Avatar" />
-              </div>
-            </div>
+            <UserAvatar
+              src={authUser?.profilePic}
+              name={authUser?.fullName}
+              userId={authUser?._id}
+              alt=""
+              className="size-10"
+            />
             <div className={`flex-1 ${collapsed ? "lg:hidden" : ""}`}>
               <p className="font-semibold text-sm">{authUser?.fullName}</p>
               <p className="text-xs  text-success flex items-center gap-1">

@@ -36,7 +36,12 @@ const relationshipLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 60 });
 const searchLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 120 });
 
 // Publicly viewable profile route with optional authentication
-router.get("/:userId/profile", searchLimiter, optionalProtectRoute, getPublicUserProfile);
+router.get(
+  "/:userId/profile",
+  searchLimiter,
+  optionalProtectRoute,
+  getPublicUserProfile,
+);
 
 // Protected routes below
 router.use(protectRoute);

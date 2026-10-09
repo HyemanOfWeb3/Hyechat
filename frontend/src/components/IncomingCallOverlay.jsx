@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { getStreamToken } from "../lib/api.js";
 import useAuthUser from "../hooks/useAuthUser.js";
 import { getStreamVideoClient } from "../lib/streamVideoClient.js";
+import UserAvatar from "./UserAvatar.jsx";
 
 const IncomingCallOverlay = () => {
   const { authUser } = useAuthUser();
@@ -78,11 +79,13 @@ const IncomingCallOverlay = () => {
   return (
     <div className="fixed inset-x-4 top-20 z-[70] mx-auto max-w-sm rounded-2xl border border-base-300 bg-base-100 p-4 shadow-2xl sm:right-6 sm:left-auto">
       <div className="flex items-center gap-3">
-        <div className="avatar">
-          <div className="size-12 rounded-full bg-primary/15 text-primary">
-            <img src={incomingCall.caller?.image || ""} alt={callerName} />
-          </div>
-        </div>
+        <UserAvatar
+          src={incomingCall.caller?.image}
+          name={callerName}
+          userId={incomingCall.caller?.id}
+          alt=""
+          className="size-12"
+        />
         <div className="min-w-0 flex-1">
           <p className="text-xs uppercase tracking-wider opacity-60">
             Incoming {incomingCall.video ? "video" : "voice"} call

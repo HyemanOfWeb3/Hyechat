@@ -30,6 +30,7 @@
     "mongoose": "^8.13.2",
     "music-metadata": "^11.16.1",
     "nodemailer": "^10.0.15",
+    "resend": "^6.32.1",
     "stream-chat": "^9.54.0"
   },
   "overrides": {

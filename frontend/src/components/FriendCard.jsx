@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { getLanguageFlag } from "./LanguageFlag.jsx";
 import UserProfileLink from "./UserProfileLink.jsx";
+import UserAvatar from "./UserAvatar.jsx";
 
 const FriendCard = ({ friend }) => {
   return (
@@ -11,15 +12,13 @@ const FriendCard = ({ friend }) => {
           userId={friend._id}
           className="mb-3 flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
         >
-          <div className="avatar size-12 shrink-0">
-            {friend.profilePic ? (
-              <img src={friend.profilePic} alt={`${friend.fullName}'s profile`} />
-            ) : (
-              <span className="flex size-full items-center justify-center rounded-full bg-base-300 font-semibold">
-                {friend.fullName?.charAt(0)?.toUpperCase() || "U"}
-              </span>
-            )}
-          </div>
+          <UserAvatar
+            src={friend.profilePic}
+            name={friend.fullName}
+            userId={friend._id}
+            alt=""
+            className="size-12"
+          />
           <h3 className="truncate font-semibold">{friend.fullName}</h3>
         </UserProfileLink>
 

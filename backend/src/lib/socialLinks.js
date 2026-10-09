@@ -6,7 +6,13 @@
 const PLATFORM_DOMAINS = {
   x: ["x.com", "www.x.com", "twitter.com", "www.twitter.com"],
   instagram: ["instagram.com", "www.instagram.com", "instagr.am"],
-  facebook: ["facebook.com", "www.facebook.com", "fb.com", "www.fb.com", "m.facebook.com"],
+  facebook: [
+    "facebook.com",
+    "www.facebook.com",
+    "fb.com",
+    "www.fb.com",
+    "m.facebook.com",
+  ],
   tiktok: ["tiktok.com", "www.tiktok.com"],
 };
 
@@ -76,7 +82,9 @@ export function normalizeSocialLink(platform, input) {
     const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
     parsedUrl = new URL(withProtocol);
   } catch {
-    throw new Error(`Enter a valid ${platformLabel(platform)} profile URL or username.`);
+    throw new Error(
+      `Enter a valid ${platformLabel(platform)} profile URL or username.`,
+    );
   }
 
   // Protocol check - only allow HTTPS or HTTP upgraded to HTTPS
@@ -86,20 +94,20 @@ export function normalizeSocialLink(platform, input) {
 
   const hostname = parsedUrl.hostname.toLowerCase();
   const allowedDomains = PLATFORM_DOMAINS[platform];
-  const isDomainAllowed = allowedDomains.some(
-    (domain) => hostname === domain || hostname.endsWith(`.${domain}`)
-  );
+  const isDomainAllowed = allowedDomains.includes(hostname);
 
   if (!isDomainAllowed) {
     throw new Error(
-      `Please provide a legitimate ${platformLabel(platform)} profile link.`
+      `Please provide a legitimate ${platformLabel(platform)} profile link.`,
     );
   }
 
   // Clean pathname
   let pathname = parsedUrl.pathname.replace(/\/+$/, ""); // remove trailing slashes
   if (!pathname || pathname === "/" || pathname === "/@") {
-    throw new Error(`Please specify a username or profile path for ${platformLabel(platform)}.`);
+    throw new Error(
+      `Please specify a username or profile path for ${platformLabel(platform)}.`,
+    );
   }
 
   switch (platform) {
@@ -107,8 +115,16 @@ export function normalizeSocialLink(platform, input) {
       // twitter.com/username or x.com/username
       const parts = pathname.split("/").filter(Boolean);
       const handle = parts[0]?.replace(/^@/, "");
-      if (!handle || !HANDLE_REGEX.x.test(handle) || ["home", "explore", "messages", "notifications", "i"].includes(handle.toLowerCase())) {
-        throw new Error("Enter a valid X profile (e.g. @username or https://x.com/username).");
+      if (
+        !handle ||
+        !HANDLE_REGEX.x.test(handle) ||
+        ["home", "explore", "messages", "notifications", "i"].includes(
+          handle.toLowerCase(),
+        )
+      ) {
+        throw new Error(
+          "Enter a valid X profile (e.g. @username or https://x.com/username).",
+        );
       }
       return `https://x.com/${handle}`;
     }
@@ -116,21 +132,40 @@ export function normalizeSocialLink(platform, input) {
       // instagram.com/username
       const parts = pathname.split("/").filter(Boolean);
       const handle = parts[0]?.replace(/^@/, "");
-      if (!handle || !HANDLE_REGEX.instagram.test(handle) || ["explore", "reels", "direct", "accounts", "p"].includes(handle.toLowerCase())) {
-        throw new Error("Enter a valid Instagram profile (e.g. @username or https://instagram.com/username).");
+      if (
+        !handle ||
+        !HANDLE_REGEX.instagram.test(handle) ||
+        ["explore", "reels", "direct", "accounts", "p"].includes(
+          handle.toLowerCase(),
+        )
+      ) {
+        throw new Error(
+          "Enter a valid Instagram profile (e.g. @username or https://instagram.com/username).",
+        );
       }
       return `https://instagram.com/${handle}`;
     }
     case "facebook": {
       // facebook.com/username or facebook.com/profile.php?id=...
-      if (pathname.includes("profile.php") && parsedUrl.searchParams.has("id")) {
+      if (
+        pathname.includes("profile.php") &&
+        parsedUrl.searchParams.has("id")
+      ) {
         const id = parsedUrl.searchParams.get("id");
         return `https://facebook.com/profile.php?id=${encodeURIComponent(id)}`;
       }
       const parts = pathname.split("/").filter(Boolean);
       const handle = parts[0]?.replace(/^@/, "");
-      if (!handle || !HANDLE_REGEX.facebook.test(handle) || ["watch", "groups", "pages", "marketplace", "gaming"].includes(handle.toLowerCase())) {
-        throw new Error("Enter a valid Facebook profile (e.g. @username or https://facebook.com/username).");
+      if (
+        !handle ||
+        !HANDLE_REGEX.facebook.test(handle) ||
+        ["watch", "groups", "pages", "marketplace", "gaming"].includes(
+          handle.toLowerCase(),
+        )
+      ) {
+        throw new Error(
+          "Enter a valid Facebook profile (e.g. @username or https://facebook.com/username).",
+        );
       }
       return `https://facebook.com/${handle}`;
     }
@@ -139,8 +174,14 @@ export function normalizeSocialLink(platform, input) {
       const parts = pathname.split("/").filter(Boolean);
       let handle = parts[0];
       if (handle?.startsWith("@")) handle = handle.slice(1);
-      if (!handle || !HANDLE_REGEX.tiktok.test(handle) || ["discover", "live", "tag", "music"].includes(handle.toLowerCase())) {
-        throw new Error("Enter a valid TikTok profile (e.g. @username or https://tiktok.com/@username).");
+      if (
+        !handle ||
+        !HANDLE_REGEX.tiktok.test(handle) ||
+        ["discover", "live", "tag", "music"].includes(handle.toLowerCase())
+      ) {
+        throw new Error(
+          "Enter a valid TikTok profile (e.g. @username or https://tiktok.com/@username).",
+        );
       }
       return `https://tiktok.com/@${handle}`;
     }
@@ -168,19 +209,22 @@ export function platformLabel(platform) {
  * Validates and normalizes an entire socialLinks object.
  */
 export function validateAndNormalizeSocialLinks(input, existing = {}) {
-  const base = {
-    x: existing?.x || null,
-    instagram: existing?.instagram || null,
-    facebook: existing?.facebook || null,
-    tiktok: existing?.tiktok || null,
-  };
+  const platforms = ["x", "instagram", "facebook", "tiktok"];
+  const base = Object.fromEntries(
+    platforms.map((platform) => {
+      try {
+        return [platform, normalizeSocialLink(platform, existing?.[platform])];
+      } catch {
+        return [platform, null];
+      }
+    }),
+  );
 
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return base;
   }
 
   const result = { ...base };
-  const platforms = ["x", "instagram", "facebook", "tiktok"];
 
   for (const platform of platforms) {
     if (Object.prototype.hasOwnProperty.call(input, platform)) {

@@ -1,5 +1,9 @@
 import { createElement, useEffect, useState } from "react";
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -16,10 +20,16 @@ import {
 } from "lucide-react";
 import { joinPublicCommunity, searchGlobalCategory } from "../lib/api.js";
 import UserProfileLink from "../components/UserProfileLink.jsx";
+import UserAvatar from "../components/UserAvatar.jsx";
 
 const categories = [
   { id: "people", label: "People", icon: UsersRound, verb: "people" },
-  { id: "communities", label: "Communities", icon: Globe2, verb: "communities" },
+  {
+    id: "communities",
+    label: "Communities",
+    icon: Globe2,
+    verb: "communities",
+  },
   { id: "marketplace", label: "Marketplace", icon: Store, verb: "listings" },
 ];
 
@@ -34,26 +44,46 @@ const useCategorySearch = (category, query) =>
     enabled: query.length >= 2,
   });
 
-const ResultSection = ({ id, title, icon: Icon, query, search, renderItem }) => {
+const ResultSection = ({
+  id,
+  title,
+  icon: Icon,
+  query,
+  search,
+  renderItem,
+}) => {
   const result = useCategorySearch(id, query);
   const items = result.data?.pages.flatMap((page) => page.results || []) || [];
 
   return (
     <section aria-labelledby={`global-search-${id}`} className="space-y-3">
       <div className="flex items-center justify-between gap-3 border-b border-base-300 pb-2">
-        <h2 id={`global-search-${id}`} className="flex items-center gap-2 text-lg font-bold">
+        <h2
+          id={`global-search-${id}`}
+          className="flex items-center gap-2 text-lg font-bold"
+        >
           {createElement(Icon, { className: "size-5 text-primary" })} {title}
         </h2>
-        {result.data && <span className="badge badge-ghost">{items.length} shown</span>}
+        {result.data && (
+          <span className="badge badge-ghost">{items.length} shown</span>
+        )}
       </div>
       {query.length < 2 ? (
-        <p className="rounded-xl bg-base-200 p-4 text-sm opacity-60">Enter at least 2 characters to search {title.toLowerCase()}.</p>
+        <p className="rounded-xl bg-base-200 p-4 text-sm opacity-60">
+          Enter at least 2 characters to search {title.toLowerCase()}.
+        </p>
       ) : result.isLoading ? (
-        <div className="flex justify-center py-6"><span className="loading loading-spinner loading-md" /></div>
+        <div className="flex justify-center py-6">
+          <span className="loading loading-spinner loading-md" />
+        </div>
       ) : result.isError ? (
-        <div className="alert alert-error text-sm">Could not load {title.toLowerCase()} results.</div>
+        <div className="alert alert-error text-sm">
+          Could not load {title.toLowerCase()} results.
+        </div>
       ) : items.length === 0 ? (
-        <p className="rounded-xl bg-base-200 p-4 text-sm opacity-60">No {title.toLowerCase()} matched “{search}”.</p>
+        <p className="rounded-xl bg-base-200 p-4 text-sm opacity-60">
+          No {title.toLowerCase()} matched “{search}”.
+        </p>
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -67,7 +97,9 @@ const ResultSection = ({ id, title, icon: Icon, query, search, renderItem }) => 
                 onClick={() => result.fetchNextPage()}
                 disabled={result.isFetchingNextPage}
               >
-                {result.isFetchingNextPage ? "Loading…" : `Load more ${result.data?.pages[0]?.pagination?.totalLabel || title.toLowerCase()}`}
+                {result.isFetchingNextPage
+                  ? "Loading…"
+                  : `Load more ${result.data?.pages[0]?.pagination?.totalLabel || title.toLowerCase()}`}
               </button>
             </div>
           )}
@@ -81,23 +113,29 @@ const PersonResult = ({ person }) => (
   <article className="flex min-w-0 items-center gap-3 rounded-xl border border-base-300 bg-base-200 p-3">
     <UserProfileLink
       userId={person._id}
-      className="avatar shrink-0"
+      className="shrink-0 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       aria-label={`View ${person.fullName}'s profile`}
     >
-      <div className="size-12 rounded-full bg-base-300">
-        {person.profilePic ? (
-          <img src={person.profilePic} alt="" loading="lazy" />
-        ) : (
-          <span className="flex size-full items-center justify-center font-bold">
-            {person.fullName?.charAt(0)?.toUpperCase() || "U"}
-          </span>
-        )}
-      </div>
+      <UserAvatar
+        src={person.profilePic}
+        name={person.fullName}
+        userId={person._id}
+        alt=""
+        className="size-12"
+      />
     </UserProfileLink>
     <div className="min-w-0 flex-1">
-      <UserProfileLink userId={person._id} className="flex items-center gap-1 truncate font-semibold hover:text-primary">
+      <UserProfileLink
+        userId={person._id}
+        className="flex items-center gap-1 truncate font-semibold hover:text-primary"
+      >
         {person.fullName}
-        {person.emailVerified && <BadgeCheck className="size-4 shrink-0 text-info" aria-label="Email verified" />}
+        {person.emailVerified && (
+          <BadgeCheck
+            className="size-4 shrink-0 text-info"
+            aria-label="Email verified"
+          />
+        )}
       </UserProfileLink>
       <p className="truncate text-xs opacity-60">
         {person.nativeLanguage && `Speaks ${person.nativeLanguage}`}
@@ -105,10 +143,16 @@ const PersonResult = ({ person }) => (
         {person.learningLanguage && `Learning ${person.learningLanguage}`}
       </p>
       {person.interests?.length > 0 && (
-        <p className="mt-1 truncate text-xs opacity-60">{person.interests.slice(0, 3).join(" · ")}</p>
+        <p className="mt-1 truncate text-xs opacity-60">
+          {person.interests.slice(0, 3).join(" · ")}
+        </p>
       )}
     </div>
-    <Link to={`/chat/${encodeURIComponent(person._id)}`} className="btn btn-ghost btn-square btn-sm" aria-label={`Open conversation with ${person.fullName}`}>
+    <Link
+      to={`/chat/${encodeURIComponent(person._id)}`}
+      className="btn btn-ghost btn-square btn-sm"
+      aria-label={`Open conversation with ${person.fullName}`}
+    >
       <MessageCircle className="size-4" />
     </Link>
   </article>
@@ -130,14 +174,31 @@ const CommunityResult = ({ community, onJoin, isJoining }) => (
     <div className="min-w-0 flex-1">
       <p className="truncate font-semibold">{community.name}</p>
       <p className="truncate text-xs opacity-60">
-        Public · {community.memberCount} members{community.category ? ` · ${community.category}` : ""}
+        Public · {community.memberCount} members
+        {community.category ? ` · ${community.category}` : ""}
       </p>
-      {community.description && <p className="mt-1 line-clamp-1 text-xs opacity-60">{community.description}</p>}
+      {community.description && (
+        <p className="mt-1 line-clamp-1 text-xs opacity-60">
+          {community.description}
+        </p>
+      )}
     </div>
     {community.isMember ? (
-      <Link to={`/communities/${community._id}`} className="btn btn-ghost btn-sm">Open</Link>
+      <Link
+        to={`/communities/${community._id}`}
+        className="btn btn-ghost btn-sm"
+      >
+        Open
+      </Link>
     ) : (
-      <button type="button" className="btn btn-primary btn-sm" onClick={() => onJoin(community._id)} disabled={isJoining}>Join</button>
+      <button
+        type="button"
+        className="btn btn-primary btn-sm"
+        onClick={() => onJoin(community._id)}
+        disabled={isJoining}
+      >
+        Join
+      </button>
     )}
   </article>
 );
@@ -147,16 +208,34 @@ const MarketplaceResult = ({ listing }) => {
   return (
     <article className="flex min-w-0 items-center gap-3 rounded-xl border border-base-300 bg-base-200 p-3">
       {image ? (
-        <img src={image} alt="" className="size-14 shrink-0 rounded-lg object-cover" loading="lazy" decoding="async" />
+        <img
+          src={image}
+          alt=""
+          className="size-14 shrink-0 rounded-lg object-cover"
+          loading="lazy"
+          decoding="async"
+        />
       ) : (
-        <span className="flex size-14 shrink-0 items-center justify-center rounded-lg bg-base-300"><PackageOpen className="size-5 opacity-50" /></span>
+        <span className="flex size-14 shrink-0 items-center justify-center rounded-lg bg-base-300">
+          <PackageOpen className="size-5 opacity-50" />
+        </span>
       )}
       <div className="min-w-0 flex-1">
         <p className="line-clamp-1 font-semibold">{listing.title}</p>
-        <p className="truncate text-xs opacity-60">{listing.category} · {listing.currency || "USD"} {listing.price ?? "Contact for price"}</p>
-        <p className="truncate text-xs opacity-60">By {listing.seller?.fullName || "HyeChat seller"}{listing.location ? ` · ${listing.location}` : ""}</p>
+        <p className="truncate text-xs opacity-60">
+          {listing.category} · {listing.currency || "USD"}{" "}
+          {listing.price ?? "Contact for price"}
+        </p>
+        <p className="truncate text-xs opacity-60">
+          By {listing.seller?.fullName || "HyeChat seller"}
+          {listing.location ? ` · ${listing.location}` : ""}
+        </p>
       </div>
-      <Link to={`/explore?listing=${listing._id}`} className="btn btn-ghost btn-square btn-sm" aria-label={`View listing: ${listing.title}`}>
+      <Link
+        to={`/explore?listing=${listing._id}`}
+        className="btn btn-ghost btn-square btn-sm"
+        aria-label={`View listing: ${listing.title}`}
+      >
         <ArrowUpRight className="size-4" />
       </Link>
     </article>
@@ -171,26 +250,31 @@ const GlobalSearchPage = () => {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    const timer = window.setTimeout(
+      () => setDebouncedSearch(search.trim()),
+      350,
+    );
     return () => window.clearTimeout(timer);
   }, [search]);
 
   useEffect(() => {
     if (debouncedSearch === queryFromUrl) return;
-    setSearchParams(
-      debouncedSearch ? { query: debouncedSearch } : {},
-      { replace: true },
-    );
+    setSearchParams(debouncedSearch ? { query: debouncedSearch } : {}, {
+      replace: true,
+    });
   }, [debouncedSearch, queryFromUrl, setSearchParams]);
 
   const joinMutation = useMutation({
     mutationFn: (communityId) => joinPublicCommunity(communityId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["globalSearch", "communities"] });
+      queryClient.invalidateQueries({
+        queryKey: ["globalSearch", "communities"],
+      });
       queryClient.invalidateQueries({ queryKey: ["communities"] });
       toast.success("You joined the community");
     },
-    onError: (error) => toast.error(error.response?.data?.message || "Unable to join community"),
+    onError: (error) =>
+      toast.error(error.response?.data?.message || "Unable to join community"),
   });
 
   const hasSearch = debouncedSearch.length >= 2;
@@ -200,9 +284,13 @@ const GlobalSearchPage = () => {
       <div className="mx-auto max-w-6xl space-y-6">
         <header className="space-y-4 border-b border-base-300 pb-5">
           <div className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Compass className="size-6" /></div>
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Compass className="size-6" />
+            </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">HyeChat</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
+                HyeChat
+              </p>
               <h1 className="text-2xl font-bold sm:text-3xl">Search</h1>
             </div>
           </div>
@@ -221,9 +309,15 @@ const GlobalSearchPage = () => {
             />
           </label>
           {hasSearch ? (
-            <p className="text-sm opacity-60">Categorized results for <strong className="text-base-content">“{debouncedSearch}”</strong></p>
+            <p className="text-sm opacity-60">
+              Categorized results for{" "}
+              <strong className="text-base-content">“{debouncedSearch}”</strong>
+            </p>
           ) : (
-            <p className="text-sm opacity-60">Search people, public communities, and active marketplace listings. Enter at least 2 characters.</p>
+            <p className="text-sm opacity-60">
+              Search people, public communities, and active marketplace
+              listings. Enter at least 2 characters.
+            </p>
           )}
         </header>
 
@@ -237,7 +331,8 @@ const GlobalSearchPage = () => {
               query={hasSearch ? debouncedSearch : ""}
               search={debouncedSearch}
               renderItem={(item) => {
-                if (id === "people") return <PersonResult key={item._id} person={item} />;
+                if (id === "people")
+                  return <PersonResult key={item._id} person={item} />;
                 if (id === "communities") {
                   return (
                     <CommunityResult
@@ -254,7 +349,9 @@ const GlobalSearchPage = () => {
           ))}
         </div>
         <p className="rounded-xl border border-base-300 bg-base-200 p-3 text-xs opacity-60">
-          Private messages and ephemeral Stories aren’t included in global search. Message search requires separate privacy and indexing safeguards.
+          Private messages and ephemeral Stories aren’t included in global
+          search. Message search requires separate privacy and indexing
+          safeguards.
         </p>
       </div>
     </div>

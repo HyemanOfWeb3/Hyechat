@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { MessageCircle, UserRound } from "lucide-react";
 import UserProfileLink from "./UserProfileLink.jsx";
+import UserAvatar from "./UserAvatar.jsx";
 
 const formatTimestamp = (value) => {
   if (!value) return "";
@@ -95,17 +96,13 @@ const ChatListItem = ({ channel, currentUserId, friendById }) => {
         className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-2 transition-colors hover:bg-base-300/60 active:bg-base-300/80"
       >
         <div className="relative shrink-0">
-          <div className="avatar">
-            <div className="size-12 rounded-full bg-base-300">
-              {avatar ? (
-                <img src={avatar} alt={`${name}'s profile`} />
-              ) : (
-                <div className="flex size-full items-center justify-center text-lg font-semibold opacity-70">
-                  {name.charAt(0).toUpperCase()}
-                </div>
-              )}
-            </div>
-          </div>
+          <UserAvatar
+            src={avatar}
+            name={name}
+            userId={userId}
+            alt=""
+            className="size-12 text-lg"
+          />
           {(peerOnline || friend?.isOnline) && (
             <span className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-base-200 bg-success" />
           )}

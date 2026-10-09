@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -59,6 +60,13 @@ import VoiceNoteTranslation from "../components/VoiceNoteTranslation.jsx";
 import UserProfileLink from "../components/UserProfileLink.jsx";
 import { buildChatChannelId } from "../lib/utils.js";
 import { getStreamVideoClient } from "../lib/streamVideoClient.js";
+import {
+  captureChatScrollPosition,
+  getChatScrollStorageKey,
+  readChatScrollPosition,
+  restoreChatScrollPosition,
+  writeChatScrollPosition,
+} from "../lib/chatScrollPosition.js";
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -172,39 +180,153 @@ const ChatMessageSearchResults = ({
   );
 };
 
-const AutoScrollToInitialMessage = () => {
-  const { jumpToLatestMessage, jumpToFirstUnreadMessage } =
+const getMessageListElement = () =>
+  document.querySelector(".chat-window-shell .str-chat__message-list");
+
+const getChatScrollStorage = () => {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+};
+
+const waitForMessageElement = async (container, messageId) => {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const message = Array.from(
+      container?.querySelectorAll("[data-message-id]") || [],
+    ).find((element) => element.dataset?.messageId === messageId);
+    if (message) return message;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
+  return null;
+};
+
+const ConversationScrollManager = ({ userId }) => {
+  const { jumpToLatestMessage, jumpToFirstUnreadMessage, jumpToMessage } =
     useChannelActionContext();
-  const { channelUnreadUiState, messages } = useChannelStateContext();
-  const hasScrolledRef = useRef(false);
+  const { channel, channelUnreadUiState, messages } = useChannelStateContext();
+  const initializedChannelRef = useRef(null);
+  const restoringChannelRef = useRef(null);
+  const channelCid = channel?.cid;
+  const storageKey =
+    userId && channelCid ? getChatScrollStorageKey(userId, channelCid) : "";
 
   useEffect(() => {
-    if (hasScrolledRef.current) return;
-    if (!messages?.length) return;
+    if (!storageKey || !channelCid) return undefined;
 
-    const timer = window.setTimeout(async () => {
+    const container = getMessageListElement();
+    if (!container) return undefined;
+
+    let saveTimer;
+    const persistPosition = () => {
+      const snapshot = captureChatScrollPosition(container);
+      writeChatScrollPosition(getChatScrollStorage(), storageKey, snapshot);
+    };
+    const handleScroll = () => {
+      if (restoringChannelRef.current === channelCid) return;
+      window.clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(persistPosition, 120);
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("pagehide", persistPosition);
+
+    return () => {
+      window.clearTimeout(saveTimer);
+      persistPosition();
+      container.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("pagehide", persistPosition);
+    };
+  }, [channelCid, storageKey]);
+
+  useEffect(() => {
+    if (
+      !channelCid ||
+      !storageKey ||
+      !messages?.length ||
+      initializedChannelRef.current === channelCid
+    ) {
+      return undefined;
+    }
+
+    initializedChannelRef.current = channelCid;
+    restoringChannelRef.current = channelCid;
+    let active = true;
+
+    const restoreInitialPosition = async () => {
+      const storage = getChatScrollStorage();
+      const saved = readChatScrollPosition(storage, storageKey);
       try {
-        if (
-          channelUnreadUiState?.unread_messages > 0 &&
-          jumpToFirstUnreadMessage
-        ) {
+        if (saved?.wasAtBottom) {
+          await jumpToLatestMessage();
+          return;
+        }
+
+        if (saved?.messageId) {
+          let container = getMessageListElement();
+          let targetExists = await waitForMessageElement(
+            container,
+            saved.messageId,
+          );
+          if (!targetExists) {
+            await jumpToMessage(saved.messageId);
+            container = getMessageListElement();
+            targetExists = await waitForMessageElement(
+              container,
+              saved.messageId,
+            );
+          }
+          if (
+            active &&
+            targetExists &&
+            restoreChatScrollPosition(container, saved)
+          ) {
+            return;
+          }
+        }
+
+        if (channelUnreadUiState?.unread_messages > 0) {
           await jumpToFirstUnreadMessage();
-        } else if (jumpToLatestMessage) {
+        } else {
           await jumpToLatestMessage();
         }
-      } catch (error) {
-        console.error("Could not scroll to initial message:", error);
+      } catch {
+        if (active) {
+          if (channelUnreadUiState?.unread_messages > 0) {
+            await jumpToFirstUnreadMessage().catch(() => {});
+          } else {
+            await jumpToLatestMessage().catch(() => {});
+          }
+        }
       } finally {
-        hasScrolledRef.current = true;
+        if (active) {
+          restoringChannelRef.current = null;
+          const container = getMessageListElement();
+          writeChatScrollPosition(
+            storage,
+            storageKey,
+            captureChatScrollPosition(container),
+          );
+        }
       }
-    }, 180);
+    };
 
-    return () => window.clearTimeout(timer);
+    void restoreInitialPosition();
+    return () => {
+      active = false;
+      if (restoringChannelRef.current === channelCid) {
+        restoringChannelRef.current = null;
+      }
+    };
   }, [
+    channelCid,
     channelUnreadUiState?.unread_messages,
     jumpToFirstUnreadMessage,
     jumpToLatestMessage,
+    jumpToMessage,
     messages?.length,
+    storageKey,
   ]);
 
   return null;
@@ -212,7 +334,7 @@ const AutoScrollToInitialMessage = () => {
 
 const UnreadMessagesShortcut = () => {
   const { jumpToFirstUnreadMessage } = useChannelActionContext();
-  const { channel, channelUnreadUiState } = useChannelStateContext();
+  const { channelUnreadUiState } = useChannelStateContext();
   const unreadCount = channelUnreadUiState?.unread_messages ?? 0;
 
   const handleJumpToUnread = async () => {
@@ -220,7 +342,6 @@ const UnreadMessagesShortcut = () => {
 
     try {
       await jumpToFirstUnreadMessage();
-      await channel?.markRead?.();
     } catch (error) {
       console.error("Could not jump to first unread message:", error);
     }
@@ -735,6 +856,12 @@ const ChatPage = () => {
   );
 
   const { authUser } = useAuthUser();
+  const initializationRequestRef = useRef(0);
+  const normalizedTargetIdRef = useRef(normalizedTargetId);
+  useLayoutEffect(() => {
+    normalizedTargetIdRef.current = normalizedTargetId;
+    initializationRequestRef.current += 1;
+  }, [normalizedTargetId]);
   const draftStorageKey =
     authUser?._id && normalizedTargetId
       ? `hyechat:chat:draft:${authUser._id}:${normalizedTargetId}`
@@ -782,14 +909,19 @@ const ChatPage = () => {
   });
 
   const initializeChat = useCallback(async () => {
+    const requestId = ++initializationRequestRef.current;
+    const isCurrentRequest = () =>
+      requestId === initializationRequestRef.current &&
+      normalizedTargetId === normalizedTargetIdRef.current;
+
     // Wait for Stream client to be connected
     if (!streamClient || connectionState !== "connected") {
-      if (connectionState === "connecting") {
+      if (isCurrentRequest() && connectionState === "connecting") {
         setInitializationError("Connecting to chat...");
-      } else if (connectionState === "disconnected") {
+      } else if (isCurrentRequest() && connectionState === "disconnected") {
         setInitializationError("Could not connect to chat. Please try again.");
       }
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
       return;
     }
 
@@ -799,15 +931,19 @@ const ChatPage = () => {
       normalizedTargetId === "undefined" ||
       normalizedTargetId === "null"
     ) {
-      setInitializationError("This chat is unavailable.");
-      setLoading(false);
+      if (isCurrentRequest()) {
+        setInitializationError("This chat is unavailable.");
+        setLoading(false);
+      }
       return;
     }
 
-    setLoading(true);
-    setInitializationError("");
-    setChatClient(null);
-    setChannel(null);
+    if (isCurrentRequest()) {
+      setLoading(true);
+      setInitializationError("");
+      setChatClient(null);
+      setChannel(null);
+    }
 
     try {
       console.log("Initializing chat channel with persistent Stream client...");
@@ -830,14 +966,7 @@ const ChatPage = () => {
       });
 
       await currChannel.watch();
-
-      // Mark channel as read when user enters the conversation
-      // This ensures unread messages become read only when user explicitly opens the chat
-      try {
-        await currChannel.markRead();
-      } catch (markReadError) {
-        console.warn("Could not mark channel as read:", markReadError);
-      }
+      if (!isCurrentRequest()) return;
 
       setChatClient(streamClient);
       setChannel(currChannel);
@@ -886,11 +1015,13 @@ const ChatPage = () => {
         setIsPeerOnline(Boolean(presenceState.online));
       }
     } catch (error) {
-      console.log("Error initializing chat channel:", error);
-      setInitializationError("Could not connect to chat. Please try again.");
-      toast.error("Could not connect to chat. Please try again later.");
+      if (isCurrentRequest()) {
+        console.log("Error initializing chat channel:", error);
+        setInitializationError("Could not connect to chat. Please try again.");
+        toast.error("Could not connect to chat. Please try again later.");
+      }
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }, [streamClient, connectionState, authUser, friends, normalizedTargetId]);
 
@@ -1286,6 +1417,10 @@ const ChatPage = () => {
     setIsSearchOpen(false);
   };
 
+  const canViewPeerProfile =
+    Boolean(peerUser?.id) &&
+    String(peerUser.id) !== String(authUser?._id);
+
   if (loading) return <ChatLoader />;
 
   if (initializationError || !chatClient || !channel) {
@@ -1323,7 +1458,7 @@ const ChatPage = () => {
                 ),
               }}
             >
-              <AutoScrollToInitialMessage />
+              <ConversationScrollManager userId={authUser._id} />
               <UnreadMessagesShortcut />
               <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden touch-pan-y">
                 <div className="sticky top-0 z-30 flex min-h-[73px] shrink-0 flex-col justify-center gap-2 border-b border-slate-200 bg-slate-50/95 px-3 py-2 shadow-sm backdrop-blur sm:h-[73px] sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-4 sm:py-3">
@@ -1337,24 +1472,23 @@ const ChatPage = () => {
                       <ArrowLeft className="size-5" aria-hidden="true" />
                     </button>
                     <UserProfileLink
-                      userId={peerUser?.id}
+                      userId={canViewPeerProfile ? peerUser?.id : ""}
                       className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-sm font-semibold text-slate-700"
                       aria-label={`View ${peerUser?.name || "user"}'s profile`}
                     >
-                      {peerUser?.image ? (
-                        <img
-                          src={peerUser.image}
-                          alt={peerUser.name || "User"}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        (peerUser?.name || "U").charAt(0).toUpperCase()
-                      )}
+                      <UserAvatar
+                        src={peerUser?.image}
+                        name={peerUser?.name}
+                        userId={peerUser?.id}
+                        alt=""
+                        className="size-10 text-sm"
+                        loading="eager"
+                      />
                     </UserProfileLink>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <UserProfileLink
-                          userId={peerUser?.id}
+                          userId={canViewPeerProfile ? peerUser?.id : ""}
                           className="truncate text-sm font-semibold text-slate-900 hover:underline"
                         >
                           {peerUser?.name || "Chat"}
@@ -1369,15 +1503,30 @@ const ChatPage = () => {
                           }`}
                         />
                       </div>
-                      <p className="text-xs font-medium text-slate-500">
-                        {isTyping
-                          ? "typing..."
-                          : isPeerOnline
-                            ? "Online"
-                            : peerLastSeen
-                              ? `Last active ${new Date(peerLastSeen).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
-                              : "Offline"}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-x-2">
+                        <p className="text-xs font-medium text-slate-500">
+                          {isTyping
+                            ? "typing..."
+                            : isPeerOnline
+                              ? "Online"
+                              : peerLastSeen
+                                ? `Last active ${new Date(peerLastSeen).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+                                : "Offline"}
+                        </p>
+                        {canViewPeerProfile && (
+                          <UserProfileLink
+                            userId={peerUser.id}
+                            className="inline-flex min-h-8 items-center gap-1 rounded-md px-1 text-xs font-semibold text-primary underline-offset-2 transition-colors hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                            aria-label={`View ${peerUser.name || "user"}'s profile`}
+                          >
+                            <UserRound
+                              className="size-3.5"
+                              aria-hidden="true"
+                            />
+                            View profile
+                          </UserProfileLink>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -1639,17 +1788,13 @@ const ChatPage = () => {
                       onClick={() => void handleForwardToFriend(friend)}
                       disabled={isForwardingMessage}
                     >
-                      <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-base-300 font-semibold">
-                        {friend.profilePic ? (
-                          <img
-                            src={friend.profilePic}
-                            alt=""
-                            className="size-full object-cover"
-                          />
-                        ) : (
-                          (friend.fullName || "U").charAt(0).toUpperCase()
-                        )}
-                      </div>
+                      <UserAvatar
+                        src={friend.profilePic}
+                        name={friend.fullName}
+                        userId={friend._id}
+                        alt=""
+                        className="size-10 text-sm"
+                      />
                       <span className="min-w-0 flex-1 truncate font-medium">
                         {friend.fullName || "HyeChat user"}
                       </span>

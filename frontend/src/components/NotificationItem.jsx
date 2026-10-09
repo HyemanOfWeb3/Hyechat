@@ -6,6 +6,7 @@ import {
   UserRoundIcon,
 } from "lucide-react";
 import UserProfileLink from "./UserProfileLink.jsx";
+import UserAvatar from "./UserAvatar.jsx";
 
 const formatRelativeTime = (value) => {
   if (!value) return "just now";
@@ -50,17 +51,13 @@ const NotificationItem = ({
 
   const content = (
     <div className="flex min-w-0 items-start gap-3">
-      <div className="avatar shrink-0">
-        <div className="size-11 rounded-full bg-base-300">
-          {actor.profilePic ? (
-            <img src={actor.profilePic} alt={actorName} />
-          ) : (
-            <span className="flex size-full items-center justify-center font-semibold">
-              {actorName.charAt(0).toUpperCase()}
-            </span>
-          )}
-        </div>
-      </div>
+      <UserAvatar
+        src={actor.profilePic}
+        name={actorName}
+        userId={actor._id || actor.id}
+        alt=""
+        className="size-11"
+      />
 
       <div className="min-w-0 flex-1">
         <p className="text-sm">

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import ThemeSelector from "./ThemeSelector.jsx";
 import useUnreadNotificationsCount from "../hooks/useUnreadNotificationsCount.js";
+import UserAvatar from "./UserAvatar.jsx";
 
 const Navbar = ({ onMenuClick, onCollapseClick, sidebarCollapsed }) => {
   const { authUser } = useAuthUser();
@@ -129,18 +130,16 @@ const Navbar = ({ onMenuClick, onCollapseClick, sidebarCollapsed }) => {
               {/* User Avatar */}
               <Link
                 to="/profile"
-                className="avatar"
+                className="inline-flex rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 aria-label="Open profile settings"
               >
-                <div className="w-9 rounded-full">
-                  {authUser?.profilePic ? (
-                    <img src={authUser.profilePic} alt="User Avatar" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center bg-primary text-primary-content">
-                      {authUser?.fullName?.charAt(0).toUpperCase() || "U"}
-                    </div>
-                  )}
-                </div>
+                <UserAvatar
+                  src={authUser?.profilePic}
+                  name={authUser?.fullName}
+                  userId={authUser?._id}
+                  alt=""
+                  className="size-9"
+                />
               </Link>
 
               {/* Logout Button */}

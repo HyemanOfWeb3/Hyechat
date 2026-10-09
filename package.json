@@ -15,6 +15,9 @@
     "build": "cd backend && npm install && cd ../frontend && npm install --include=dev && npm run build",
     "start": "cd backend && npm start",
     "dev:backend": "cd backend && npm run dev",
-    "dev:frontend": "cd frontend && npm run dev"
+    "dev:frontend": "cd frontend && npm run dev",
+    "test:stories": "node --test backend/src/controllers/story.controller.test.js frontend/src/lib/storyCache.test.js",
+    "test:profiles": "node --test backend/src/controllers/user.controller.test.js backend/src/lib/socialLinks.test.js frontend/src/lib/safeSocialLinks.test.js frontend/src/lib/profileSharing.test.js",
+    "test:chat": "node --test frontend/src/lib/chatScrollPosition.test.js"
   }
 }

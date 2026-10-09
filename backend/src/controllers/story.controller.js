@@ -39,12 +39,14 @@ const sanitizeStoryForUser = (storyObj, currentUserId) => {
   const sanitizedStory = { ...storyObj };
   sanitizedStory.viewedByMe =
     isOwner ||
+    storyObj.viewedByMe === true ||
     normalizedViewers.some((viewerId) => viewerId === currentUserId.toString());
 
+  delete sanitizedStory.viewers;
   delete sanitizedStory.reports;
 
   if (!isOwner) {
-    sanitizedStory.viewers = [];
+    delete sanitizedStory.viewCount;
     if (Array.isArray(sanitizedStory.reactions)) {
       const userReaction = sanitizedStory.reactions.find(
         (reaction) => reaction.user.toString() === currentUserId.toString(),
@@ -54,7 +56,9 @@ const sanitizeStoryForUser = (storyObj, currentUserId) => {
     return sanitizedStory;
   }
 
-  sanitizedStory.viewers = normalizedViewers;
+  sanitizedStory.viewCount = Number.isFinite(storyObj.viewCount)
+    ? storyObj.viewCount
+    : normalizedViewers.length;
   return sanitizedStory;
 };
 
@@ -183,22 +187,59 @@ export async function createStory(req, res) {
 
 export async function getStories(req, res) {
   try {
+    const now = new Date();
     const visibleUserQuery = {
       $in: getVisibleUserIds(req.user),
       ...(req.user.hiddenStoryUsers?.length
         ? { $nin: req.user.hiddenStoryUsers }
         : {}),
     };
-    const stories = await Story.find({
-      user: visibleUserQuery,
-      expiresAt: { $gt: new Date() },
-      $or: [{ user: req.user._id }, { privacy: { $ne: "only_me" } }],
-    })
-      .populate("user", "fullName profilePic")
-      .sort({ createdAt: 1 });
+    const stories = await Story.aggregate([
+      {
+        $match: {
+          user: visibleUserQuery,
+          expiresAt: { $gt: now },
+          $or: [{ user: req.user._id }, { privacy: { $ne: "only_me" } }],
+        },
+      },
+      {
+        $addFields: {
+          viewCount: {
+            $size: {
+              $setUnion: [{ $ifNull: ["$viewers", []] }, []],
+            },
+          },
+          viewedByMe: {
+            $or: [
+              { $eq: ["$user", req.user._id] },
+              {
+                $in: [req.user._id, { $ifNull: ["$viewers", []] }],
+              },
+            ],
+          },
+        },
+      },
+      { $project: { viewers: 0, reports: 0 } },
+      {
+        $lookup: {
+          from: User.collection.name,
+          localField: "user",
+          foreignField: "_id",
+          pipeline: [{ $project: { fullName: 1, profilePic: 1 } }],
+          as: "storyOwner",
+        },
+      },
+      { $unwind: "$storyOwner" },
+      { $set: { user: "$storyOwner" } },
+      { $unset: "storyOwner" },
+      { $sort: { createdAt: 1 } },
+    ]);
 
     const sanitizedStories = stories.map((story) =>
-      sanitizeStoryForUser(story.toObject(), req.user._id),
+      sanitizeStoryForUser(
+        typeof story.toObject === "function" ? story.toObject() : story,
+        req.user._id,
+      ),
     );
 
     return res.status(200).json(sanitizedStories);
@@ -216,7 +257,7 @@ export async function viewStory(req, res) {
   }
 
   try {
-    const story = await Story.findById(id);
+    const story = await Story.findById(id).select("-viewers -reports");
 
     if (!story) {
       return res.status(404).json({ message: "Story not found" });
@@ -233,24 +274,62 @@ export async function viewStory(req, res) {
     }
 
     if (story.user.toString() === req.user._id.toString()) {
+      const [storySummary] = await Story.aggregate([
+        { $match: { _id: new mongoose.Types.ObjectId(id) } },
+        {
+          $addFields: {
+            viewCount: {
+              $size: {
+                $setUnion: [{ $ifNull: ["$viewers", []] }, []],
+              },
+            },
+          },
+        },
+        { $project: { viewers: 0, reports: 0 } },
+      ]);
+      if (!storySummary) {
+        return res.status(404).json({ message: "Story not found" });
+      }
       return res
         .status(200)
-        .json(sanitizeStoryForUser(story.toObject(), req.user._id));
+        .json(sanitizeStoryForUser(storySummary, req.user._id));
     }
 
-    const updatedStory = await Story.findOneAndUpdate(
+    const updateResult = await Story.updateOne(
       { _id: id, expiresAt: { $gt: new Date() } },
       { $addToSet: { viewers: req.user._id } },
-      { new: true },
     );
 
-    if (!updatedStory) {
+    if (!updateResult.matchedCount) {
+      return res.status(410).json({ message: "Story has expired" });
+    }
+
+    const [storySummary] = await Story.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(id),
+          expiresAt: { $gt: new Date() },
+        },
+      },
+      {
+        $addFields: {
+          viewCount: {
+            $size: {
+              $setUnion: [{ $ifNull: ["$viewers", []] }, []],
+            },
+          },
+          viewedByMe: { $literal: true },
+        },
+      },
+      { $project: { viewers: 0, reports: 0 } },
+    ]);
+    if (!storySummary) {
       return res.status(410).json({ message: "Story has expired" });
     }
 
     return res
       .status(200)
-      .json(sanitizeStoryForUser(updatedStory.toObject(), req.user._id));
+      .json(sanitizeStoryForUser(storySummary, req.user._id));
   } catch (error) {
     console.error("Error viewing Story", error.message);
     return res.status(500).json({ message: "Internal Server Error" });
@@ -265,7 +344,7 @@ export async function getStoryViewers(req, res) {
   }
 
   try {
-    const story = await Story.findById(id);
+    const story = await Story.findById(id).select("_id user expiresAt");
 
     if (!story) {
       return res.status(404).json({ message: "Story not found" });
@@ -286,7 +365,11 @@ export async function getStoryViewers(req, res) {
       "fullName profilePic nativeLanguage learningLanguage",
     );
 
-    return res.status(200).json(populatedStory.viewers || []);
+    const uniqueViewers = new Map();
+    for (const viewer of populatedStory.viewers || []) {
+      if (viewer?._id) uniqueViewers.set(viewer._id.toString(), viewer);
+    }
+    return res.status(200).json(Array.from(uniqueViewers.values()));
   } catch (error) {
     console.error("Error getting Story viewers", error.message);
     return res.status(500).json({ message: "Internal Server Error" });

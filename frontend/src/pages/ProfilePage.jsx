@@ -23,6 +23,7 @@ import {
 import { LANGUAGES } from "../constants/index.js";
 import SocialIcon from "../components/SocialIcon.jsx";
 import ProfileShareModal from "../components/ProfileShareModal.jsx";
+import UserAvatar from "../components/UserAvatar.jsx";
 import {
   SOCIAL_PLATFORMS,
   validateAndNormalizeClientSocialLink,
@@ -261,7 +262,10 @@ const ProfilePage = () => {
             >
               <Share2 className="size-4" /> Share profile
             </button>
-            <Link to={`/profile/${authUser._id}`} className="btn btn-outline btn-sm">
+            <Link
+              to={`/profile/${authUser._id}`}
+              className="btn btn-outline btn-sm"
+            >
               View public profile
             </Link>
           </div>
@@ -270,18 +274,14 @@ const ProfilePage = () => {
         <section className="card border border-base-300 bg-base-200 shadow-sm">
           <div className="card-body gap-6 p-5 sm:p-7">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-              <div className="avatar">
-                <div className="w-24 rounded-full bg-base-300 ring ring-primary ring-offset-2 ring-offset-base-200">
-                  {profileImagePreview || profileData.profilePic ? (
-                    <img
-                      src={profileImagePreview || profileData.profilePic}
-                      alt="Profile preview"
-                    />
-                  ) : (
-                    <UserRound className="m-auto mt-7 size-10 opacity-40" />
-                  )}
-                </div>
-              </div>
+              <UserAvatar
+                src={profileImagePreview || profileData.profilePic}
+                name={profileData.fullName}
+                userId={authUser._id}
+                alt="Profile preview"
+                className="size-24 ring ring-primary ring-offset-2 ring-offset-base-200"
+                loading="eager"
+              />
               <div className="flex-1">
                 <h2 className="text-2xl font-bold">
                   {profileData.fullName || "Your profile"}
@@ -474,7 +474,8 @@ const ProfilePage = () => {
                 Social links
               </div>
               <p className="-mt-3 text-xs text-base-content/60">
-                Add your social media accounts to display on your public profile. Enter your @username or profile URL.
+                Add your social media accounts to display on your public
+                profile. Enter your @username or profile URL.
               </p>
               <div className="grid gap-4 md:grid-cols-2">
                 {SOCIAL_PLATFORMS.map((platform) => {
@@ -484,7 +485,10 @@ const ProfilePage = () => {
                     <label key={platform.id} className="form-control">
                       <span className="label-text mb-2 flex items-center justify-between font-semibold">
                         <span className="inline-flex items-center gap-2">
-                          <SocialIcon platform={platform.id} className="size-4" />
+                          <SocialIcon
+                            platform={platform.id}
+                            className="size-4"
+                          />
                           {platform.label}
                         </span>
                         {val && (
@@ -523,13 +527,10 @@ const ProfilePage = () => {
                   type="button"
                   className="btn btn-ghost btn-sm"
                   onClick={() =>
-                    setProfile({
-                      ...profileData,
-                      profilePic: `https://avatarapi.runflare.run/public/${Math.floor(Math.random() * 100) + 1}.png`,
-                    })
+                    setProfile({ ...profileData, profilePic: "" })
                   }
                 >
-                  <Camera className="size-4" /> Generate avatar
+                  <UserRound className="size-4" /> Use initials
                 </button>
                 <button
                   type="submit"

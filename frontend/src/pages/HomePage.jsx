@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import FriendCard from "../components/FriendCard.jsx";
 import UserProfileLink from "../components/UserProfileLink.jsx";
+import UserAvatar from "../components/UserAvatar.jsx";
 import NoFriendsFound from "../components/NoFriendsFound.jsx";
 import { getLanguageFlag } from "../components/LanguageFlag.jsx";
 import { capitalize } from "../lib/utils.js";
@@ -175,18 +176,24 @@ const HomePage = () => {
                   >
                     <div className="card-body p-5 space-y-4">
                       <div className="flex items-center gap-3">
-                        <UserProfileLink userId={user._id} className="avatar size-16 rounded-full shrink-0">
-                          {user.profilePic ? (
-                            <img src={user.profilePic} alt={`${user.fullName}'s profile`} />
-                          ) : (
-                            <span className="flex size-full items-center justify-center rounded-full bg-base-300 text-xl font-semibold">
-                              {user.fullName?.charAt(0)?.toUpperCase() || "U"}
-                            </span>
-                          )}
+                        <UserProfileLink
+                          userId={user._id}
+                          className="shrink-0 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        >
+                          <UserAvatar
+                            src={user.profilePic}
+                            name={user.fullName}
+                            userId={user._id}
+                            alt=""
+                            className="size-16 text-xl"
+                          />
                         </UserProfileLink>
 
                         <div>
-                          <UserProfileLink userId={user._id} className="font-semibold text-lg hover:text-primary">
+                          <UserProfileLink
+                            userId={user._id}
+                            className="font-semibold text-lg hover:text-primary"
+                          >
                             {user.fullName}
                           </UserProfileLink>
                           {user.location && (

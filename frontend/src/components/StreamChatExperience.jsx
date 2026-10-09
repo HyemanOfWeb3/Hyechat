@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import StoryReplyPreview from "./stories/StoryReplyPreview.jsx";
+import UserAvatar from "./UserAvatar.jsx";
 
 // Mapping of emoji to valid Stream Chat reaction types
 const EMOJI_REACTIONS = [
@@ -43,14 +44,6 @@ const getEmojiForType = (type) => {
 const getTypeForEmoji = (emoji) => {
   const reaction = EMOJI_REACTIONS.find((r) => r.emoji === emoji);
   return reaction?.type || emoji;
-};
-
-const getAvatarSrc = (value) => {
-  if (typeof value === "string" && value.trim()) {
-    return value;
-  }
-
-  return "https://via.placeholder.com/48";
 };
 
 const getInitialUserStatus = (chatClient, targetUser) => {
@@ -565,10 +558,12 @@ const StreamChatExperience = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <img
-                src={getAvatarSrc(targetUser?.image)}
-                alt={targetUser?.name || "User"}
-                className="h-12 w-12 rounded-full object-cover"
+              <UserAvatar
+                src={targetUser?.image}
+                name={targetUser?.name}
+                userId={targetUser?.id}
+                alt=""
+                className="size-12"
               />
               <div
                 className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-slate-900 ${
@@ -650,10 +645,12 @@ const StreamChatExperience = ({
                 onPointerUp={handleMessagePointerUp}
               >
                 {!isSent && !isConsecutive && (
-                  <img
-                    src={getAvatarSrc(msg?.user?.image)}
-                    alt={msg?.user?.name || "User"}
-                    className="h-8 w-8 rounded-full flex-shrink-0 mt-0.5"
+                  <UserAvatar
+                    src={msg?.user?.image}
+                    name={msg?.user?.name}
+                    userId={msg?.user?.id}
+                    alt=""
+                    className="mt-0.5 size-8"
                   />
                 )}
                 {!isSent && isConsecutive && (
@@ -901,10 +898,12 @@ const StreamChatExperience = ({
 
         {isTyping && (
           <div className="flex gap-3 justify-start">
-            <img
-              src={getAvatarSrc(targetUser?.image)}
-              alt={targetUser?.name || "User"}
-              className="h-8 w-8 rounded-full flex-shrink-0 mt-0.5"
+            <UserAvatar
+              src={targetUser?.image}
+              name={targetUser?.name}
+              userId={targetUser?.id}
+              alt=""
+              className="mt-0.5 size-8"
             />
             <div className="bg-slate-800 text-slate-100 px-4 py-2.5 rounded-lg rounded-bl-none">
               <div className="flex gap-1.5">

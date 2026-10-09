@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import UserProfileLink from "../components/UserProfileLink.jsx";
+import UserAvatar from "../components/UserAvatar.jsx";
 import {
   acceptFriendRequest,
   blockUser,
@@ -37,17 +38,13 @@ const errorMessage = (error) =>
   error?.response?.data?.message || "Something went wrong";
 
 const Avatar = ({ user }) => (
-  <div className="avatar shrink-0">
-    <div className="size-14 rounded-full bg-base-300">
-      {user?.profilePic ? (
-        <img src={user.profilePic} alt={user.fullName} />
-      ) : (
-        <span className="flex size-full items-center justify-center text-lg font-bold">
-          {user?.fullName?.charAt(0).toUpperCase() || "U"}
-        </span>
-      )}
-    </div>
-  </div>
+  <UserAvatar
+    src={user?.profilePic}
+    name={user?.fullName}
+    userId={user?._id}
+    alt=""
+    className="size-14 text-lg"
+  />
 );
 
 const UserCard = ({ user, action, busy }) => (
@@ -62,12 +59,12 @@ const UserCard = ({ user, action, busy }) => (
           <Avatar user={user} />
           <div className="min-w-0">
             <h3 className="truncate font-bold">{user.fullName}</h3>
-          {user.location && (
-            <p className="mt-1 flex items-center gap-1 truncate text-xs opacity-60">
-              <MapPin className="size-3" />
-              {user.location}
-            </p>
-          )}
+            {user.location && (
+              <p className="mt-1 flex items-center gap-1 truncate text-xs opacity-60">
+                <MapPin className="size-3" />
+                {user.location}
+              </p>
+            )}
           </div>
         </UserProfileLink>
       </div>
@@ -193,7 +190,10 @@ const BlockedUserCard = ({ user, onUnblock, busy }) => (
     <div className="card-body flex-row items-center gap-3 p-4">
       <Avatar user={user} />
       <div className="min-w-0 flex-1">
-        <UserProfileLink userId={user._id} className="truncate font-bold hover:text-primary">
+        <UserProfileLink
+          userId={user._id}
+          className="truncate font-bold hover:text-primary"
+        >
           {user.fullName}
         </UserProfileLink>
         {user.location && (

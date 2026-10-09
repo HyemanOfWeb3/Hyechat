@@ -10,7 +10,10 @@ const SELLER_FIELDS = "fullName profilePic bio emailVerified";
 
 const parsePaging = (query) => ({
   page: Math.max(1, Number.parseInt(query.page, 10) || 1),
-  limit: Math.min(MAX_PAGE_SIZE, Math.max(1, Number.parseInt(query.limit, 10) || 8)),
+  limit: Math.min(
+    MAX_PAGE_SIZE,
+    Math.max(1, Number.parseInt(query.limit, 10) || 8),
+  ),
 });
 
 const validateQuery = (value) => {
@@ -38,7 +41,8 @@ const respondWithError = (res, error, message) => {
 
 export async function searchPeople(req, res) {
   const query = validateQuery(req.query.query);
-  if (typeof query !== "string") return res.status(400).json({ message: query });
+  if (typeof query !== "string")
+    return res.status(400).json({ message: query });
 
   const { page, limit } = parsePaging(req.query);
   try {
@@ -68,7 +72,8 @@ export async function searchPeople(req, res) {
 
 export async function searchCommunities(req, res) {
   const query = validateQuery(req.query.query);
-  if (typeof query !== "string") return res.status(400).json({ message: query });
+  if (typeof query !== "string")
+    return res.status(400).json({ message: query });
 
   const { page, limit } = parsePaging(req.query);
   try {
@@ -114,7 +119,8 @@ export async function searchCommunities(req, res) {
 
 export async function searchMarketplace(req, res) {
   const query = validateQuery(req.query.query);
-  if (typeof query !== "string") return res.status(400).json({ message: query });
+  if (typeof query !== "string")
+    return res.status(400).json({ message: query });
 
   const { page, limit } = parsePaging(req.query);
   try {

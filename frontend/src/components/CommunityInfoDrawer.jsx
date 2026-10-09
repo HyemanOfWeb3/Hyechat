@@ -13,6 +13,7 @@ import toast from "react-hot-toast";
 import useStreamClient from "../hooks/useStreamClient.js";
 import { CommunityAvatar } from "./CommunityChatHeader.jsx";
 import UserProfileLink from "./UserProfileLink.jsx";
+import UserAvatar from "./UserAvatar.jsx";
 
 const CommunityInfoDrawer = ({
   community,
@@ -301,17 +302,13 @@ const CommunityInfoDrawer = ({
                       userId={userId}
                       className="flex min-w-0 flex-1 items-center gap-3 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                     >
-                      <div className="avatar shrink-0">
-                        <div className="size-9 rounded-full bg-base-300">
-                          {user?.profilePic ? (
-                            <img src={user.profilePic} alt={`${user.fullName}'s profile`} />
-                          ) : (
-                            <span className="flex size-full items-center justify-center text-sm font-bold">
-                              {user?.fullName?.charAt(0) || "U"}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                      <UserAvatar
+                        src={user?.profilePic}
+                        name={user?.fullName}
+                        userId={user?._id}
+                        alt=""
+                        className="size-9 text-sm"
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold">
                           {user?.fullName || "Member"}

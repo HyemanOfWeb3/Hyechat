@@ -25,7 +25,9 @@ import {
 } from "../../lib/api.js";
 import { getLanguageFlag } from "../LanguageFlag.jsx";
 import UserProfileLink from "../UserProfileLink.jsx";
+import UserAvatar from "../UserAvatar.jsx";
 import { buildChatChannelId } from "../../lib/utils.js";
+import { getStoryViewCount } from "../../lib/storyCache.js";
 
 const getUserId = (user) => {
   if (!user) return "";
@@ -171,18 +173,47 @@ const StoryViewer = ({
     return { storyId, reactions: counts, myReaction };
   };
 
+  const cachedReactionSummary = Array.isArray(currentStory?.reactionCounts)
+    ? {
+        storyId: currentStory._id,
+        reactions: currentStory.reactionCounts,
+        myReaction: currentStory.myReaction || null,
+      }
+    : null;
   const currentReactions =
     reactionOverrides[currentStory?._id] ??
+    cachedReactionSummary ??
     computeReactions(
       currentStory?._id,
       currentStory?.reactions || [],
       currentUserId,
     );
 
+  const applyReactionResponse = (data) => {
+    setReactionOverrides((prev) => ({ ...prev, [data.storyId]: data }));
+    queryClient.setQueryData(["stories"], (stories) => {
+      if (!Array.isArray(stories)) return stories;
+      return stories.map((story) =>
+        story._id === data.storyId
+          ? {
+              ...story,
+              reactionCounts: data.reactions,
+              myReaction: data.myReaction,
+              reactions: isOwner
+                ? story.reactions
+                : data.myReaction
+                  ? [{ user: currentUserId, type: data.myReaction }]
+                  : [],
+            }
+          : story,
+      );
+    });
+  };
+
   const { mutate: reactToStory, isPending: isReacting } = useMutation({
     mutationFn: ({ storyId, type }) => addStoryReaction(storyId, type),
     onSuccess: (data) => {
-      setReactionOverrides((prev) => ({ ...prev, [data.storyId]: data }));
+      applyReactionResponse(data);
     },
     onError: (error) => {
       setViewerError(
@@ -195,7 +226,7 @@ const StoryViewer = ({
   const { mutate: unreactToStory, isPending: isUnreacting } = useMutation({
     mutationFn: (storyId) => removeStoryReaction(storyId),
     onSuccess: (data) => {
-      setReactionOverrides((prev) => ({ ...prev, [data.storyId]: data }));
+      applyReactionResponse(data);
     },
     onError: (error) => {
       setViewerError(
@@ -233,6 +264,7 @@ const StoryViewer = ({
   const {
     data: viewers = [],
     isLoading: isLoadingViewers,
+    isFetching: isFetchingViewers,
     isError: isErrorViewers,
   } = useQuery({
     queryKey: ["storyViewers", currentStory?._id],
@@ -240,6 +272,35 @@ const StoryViewer = ({
     enabled: Boolean(isOwner && isViewerListOpen && currentStory?._id),
     retry: false,
   });
+
+  useEffect(() => {
+    if (
+      !isOwner ||
+      !isViewerListOpen ||
+      isFetchingViewers ||
+      isErrorViewers ||
+      !currentStory?._id
+    ) {
+      return;
+    }
+
+    queryClient.setQueryData(["stories"], (stories) => {
+      if (!Array.isArray(stories)) return stories;
+      return stories.map((story) =>
+        story._id === currentStory._id
+          ? { ...story, viewCount: viewers.length }
+          : story,
+      );
+    });
+  }, [
+    currentStory?._id,
+    isErrorViewers,
+    isFetchingViewers,
+    isOwner,
+    isViewerListOpen,
+    queryClient,
+    viewers.length,
+  ]);
 
   const closeViewer = useCallback(() => {
     onClose();
@@ -678,19 +739,14 @@ const StoryViewer = ({
             className="flex min-w-0 items-center gap-3 rounded-lg text-left text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
             aria-label={`View ${ownerName}'s profile`}
           >
-            <div className="size-10 shrink-0 overflow-hidden rounded-full border-2 border-white/80 bg-base-300">
-              {ownerAvatar ? (
-                <img
-                  src={ownerAvatar}
-                  alt={ownerName}
-                  className="size-full object-cover"
-                />
-              ) : (
-                <div className="flex size-full items-center justify-center font-semibold text-base-content">
-                  {ownerName.charAt(0).toUpperCase()}
-                </div>
-              )}
-            </div>
+            <UserAvatar
+              src={ownerAvatar}
+              name={ownerName}
+              userId={getUserId(currentGroup.user)}
+              alt=""
+              className="size-10 border-2 border-white/80"
+              loading="eager"
+            />
             <p className="truncate font-semibold">{ownerName}</p>
           </UserProfileLink>
           <button
@@ -1037,7 +1093,7 @@ const StoryViewer = ({
                 onClick={() => setIsViewerListOpen(true)}
               >
                 <Eye className="size-4" />
-                <span>{currentStory.viewers?.length || 0} views</span>
+                <span>{getStoryViewCount(currentStory)} views</span>
               </button>
             ) : (
               <span>{viewerError || "Use arrows or keyboard to navigate"}</span>
@@ -1050,7 +1106,7 @@ const StoryViewer = ({
             <div className="flex items-center justify-between border-b border-base-300 pb-3 mb-4 text-base-content">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <Eye className="size-5 text-primary" /> Viewers (
-                {currentStory.viewers?.length || 0})
+                {getStoryViewCount(currentStory)})
               </h3>
               <button
                 type="button"
@@ -1082,23 +1138,13 @@ const StoryViewer = ({
                     key={viewer._id || viewer.id}
                     className="flex items-center gap-3 p-2 hover:bg-base-200/50 rounded-xl transition"
                   >
-                    <div className="avatar size-10 shrink-0">
-                      <div className="rounded-full bg-base-300 overflow-hidden size-full">
-                        {viewer.profilePic ? (
-                          <img
-                            src={viewer.profilePic}
-                            alt={viewer.fullName}
-                            className="object-cover size-full"
-                          />
-                        ) : (
-                          <div className="flex size-full items-center justify-center font-semibold bg-primary/10 text-primary">
-                            {viewer.fullName
-                              ? viewer.fullName.charAt(0).toUpperCase()
-                              : "?"}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    <UserAvatar
+                      src={viewer.profilePic}
+                      name={viewer.fullName}
+                      userId={viewer._id || viewer.id}
+                      alt=""
+                      className="size-10"
+                    />
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm truncate">
                         {viewer.fullName}

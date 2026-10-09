@@ -29,6 +29,7 @@ import {
 import { Link, useSearchParams } from "react-router-dom";
 import useAuthUser from "../../hooks/useAuthUser.js";
 import UserProfileLink from "../UserProfileLink.jsx";
+import UserAvatar from "../UserAvatar.jsx";
 import {
   createMarketplaceListing,
   getMarketplaceCategories,
@@ -163,17 +164,13 @@ const MarketplaceCard = ({
           {listing.description || "Open this listing to learn more."}
         </p>
         <div className="flex min-w-0 items-center gap-2 text-xs opacity-70">
-          <div className="avatar shrink-0">
-            <div className="size-7 rounded-full bg-base-300">
-              {listing.seller?.profilePic ? (
-                <img src={listing.seller.profilePic} alt="" loading="lazy" />
-              ) : (
-                <span className="flex size-full items-center justify-center font-semibold">
-                  {listing.seller?.fullName?.charAt(0)?.toUpperCase() || "H"}
-                </span>
-              )}
-            </div>
-          </div>
+          <UserAvatar
+            src={listing.seller?.profilePic}
+            name={listing.seller?.fullName}
+            userId={listing.seller?._id}
+            alt=""
+            className="size-7 text-xs"
+          />
           <UserProfileLink
             userId={listing.seller?._id}
             className="truncate hover:text-primary"
@@ -1269,20 +1266,16 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                   <div className="flex items-center gap-3">
                     <UserProfileLink
                       userId={selectedListing.seller?._id}
-                      className="avatar"
+                      className="shrink-0 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                       aria-label={`View ${selectedListing.seller?.fullName || "seller"}'s profile`}
                     >
-                      <div className="size-14 rounded-full bg-base-300">
-                        {selectedListing.seller?.profilePic ? (
-                          <img src={selectedListing.seller.profilePic} alt="" />
-                        ) : (
-                          <span className="flex size-full items-center justify-center font-bold">
-                            {selectedListing.seller?.fullName
-                              ?.charAt(0)
-                              ?.toUpperCase() || "H"}
-                          </span>
-                        )}
-                      </div>
+                      <UserAvatar
+                        src={selectedListing.seller?.profilePic}
+                        name={selectedListing.seller?.fullName}
+                        userId={selectedListing.seller?._id}
+                        alt=""
+                        className="size-14"
+                      />
                     </UserProfileLink>
                     <div className="min-w-0">
                       <UserProfileLink

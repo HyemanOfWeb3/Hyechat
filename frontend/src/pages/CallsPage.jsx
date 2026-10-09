@@ -13,6 +13,7 @@ import toast from "react-hot-toast";
 import { deleteCallHistory, getCallHistory } from "../lib/api.js";
 import useAuthUser from "../hooks/useAuthUser.js";
 import UserProfileLink from "../components/UserProfileLink.jsx";
+import UserAvatar from "../components/UserAvatar.jsx";
 
 const formatDuration = (seconds) => {
   if (!seconds) return "—";
@@ -114,21 +115,22 @@ const CallsPage = () => {
                 >
                   <UserProfileLink
                     userId={other?._id}
-                    className="avatar shrink-0"
+                    className="shrink-0 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                     aria-label={`View ${other?.fullName || "call participant"}'s profile`}
                   >
-                    <div className="size-11 rounded-full bg-base-300">
-                      {other?.profilePic ? (
-                        <img src={other.profilePic} alt={other.fullName} />
-                      ) : (
-                        <span className="flex size-full items-center justify-center font-semibold">
-                          {other?.fullName?.charAt(0) || "?"}
-                        </span>
-                      )}
-                    </div>
+                    <UserAvatar
+                      src={other?.profilePic}
+                      name={other?.fullName}
+                      userId={other?._id}
+                      alt=""
+                      className="size-11"
+                    />
                   </UserProfileLink>
                   <div className="min-w-0 flex-1">
-                    <UserProfileLink userId={other?._id} className="truncate font-semibold hover:text-primary">
+                    <UserProfileLink
+                      userId={other?._id}
+                      className="truncate font-semibold hover:text-primary"
+                    >
                       {other?.fullName || "Call participant"}
                     </UserProfileLink>
                     <p className="flex items-center gap-1 text-sm opacity-65">

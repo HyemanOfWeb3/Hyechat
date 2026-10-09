@@ -4,13 +4,12 @@ import toast from "react-hot-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { completeOnboarding } from "../lib/api.js";
 import {
-  CameraIcon,
-  ShuffleIcon,
   MapPinIcon,
   ShipWheelIcon,
   Loader,
 } from "lucide-react";
 import { LANGUAGES } from "../constants/index.js";
+import UserAvatar from "../components/UserAvatar.jsx";
 
 const OnboardingPage = () => {
   const { authUser } = useAuthUser();
@@ -44,14 +43,6 @@ const OnboardingPage = () => {
     onboardingMutation(formState);
   };
 
-  const handleRandomAvatar = () => {
-    const idx = Math.floor(Math.random() * 100) + 1; // 1-100 included
-    const randomAvatar = `https://avatarapi.runflare.run/public/${idx}.png`;
-
-    setFormState({ ...formState, profilePic: randomAvatar });
-    toast.success("Random profile picture generated!");
-  };
-
   return (
     <div className="min-h-[100dvh] overflow-y-auto bg-base-100 items-center justify-center flex p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
       <div className="card bg-base-200 w-full max-w-3xl shadow-xl">
@@ -64,31 +55,17 @@ const OnboardingPage = () => {
             {/* PROFILE AVATAR CONTAINER*/}
             <div className="flex flex-col items-center justify-center space-y-4">
               {/* AVATAR PREVIEW */}
-              <div className="size-32 rounded-full bg-base-300 overflow-hidden">
-                {formState.profilePic ? (
-                  <img
-                    src={formState.profilePic}
-                    alt="Profile Preview"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <CameraIcon className="size-12 text-base-content opacity-40" />
-                  </div>
-                )}
-              </div>
+              <UserAvatar
+                src={formState.profilePic}
+                name={formState.fullName}
+                userId={authUser?._id}
+                alt="Profile preview"
+                className="size-32 text-3xl"
+              />
 
-              {/* Generate random avatar btn */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleRandomAvatar}
-                  className="btn btn-accent"
-                >
-                  <ShuffleIcon className="size-4 mr-2" />
-                  Generate Random Avatar
-                </button>
-              </div>
+              <p className="text-center text-xs text-base-content/60">
+                Your initials make a reliable avatar until you add a photo.
+              </p>
             </div>
 
             {/* FULL NAME */}

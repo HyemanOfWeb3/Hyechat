@@ -16,11 +16,19 @@ export const STORY_PROMPTS = [
     text: "Tell us about your weekend in Spanish.",
   },
   {
+    language: "Yoruba",
+    text: "Tell us about your weekend in Yoruba.",
+  },
+  {
     language: "English",
     text: "Share one word you learned this week.",
   },
   {
     language: "English",
+    text: "Teach us a phrase from your language.",
+  },
+  {
+    language: "Yoruba",
     text: "Teach us a phrase from your language.",
   },
 ];

@@ -91,14 +91,11 @@ export async function signup(req, res) {
         .json({ message: "Email already exists, please use a different one" });
     }
 
-    const idx = Math.floor(Math.random() * 100) + 1; //generate a number between 1 - 100
-    const randomAvatar = `https://avatarapi.runflare.run/public/${idx}.png`;
-
     const newUser = await User.create({
       email,
       fullName,
       password,
-      profilePic: randomAvatar,
+      profilePic: "",
       emailVerified: false,
     });
 
