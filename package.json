@@ -9,7 +9,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.100.5",
     "lucide-react": "^1.11.0",
-    "nodemailer": "^9.0.5"
+    "nodemailer": "^10.0.16"
   },
   "scripts": {
     "build": "cd backend && npm install && cd ../frontend && npm install --include=dev && npm run build",

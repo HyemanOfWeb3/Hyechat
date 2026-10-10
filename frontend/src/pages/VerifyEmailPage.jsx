@@ -23,6 +23,13 @@ const VerifyEmailPage = () => {
   const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN_SECONDS);
   const [status, setStatus] = useState("");
 
+  const clearVerificationCode = (shouldFocus = true) => {
+    setCode(Array(CODE_LENGTH).fill(""));
+    if (shouldFocus) {
+      window.setTimeout(() => inputsRef.current[0]?.focus(), 0);
+    }
+  };
+
   const verifyMutation = useMutation({
     mutationFn: verifyEmailOTP,
     onSuccess: (data) => {
@@ -37,12 +44,13 @@ const VerifyEmailPage = () => {
       );
     },
     onError: (error) => {
-      setStatus(
+      const nextStatus =
         error.response?.status === 400 &&
           error.response?.data?.message?.includes("expired")
           ? "expired"
-          : "invalid",
-      );
+          : "invalid";
+      setStatus(nextStatus);
+      clearVerificationCode();
     },
   });
 
@@ -61,15 +69,15 @@ const VerifyEmailPage = () => {
   const resendMutation = useMutation({
     mutationFn: resendVerificationOTP,
     onSuccess: () => {
-      setCode(Array(CODE_LENGTH).fill(""));
+      clearVerificationCode(true);
       setSecondsLeft(RESEND_COOLDOWN_SECONDS);
       setStatus("sent");
-      inputsRef.current[0]?.focus();
     },
     onError: (error) => {
       if (error.response?.status === 429)
         setSecondsLeft(RESEND_COOLDOWN_SECONDS);
       setStatus("server-error");
+      clearVerificationCode();
     },
   });
 
@@ -94,8 +102,15 @@ const VerifyEmailPage = () => {
     const nextCode = [...code];
     nextCode[index] = digit;
     setCode(nextCode);
-    if (digit && index < CODE_LENGTH - 1) inputsRef.current[index + 1]?.focus();
-    if (nextCode.every(Boolean)) verifyMutation.mutate(nextCode.join(""));
+
+    if (digit && index < CODE_LENGTH - 1) {
+      inputsRef.current[index + 1]?.focus();
+    }
+
+    const joined = nextCode.join("");
+    if (joined.length === CODE_LENGTH) {
+      verifyMutation.mutate(joined);
+    }
   };
 
   const handlePaste = (event) => {
@@ -105,13 +120,19 @@ const VerifyEmailPage = () => {
       .replace(/\D/g, "")
       .slice(0, CODE_LENGTH);
     if (!pasted) return;
+
     const nextCode = Array.from(
       { length: CODE_LENGTH },
       (_, index) => pasted[index] || "",
     );
     setCode(nextCode);
-    inputsRef.current[Math.min(pasted.length, CODE_LENGTH) - 1]?.focus();
-    if (pasted.length === CODE_LENGTH) verifyMutation.mutate(pasted);
+
+    const lastFilledIndex = Math.min(pasted.length - 1, CODE_LENGTH - 1);
+    inputsRef.current[lastFilledIndex]?.focus();
+
+    if (pasted.length === CODE_LENGTH) {
+      verifyMutation.mutate(pasted);
+    }
   };
 
   const handleKeyDown = (event, index) => {

@@ -844,20 +844,35 @@ const ChatPage = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [isVoiceRecording, setIsVoiceRecording] = useState(false);
-  const [voiceRecorder, setVoiceRecorder] = useState(null);
   const [voiceBlob, setVoiceBlob] = useState(null);
   const [voiceUrl, setVoiceUrl] = useState("");
   const [audioDuration, setAudioDuration] = useState(0);
   const [isSendingVoiceNote, setIsSendingVoiceNote] = useState(false);
   const [isVoicePlaying, setIsVoicePlaying] = useState(false);
+  const [voiceSendError, setVoiceSendError] = useState("");
   const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const [waveformBars, setWaveformBars] = useState(
-    Array.from({ length: 18 }, () => 0.3),
+  const [waveformBars, setWaveformBars] = useState(() =>
+    Array.from({ length: 18 }, (_, index) => ({
+      id: `${index}-${index % 3}`,
+      strength: 0.3 + ((index * 13) % 6) / 12,
+    })),
   );
 
   const { authUser } = useAuthUser();
   const initializationRequestRef = useRef(0);
   const normalizedTargetIdRef = useRef(normalizedTargetId);
+  const voiceRecorderRef = useRef(null);
+  const voiceStreamRef = useRef(null);
+  const voiceChunksRef = useRef([]);
+  const voiceHoldRef = useRef(false);
+  const voiceStartInProgressRef = useRef(false);
+  const sendVoiceOnStopRef = useRef(false);
+  const voiceStartedAtRef = useRef(0);
+  const voicePointerIdRef = useRef(null);
+  const voicePointerStartXRef = useRef(0);
+  const voicePreviewUrlRef = useRef("");
+  const voicePreviewAudioRef = useRef(null);
+  const isMountedRef = useRef(false);
   useLayoutEffect(() => {
     normalizedTargetIdRef.current = normalizedTargetId;
     initializationRequestRef.current += 1;
@@ -866,6 +881,38 @@ const ChatPage = () => {
     authUser?._id && normalizedTargetId
       ? `hyechat:chat:draft:${authUser._id}:${normalizedTargetId}`
       : "";
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      voiceHoldRef.current = false;
+      sendVoiceOnStopRef.current = false;
+      voicePointerIdRef.current = null;
+      if (voiceRecorderRef.current?.state === "recording") {
+        voiceRecorderRef.current.stop();
+      }
+      voiceRecorderRef.current = null;
+      voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+      voiceStreamRef.current = null;
+      voicePreviewAudioRef.current?.pause();
+      voicePreviewAudioRef.current = null;
+      if (voicePreviewUrlRef.current) {
+        URL.revokeObjectURL(voicePreviewUrlRef.current);
+        voicePreviewUrlRef.current = "";
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isVoiceRecording) return undefined;
+    const timer = window.setInterval(() => {
+      setRecordingSeconds(
+        Math.floor((Date.now() - voiceStartedAtRef.current) / 1000),
+      );
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [isVoiceRecording]);
 
   // Use persistent shared Stream client across entire app
   const { client: streamClient, connectionState } = useStreamClient();
@@ -1131,18 +1178,27 @@ const ChatPage = () => {
 
   useEffect(() => {
     if (!isVoiceRecording) {
+      setWaveformBars((prev) =>
+        prev.map((bar, index) => ({
+          ...bar,
+          strength: 0.3 + ((index * 13) % 6) / 12,
+        })),
+      );
       return undefined;
     }
 
     const interval = window.setInterval(() => {
       setRecordingSeconds((prev) => prev + 1);
       setWaveformBars((prev) =>
-        prev.map((value, index) => {
+        prev.map((bar, index) => {
           const wave = Math.max(
             0.18,
             Math.sin(Date.now() / 180 + index * 0.45) * 0.45 + 0.5,
           );
-          return index === prev.length - 1 ? wave : value * 0.7 + wave * 0.3;
+          return {
+            ...bar,
+            strength: index === prev.length - 1 ? wave : bar.strength * 0.7 + wave * 0.3,
+          };
         }),
       );
     }, 200);
@@ -1300,86 +1356,35 @@ const ChatPage = () => {
     setShowEmojiPicker(false);
   };
 
-  const handleVoiceNoteToggle = async () => {
-    if (isVoiceRecording) {
-      voiceRecorder?.stop();
-      setIsVoiceRecording(false);
-      return;
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      toast.error("Audio recording is not supported in this browser.");
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      const chunks = [];
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunks.push(event.data);
-        }
-      };
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: "audio/webm" });
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-
-        audio.addEventListener("loadedmetadata", () => {
-          setAudioDuration(Math.round(audio.duration || 0));
-        });
-
-        setVoiceBlob(blob);
-        setVoiceUrl(url);
-        stream.getTracks().forEach((track) => track.stop());
-      };
-
-      recorder.start();
-      setVoiceRecorder(recorder);
-      setVoiceBlob(null);
-      setVoiceUrl("");
-      setAudioDuration(0);
-      setRecordingSeconds(0);
-      setWaveformBars(Array.from({ length: 18 }, () => 0.3));
-      setIsVoiceRecording(true);
-      toast.success("Recording started. Tap again to stop.");
-    } catch (error) {
-      console.error(error);
-      toast.error("Microphone access was denied.");
-    }
+  const releaseVoiceStream = () => {
+    voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+    voiceStreamRef.current = null;
   };
 
-  const handleVoicePreviewToggle = () => {
-    if (!voiceUrl) return;
-
-    const audio = new Audio(voiceUrl);
-    if (isVoicePlaying) {
-      audio.pause();
-      setIsVoicePlaying(false);
-      return;
+  const discardVoiceDraft = () => {
+    voicePreviewAudioRef.current?.pause();
+    voicePreviewAudioRef.current = null;
+    if (voicePreviewUrlRef.current) {
+      URL.revokeObjectURL(voicePreviewUrlRef.current);
+      voicePreviewUrlRef.current = "";
     }
-
-    audio.play().catch(() => {
-      toast.error("Playback could not start.");
-    });
-    setIsVoicePlaying(true);
+    setVoiceBlob(null);
+    setVoiceUrl("");
+    setAudioDuration(0);
+    setIsVoicePlaying(false);
+    setVoiceSendError("");
   };
 
-  const handleSendVoiceNote = async () => {
-    if (!voiceBlob || !channel || isSendingVoiceNote) return;
+  const uploadVoiceNote = async (blob, duration) => {
+    if (!blob || !channel || isSendingVoiceNote) return;
 
     setIsSendingVoiceNote(true);
-
+    setVoiceSendError("");
     try {
-      const file = new File([voiceBlob], "voice-note.webm", {
+      const file = new File([blob], "voice-note.webm", {
         type: "audio/webm",
       });
-
       const uploadResponse = await channel.sendFile(file, file.name, file.type);
-
       await channel.sendMessage({
         text: "",
         attachments: [
@@ -1389,25 +1394,204 @@ const ChatPage = () => {
             mime_type: file.type,
             title: "Voice note",
             file_size: file.size,
-            duration: audioDuration,
+            duration,
           },
         ],
       });
 
-      setVoiceBlob(null);
-      setVoiceUrl("");
-      setAudioDuration(0);
+      discardVoiceDraft();
       setRecordingSeconds(0);
-      setWaveformBars(Array.from({ length: 18 }, () => 0.3));
-      setVoiceRecorder(null);
       toast.success("Voice note sent.");
     } catch (error) {
-      console.error(error);
-      toast.error("Could not send the voice note. Please try again.");
+      console.error("Could not send the voice note:", error);
+      setVoiceSendError("Voice note not sent. Preview it and try again.");
+      toast.error("Could not send the voice note. Please retry or discard it.");
     } finally {
       setIsSendingVoiceNote(false);
     }
   };
+
+  const startVoiceNote = async () => {
+    if (
+      voiceStartInProgressRef.current ||
+      voiceRecorderRef.current ||
+      voiceBlob ||
+      isSendingVoiceNote
+    ) {
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      voiceHoldRef.current = false;
+      toast.error("Audio recording is not supported in this browser.");
+      return;
+    }
+
+    voiceHoldRef.current = true;
+    voiceStartInProgressRef.current = true;
+    setVoiceSendError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!voiceHoldRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      const recorder = new MediaRecorder(stream);
+      voiceStreamRef.current = stream;
+      voiceChunksRef.current = [];
+      voiceRecorderRef.current = recorder;
+      voiceStartedAtRef.current = Date.now();
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) voiceChunksRef.current.push(event.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(voiceChunksRef.current, { type: "audio/webm" });
+        voiceRecorderRef.current = null;
+        voiceChunksRef.current = [];
+        releaseVoiceStream();
+        if (!isMountedRef.current) return;
+
+        setIsVoiceRecording(false);
+        if (blob.size === 0) {
+          toast.error("No audio was recorded. Please try again.");
+          return;
+        }
+
+        const duration = Math.max(
+          1,
+          Math.ceil((Date.now() - voiceStartedAtRef.current) / 1000),
+        );
+        const previewUrl = URL.createObjectURL(blob);
+        voicePreviewUrlRef.current = previewUrl;
+        setVoiceBlob(blob);
+        setVoiceUrl(previewUrl);
+        setAudioDuration(duration);
+        setVoiceSendError("");
+      };
+
+      recorder.start();
+      setRecordingSeconds(0);
+      setIsVoiceRecording(true);
+    } catch (error) {
+      voiceHoldRef.current = false;
+      sendVoiceOnStopRef.current = false;
+      voiceRecorderRef.current = null;
+      releaseVoiceStream();
+      console.error("Could not start voice recording:", error);
+      toast.error("Microphone access was denied.");
+    } finally {
+      voiceStartInProgressRef.current = false;
+    }
+  };
+
+  const finishVoiceNote = () => {
+    const recorder = voiceRecorderRef.current;
+    if (!recorder || recorder.state !== "recording") {
+      return;
+    }
+
+    voiceHoldRef.current = false;
+    sendVoiceOnStopRef.current = false;
+    recorder.stop();
+  };
+
+  const cancelVoiceRecording = () => {
+    voiceHoldRef.current = false;
+    sendVoiceOnStopRef.current = false;
+    const recorder = voiceRecorderRef.current;
+    if (recorder?.state === "recording") {
+      recorder.stop();
+      return;
+    }
+
+    if (!voiceStartInProgressRef.current) {
+      releaseVoiceStream();
+      setIsVoiceRecording(false);
+      setRecordingSeconds(0);
+      setVoiceSendError("");
+    }
+  };
+
+  const handleVoicePointerDown = (event) => {
+    if (event.button !== 0 || voiceBlob || isSendingVoiceNote) return;
+    event.preventDefault();
+    voicePointerIdRef.current = event.pointerId;
+    voicePointerStartXRef.current = event.clientX;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    void startVoiceNote();
+  };
+
+  const handleVoicePointerUp = (event) => {
+    if (voicePointerIdRef.current !== event.pointerId) return;
+    voicePointerIdRef.current = null;
+    finishVoiceNote();
+  };
+
+  const handleVoicePointerMove = (event) => {
+    if (
+      voicePointerIdRef.current === event.pointerId &&
+      event.clientX <= voicePointerStartXRef.current - 80
+    ) {
+      voicePointerIdRef.current = null;
+      cancelVoiceRecording();
+      toast("Recording discarded.");
+    }
+  };
+
+  const handleVoiceNoteToggle = () => {
+    if (isVoiceRecording) {
+      finishVoiceNote();
+      return;
+    }
+    if (voiceBlob || isSendingVoiceNote) return;
+    void startVoiceNote();
+  };
+
+  const handleVoiceKeyDown = (event) => {
+    if (event.key === "Escape" && isVoiceRecording) {
+      voiceHoldRef.current = false;
+      cancelVoiceRecording();
+      toast("Recording discarded.");
+      return;
+    }
+    if (event.key !== " " && event.key !== "Enter") return;
+    event.preventDefault();
+    if (!event.repeat) void startVoiceNote();
+  };
+
+  const handleVoiceKeyUp = (event) => {
+    if (event.key !== " " && event.key !== "Enter") return;
+    event.preventDefault();
+    finishVoiceNote();
+  };
+
+  const handleVoicePreviewToggle = async () => {
+    if (!voiceUrl) return;
+
+    let audio = voicePreviewAudioRef.current;
+    if (!audio || audio.src !== voiceUrl) {
+      audio = new Audio(voiceUrl);
+      audio.addEventListener("ended", () => setIsVoicePlaying(false));
+      voicePreviewAudioRef.current = audio;
+    }
+    if (!audio.paused) {
+      audio.pause();
+      setIsVoicePlaying(false);
+      return;
+    }
+
+    try {
+      await audio.play();
+      setIsVoicePlaying(true);
+    } catch (error) {
+      console.error("Voice note preview could not start:", error);
+      toast.error("Playback could not start.");
+    }
+  };
+
+  const handleSendVoiceNote = () => uploadVoiceNote(voiceBlob, audioDuration);
 
   const handleSearchResultSelected = () => {
     setSearchQuery("");
@@ -1639,9 +1823,14 @@ const ChatPage = () => {
                         ) : null}
                         {isVoiceRecording ? (
                           <div className="mb-3 flex items-center gap-3 rounded-3xl border border-rose-200 bg-rose-50/90 px-3 py-2.5 shadow-sm">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-500 text-white shadow-sm">
-                              <Mic className="h-4 w-4" />
-                            </div>
+                            <button
+                              type="button"
+                              onClick={cancelVoiceRecording}
+                              className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm transition hover:bg-slate-700"
+                              aria-label="Discard recording"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                             <div className="flex min-w-0 flex-1 flex-col">
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-semibold uppercase tracking-wide text-rose-700">
@@ -1654,18 +1843,22 @@ const ChatPage = () => {
                               <div className="mt-1 flex h-3 items-end gap-1">
                                 {waveformBars.map((bar, index) => (
                                   <div
-                                    key={`${bar}-${index}`}
+                                    key={`wave-${index}`}
                                     className="w-1 rounded-full bg-rose-500"
                                     style={{
-                                      height: `${Math.max(18, bar * 100)}%`,
+                                      height: `${Math.max(18, bar.strength * 100)}%`,
                                     }}
                                   />
                                 ))}
                               </div>
                             </div>
-                            <span className="text-xs font-medium text-slate-500">
-                              Tap mic to stop
-                            </span>
+                            <button
+                              type="button"
+                              onClick={finishVoiceNote}
+                              className="btn btn-error btn-sm text-white"
+                            >
+                              Stop
+                            </button>
                           </div>
                         ) : null}
                         <div className="flex items-center gap-2">
