@@ -31,7 +31,6 @@ import {
   Languages,
   Copy,
   Forward,
-  UserRound,
   Trash2,
 } from "lucide-react";
 
@@ -570,25 +569,15 @@ const StoryReplyMessage = ({ message: messageProp }) => {
           )}
         </p>
       )}
-      <div className="flex flex-col gap-1">
+      <div className="flex min-w-0 max-w-full flex-col gap-1">
         <MessageUI />
-        {message?.user?.id && (
-          <UserProfileLink
-            userId={message.user.id}
-            className="inline-flex min-h-9 w-fit items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            aria-label={`View ${message.user.name || "sender"}'s profile`}
-          >
-            <UserRound className="size-3.5" aria-hidden="true" />
-            View profile
-          </UserProfileLink>
-        )}
         {canCopyOrForward && (
           <div className="flex flex-wrap items-center gap-1">
             {message.text?.trim() && (
               <button
                 type="button"
                 onClick={() => void handleCopyMessage()}
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 aria-label="Copy message text"
               >
                 <Copy className="size-3.5" aria-hidden="true" />
@@ -598,7 +587,7 @@ const StoryReplyMessage = ({ message: messageProp }) => {
             <button
               type="button"
               onClick={() => onForwardMessage(message)}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               aria-label="Forward message"
             >
               <Forward className="size-3.5" aria-hidden="true" />
@@ -613,7 +602,7 @@ const StoryReplyMessage = ({ message: messageProp }) => {
                 type="button"
                 onClick={handleTranslate}
                 disabled={isTranslating}
-                className="inline-flex min-h-8 items-center rounded-full border border-slate-200 bg-white/70 px-2.5 py-1 hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-11 items-center rounded-full border border-slate-200 bg-white/70 px-3 py-1 hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isTranslating
                   ? "Translating..."
@@ -627,7 +616,7 @@ const StoryReplyMessage = ({ message: messageProp }) => {
                 <button
                   type="button"
                   onClick={openLanguagePicker}
-                  className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 hover:bg-base-200"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-full px-2 hover:bg-base-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   aria-label="Change translation language"
                 >
                   <Languages className="size-3.5" />
@@ -1661,7 +1650,7 @@ const ChatPage = () => {
                     </button>
                     <UserProfileLink
                       userId={canViewPeerProfile ? peerUser?.id : ""}
-                      className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-sm font-semibold text-slate-700"
+                      className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-sm font-semibold text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                       aria-label={`View ${peerUser?.name || "user"}'s profile`}
                     >
                       <UserAvatar
@@ -1677,7 +1666,7 @@ const ChatPage = () => {
                       <div className="flex items-center gap-2">
                         <UserProfileLink
                           userId={canViewPeerProfile ? peerUser?.id : ""}
-                          className="truncate text-sm font-semibold text-slate-900 hover:underline"
+                          className="truncate rounded-sm text-sm font-semibold text-slate-900 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                         >
                           {peerUser?.name || "Chat"}
                         </UserProfileLink>
@@ -1701,19 +1690,6 @@ const ChatPage = () => {
                                 ? `Last active ${new Date(peerLastSeen).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
                                 : "Offline"}
                         </p>
-                        {canViewPeerProfile && (
-                          <UserProfileLink
-                            userId={peerUser.id}
-                            className="inline-flex min-h-8 items-center gap-1 rounded-md px-1 text-xs font-semibold text-primary underline-offset-2 transition-colors hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                            aria-label={`View ${peerUser.name || "user"}'s profile`}
-                          >
-                            <UserRound
-                              className="size-3.5"
-                              aria-hidden="true"
-                            />
-                            View profile
-                          </UserProfileLink>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -1733,7 +1709,7 @@ const ChatPage = () => {
                     <button
                       type="button"
                       onClick={handleSearchToggle}
-                      className="btn btn-ghost btn-sm hover:bg-slate-200"
+                      className="btn btn-ghost btn-sm min-h-11 min-w-11 hover:bg-slate-200"
                       aria-label="Search messages"
                     >
                       <Search className="h-4 w-4" />
@@ -1741,7 +1717,7 @@ const ChatPage = () => {
                     <button
                       type="button"
                       onClick={handleVoiceCall}
-                      className="btn btn-ghost btn-sm hover:bg-slate-200"
+                      className="btn btn-ghost btn-sm min-h-11 min-w-11 hover:bg-slate-200"
                       aria-label="Start voice call"
                     >
                       <Phone className="h-4 w-4" />
@@ -1749,7 +1725,7 @@ const ChatPage = () => {
                     <button
                       type="button"
                       onClick={handleVideoCall}
-                      className="btn btn-success btn-sm text-white shadow-sm"
+                      className="btn btn-success btn-sm min-h-11 min-w-11 text-white shadow-sm"
                       aria-label="Start video call"
                     >
                       <Video className="h-4 w-4" />

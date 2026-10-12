@@ -25,6 +25,8 @@ select {
 
 .chat-page-shell {
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .app-shell {
@@ -57,6 +59,7 @@ select {
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior-y: contain !important;
 }
 
 .chat-window-shell .str-chat__message-list-scroll {
@@ -87,6 +90,14 @@ select {
 .chat-window-shell .str-chat__message-attachment {
   max-width: 100%;
   overflow-wrap: anywhere;
+}
+
+.chat-window-shell .str-chat__message-attachment img,
+.chat-window-shell .str-chat__message-attachment video {
+  max-width: 100%;
+  max-height: min(55dvh, 26rem);
+  height: auto;
+  object-fit: contain;
 }
 
 .hyechat-call-card {
@@ -189,10 +200,6 @@ select {
 }
 
 @media (max-width: 640px) {
-  .chat-page-shell {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
   .chat-window-shell .str-chat__message-list {
     padding-left: 0.75rem;
     padding-right: 0.75rem;
@@ -210,6 +217,12 @@ select {
     max-width: none;
     border-radius: 1.25rem 1.25rem 0 0;
     animation-name: community-drawer-sheet;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-page-shell .transition {
+    transition-duration: 0.01ms !important;
   }
 }
 
