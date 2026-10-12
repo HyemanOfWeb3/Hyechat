@@ -14,29 +14,36 @@ export async function getStreamToken(req, res) {
 export async function syncStreamUsers(req, res) {
   try {
     const users = Array.isArray(req.body?.users) ? req.body.users : [];
+    const requestedUsers = users.filter((user) => user?.id);
 
-    if (!users.length) {
+    if (!requestedUsers.length) {
       return res.status(400).json({ message: "At least one user is required" });
     }
 
-    const syncedUsers = await Promise.all(
-      users.map(async (user) => {
-        if (!user?.id) return null;
+    const authenticatedUserId = String(req.user?._id || "");
+    if (!authenticatedUserId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (
+      requestedUsers.some(
+        (user) => String(user.id) !== authenticatedUserId,
+      )
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Cannot sync another user's profile" });
+    }
 
-        const payload = {
-          id: String(user.id),
-          name: user.name || String(user.id),
-          image: user.image || "",
-        };
-
-        await upsertStreamUser(payload);
-        return payload.id;
-      }),
-    );
+    const payload = {
+      id: authenticatedUserId,
+      name: req.user.fullName || authenticatedUserId,
+      image: req.user.profilePic || "",
+    };
+    await upsertStreamUser(payload);
 
     return res.status(200).json({
       success: true,
-      syncedUsers: syncedUsers.filter(Boolean),
+      syncedUsers: [payload.id],
     });
   } catch (error) {
     console.log("error in syncStreamUsers controller", error.message);

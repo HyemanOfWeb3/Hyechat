@@ -26,7 +26,7 @@ const storySchema = new mongoose.Schema(
     durationSeconds: {
       type: Number,
       min: 0,
-      max: 60.5,
+      max: 60,
     },
     privacy: {
       type: String,

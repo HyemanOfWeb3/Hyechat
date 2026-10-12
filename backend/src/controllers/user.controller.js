@@ -389,6 +389,20 @@ export async function updateMyProfile(req, res) {
       return res.status(409).json({ message: "Email is already in use" });
     }
 
+    if (
+      candidate.email.toLowerCase() !==
+      String(req.user.email || "").toLowerCase()
+    ) {
+      Object.assign(updates, {
+        emailVerified: false,
+        emailVerificationOTPHash: null,
+        emailVerificationExpiresAt: null,
+        emailVerificationAttempts: 0,
+        emailVerificationLastSentAt: null,
+        emailVerificationResendCount: 0,
+      });
+    }
+
     const updatedUser = await User.findByIdAndUpdate(req.user._id, updates, {
       new: true,
       runValidators: true,
@@ -982,6 +996,7 @@ export async function sendFriendRequest(req, res) {
 
     //check if a req already exists
     const existingRequest = await FriendRequest.findOne({
+      status: "pending",
       $or: [
         { sender: myId, recipient: recipientId },
         { sender: recipientId, recipient: myId },
@@ -1031,21 +1046,33 @@ export async function acceptFriendRequest(req, res) {
   try {
     const { id: requestId } = req.params;
 
-    const friendRequest = await FriendRequest.findById(requestId);
+    const existingRequest = await FriendRequest.findById(requestId);
 
-    if (!friendRequest) {
+    if (!existingRequest) {
       return res.status(404).json({ message: "Friend request not found" });
     }
 
     //Verify the current user is the recipient
-    if (friendRequest.recipient.toString() !== req.user.id) {
+    if (existingRequest.recipient.toString() !== req.user.id) {
       return res
         .status(403)
         .json({ message: "You are not authorized to accept this request" });
     }
 
-    friendRequest.status = "accepted";
-    await friendRequest.save();
+    const friendRequest = await FriendRequest.findOneAndUpdate(
+      {
+        _id: requestId,
+        recipient: req.user._id,
+        status: "pending",
+      },
+      { $set: { status: "accepted" } },
+      { new: true },
+    );
+    if (!friendRequest) {
+      return res
+        .status(409)
+        .json({ message: "Friend request is no longer pending" });
+    }
 
     // add each user to the other's friends array
     await User.findByIdAndUpdate(friendRequest.sender, {

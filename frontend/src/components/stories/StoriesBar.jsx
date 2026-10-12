@@ -250,7 +250,7 @@ const StoriesBar = ({ chatClient }) => {
       let durationSeconds;
       if (file.type.startsWith("video/")) {
         durationSeconds = await validateVideoDuration(file);
-        if (durationSeconds > 60.5) {
+        if (durationSeconds > 60) {
           throw new Error("Trim videos to 60 seconds or less before posting.");
         }
       } else {

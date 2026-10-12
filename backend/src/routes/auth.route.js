@@ -31,12 +31,23 @@ const verificationLimiter = rateLimit({
   standardHeaders: "draft-7",
   legacyHeaders: false,
 });
+const createAuthAttemptLimiter = (limit) =>
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    skipSuccessfulRequests: true,
+  });
+const signupLimiter = createAuthAttemptLimiter(5);
+const loginLimiter = createAuthAttemptLimiter(10);
+const resetPasswordLimiter = createAuthAttemptLimiter(10);
 
-router.post("/signup", signup);
-router.post("/login", login);
+router.post("/signup", signupLimiter, signup);
+router.post("/login", loginLimiter, login);
 router.post("/logout", logout);
 router.post("/forgot-password", forgotPasswordLimiter, forgotPassword);
-router.post("/reset-password/:token", resetPassword);
+router.post("/reset-password/:token", resetPasswordLimiter, resetPassword);
 router.post(
   "/verify-email/send",
   protectRoute,

@@ -396,6 +396,12 @@ const getTranslationErrorMessage = (error) => {
   return "This message could not be translated. Try again.";
 };
 
+const createInitialWaveformBars = () =>
+  Array.from({ length: 18 }, (_, index) => ({
+    id: `${index}-${index % 3}`,
+    strength: 0.3 + ((index * 13) % 6) / 12,
+  }));
+
 const fingerprintTranslationText = (text) => {
   let hash = 2166136261;
   for (
@@ -842,12 +848,7 @@ const ChatPage = () => {
   const [isVoicePlaying, setIsVoicePlaying] = useState(false);
   const [voiceSendError, setVoiceSendError] = useState("");
   const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const [waveformBars, setWaveformBars] = useState(() =>
-    Array.from({ length: 18 }, (_, index) => ({
-      id: `${index}-${index % 3}`,
-      strength: 0.3 + ((index * 13) % 6) / 12,
-    })),
-  );
+  const [waveformBars, setWaveformBars] = useState(createInitialWaveformBars);
 
   const { authUser } = useAuthUser();
   const initializationRequestRef = useRef(0);
@@ -857,10 +858,11 @@ const ChatPage = () => {
   const voiceChunksRef = useRef([]);
   const voiceHoldRef = useRef(false);
   const voiceStartInProgressRef = useRef(false);
-  const sendVoiceOnStopRef = useRef(false);
+  const discardVoiceOnStopRef = useRef(false);
   const voiceStartedAtRef = useRef(0);
   const voicePointerIdRef = useRef(null);
   const voicePointerStartXRef = useRef(0);
+  const voiceKeyboardActivationRef = useRef(false);
   const voicePreviewUrlRef = useRef("");
   const voicePreviewAudioRef = useRef(null);
   const isMountedRef = useRef(false);
@@ -878,7 +880,7 @@ const ChatPage = () => {
     return () => {
       isMountedRef.current = false;
       voiceHoldRef.current = false;
-      sendVoiceOnStopRef.current = false;
+      discardVoiceOnStopRef.current = true;
       voicePointerIdRef.current = null;
       if (voiceRecorderRef.current?.state === "recording") {
         voiceRecorderRef.current.stop();
@@ -1168,18 +1170,9 @@ const ChatPage = () => {
   }, [channel, chatClient, searchQuery]);
 
   useEffect(() => {
-    if (!isVoiceRecording) {
-      setWaveformBars((prev) =>
-        prev.map((bar, index) => ({
-          ...bar,
-          strength: 0.3 + ((index * 13) % 6) / 12,
-        })),
-      );
-      return undefined;
-    }
+    if (!isVoiceRecording) return undefined;
 
     const interval = window.setInterval(() => {
-      setRecordingSeconds((prev) => prev + 1);
       setWaveformBars((prev) =>
         prev.map((bar, index) => {
           const wave = Math.max(
@@ -1421,12 +1414,14 @@ const ChatPage = () => {
     }
 
     voiceHoldRef.current = true;
+    discardVoiceOnStopRef.current = false;
     voiceStartInProgressRef.current = true;
     setVoiceSendError("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       if (!voiceHoldRef.current) {
         stream.getTracks().forEach((track) => track.stop());
+        discardVoiceOnStopRef.current = false;
         return;
       }
 
@@ -1442,12 +1437,17 @@ const ChatPage = () => {
 
       recorder.onstop = () => {
         const blob = new Blob(voiceChunksRef.current, { type: "audio/webm" });
+        const shouldDiscard = discardVoiceOnStopRef.current;
         voiceRecorderRef.current = null;
         voiceChunksRef.current = [];
+        discardVoiceOnStopRef.current = false;
         releaseVoiceStream();
         if (!isMountedRef.current) return;
 
         setIsVoiceRecording(false);
+        setRecordingSeconds(0);
+        setWaveformBars(createInitialWaveformBars());
+        if (shouldDiscard) return;
         if (blob.size === 0) {
           toast.error("No audio was recorded. Please try again.");
           return;
@@ -1467,10 +1467,11 @@ const ChatPage = () => {
 
       recorder.start();
       setRecordingSeconds(0);
+      setWaveformBars(createInitialWaveformBars());
       setIsVoiceRecording(true);
     } catch (error) {
       voiceHoldRef.current = false;
-      sendVoiceOnStopRef.current = false;
+      discardVoiceOnStopRef.current = false;
       voiceRecorderRef.current = null;
       releaseVoiceStream();
       console.error("Could not start voice recording:", error);
@@ -1481,19 +1482,19 @@ const ChatPage = () => {
   };
 
   const finishVoiceNote = () => {
+    voiceHoldRef.current = false;
     const recorder = voiceRecorderRef.current;
     if (!recorder || recorder.state !== "recording") {
       return;
     }
 
-    voiceHoldRef.current = false;
-    sendVoiceOnStopRef.current = false;
+    discardVoiceOnStopRef.current = false;
     recorder.stop();
   };
 
   const cancelVoiceRecording = () => {
     voiceHoldRef.current = false;
-    sendVoiceOnStopRef.current = false;
+    discardVoiceOnStopRef.current = true;
     const recorder = voiceRecorderRef.current;
     if (recorder?.state === "recording") {
       recorder.stop();
@@ -1501,9 +1502,11 @@ const ChatPage = () => {
     }
 
     if (!voiceStartInProgressRef.current) {
+      discardVoiceOnStopRef.current = false;
       releaseVoiceStream();
       setIsVoiceRecording(false);
       setRecordingSeconds(0);
+      setWaveformBars(createInitialWaveformBars());
       setVoiceSendError("");
     }
   };
@@ -1521,6 +1524,12 @@ const ChatPage = () => {
     if (voicePointerIdRef.current !== event.pointerId) return;
     voicePointerIdRef.current = null;
     finishVoiceNote();
+  };
+
+  const handleVoicePointerCancel = (event) => {
+    if (voicePointerIdRef.current !== event.pointerId) return;
+    voicePointerIdRef.current = null;
+    cancelVoiceRecording();
   };
 
   const handleVoicePointerMove = (event) => {
@@ -1544,7 +1553,11 @@ const ChatPage = () => {
   };
 
   const handleVoiceKeyDown = (event) => {
-    if (event.key === "Escape" && isVoiceRecording) {
+    if (
+      event.key === "Escape" &&
+      (isVoiceRecording || voiceStartInProgressRef.current)
+    ) {
+      voiceKeyboardActivationRef.current = false;
       voiceHoldRef.current = false;
       cancelVoiceRecording();
       toast("Recording discarded.");
@@ -1552,6 +1565,7 @@ const ChatPage = () => {
     }
     if (event.key !== " " && event.key !== "Enter") return;
     event.preventDefault();
+    voiceKeyboardActivationRef.current = true;
     if (!event.repeat) void startVoiceNote();
   };
 
@@ -1559,6 +1573,14 @@ const ChatPage = () => {
     if (event.key !== " " && event.key !== "Enter") return;
     event.preventDefault();
     finishVoiceNote();
+    window.setTimeout(() => {
+      voiceKeyboardActivationRef.current = false;
+    }, 0);
+  };
+
+  const handleVoiceNoteClick = (event) => {
+    if (event.detail !== 0 || voiceKeyboardActivationRef.current) return;
+    handleVoiceNoteToggle();
   };
 
   const handleVoicePreviewToggle = async () => {
@@ -1859,13 +1881,27 @@ const ChatPage = () => {
                           </div>
                           <button
                             type="button"
-                            onClick={handleVoiceNoteToggle}
-                            className={`btn btn-sm min-h-11 min-w-11 ${isVoiceRecording ? "btn-error text-white" : "btn-ghost hover:bg-slate-200"}`}
-                            aria-label="Toggle voice note"
+                            onClick={handleVoiceNoteClick}
+                            onPointerDown={handleVoicePointerDown}
+                            onPointerUp={handleVoicePointerUp}
+                            onPointerMove={handleVoicePointerMove}
+                            onPointerCancel={handleVoicePointerCancel}
+                            onKeyDown={handleVoiceKeyDown}
+                            onKeyUp={handleVoiceKeyUp}
+                            className={`btn btn-sm min-h-11 min-w-11 touch-none ${isVoiceRecording ? "btn-error text-white" : "btn-ghost hover:bg-slate-200"}`}
+                            aria-label="Hold to record a voice note"
+                            aria-pressed={isVoiceRecording}
+                            title="Hold to record · release to preview · slide left to discard"
+                            disabled={Boolean(voiceBlob) || isSendingVoiceNote}
                           >
                             <Mic className="h-4 w-4" />
                           </button>
                         </div>
+                        {voiceSendError && (
+                          <p role="alert" className="mt-2 text-xs text-error">
+                            {voiceSendError}
+                          </p>
+                        )}
                         {showEmojiPicker ? (
                           <div className="absolute bottom-16 left-3 z-30 flex max-w-[280px] flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
                             {[

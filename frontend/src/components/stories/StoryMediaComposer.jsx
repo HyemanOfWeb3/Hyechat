@@ -35,7 +35,7 @@ const StoryMediaComposer = ({
   const [duration, setDuration] = useState(0);
   const isVideo = file.type.startsWith("video/");
   const requiresTrim = isVideo && duration > 60 && !isTrimmed;
-  const invalidTrimmedDuration = isVideo && isTrimmed && duration > 60.5;
+  const invalidTrimmedDuration = isVideo && isTrimmed && duration > 60;
   const canPost =
     previewReady &&
     !previewError &&

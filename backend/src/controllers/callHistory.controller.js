@@ -102,13 +102,24 @@ export async function getCallHistory(req, res) {
     filter.callType = req.query.callType;
   try {
     if (search) {
+      const escapedSearch = search
+        .slice(0, 100)
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const matchingUsers = await User.find({
-        fullName: { $regex: search, $options: "i" },
+        fullName: { $regex: escapedSearch, $options: "i" },
       })
         .select("_id")
         .limit(100)
         .lean();
-      filter.participants = { $in: matchingUsers.map((user) => user._id) };
+      delete filter.participants;
+      filter.$and = [
+        { participants: req.user._id },
+        {
+          participants: {
+            $in: matchingUsers.map((user) => user._id),
+          },
+        },
+      ];
     }
     const query = CallHistory.find(filter)
       .populate("caller participants", "fullName profilePic")

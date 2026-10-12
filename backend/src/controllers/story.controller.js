@@ -7,7 +7,7 @@ import { createNotification } from "../services/notification.service.js";
 const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000;
 const MAX_MEDIA_URL_LENGTH = 2048;
 const MAX_STORY_SIZE = 10 * 1024 * 1024;
-const MAX_STORY_DURATION_SECONDS = 60.5;
+const MAX_STORY_DURATION_SECONDS = 60;
 const STREAM_CDN_HOST_SUFFIX = "stream-io-cdn.com";
 const STORY_REPORT_REASONS = ["spam", "inappropriate", "harassment", "other"];
 

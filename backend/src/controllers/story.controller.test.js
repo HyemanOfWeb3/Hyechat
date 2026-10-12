@@ -80,6 +80,10 @@ const request = (userId, extras = {}) => ({
 
 afterEach(() => mock.restoreAll());
 
+test("Story schema caps video duration at 60 seconds", () => {
+  assert.equal(Story.schema.path("durationSeconds").options.max, 60);
+});
+
 test("createStory persists validated media and a 24-hour expiration", async () => {
   let savedStory;
   mock.method(Story, "create", async (data) => {
@@ -107,6 +111,53 @@ test("createStory persists validated media and a 24-hour expiration", async () =
     savedStory.expiresAt.getTime() - savedStory.createdAt.getTime(),
     24 * 60 * 60 * 1000,
   );
+});
+
+test("createStory accepts a video at 60 seconds", async () => {
+  let savedStory;
+  mock.method(Story, "create", async (data) => {
+    savedStory = data;
+    return data;
+  });
+
+  const res = response();
+  await storyController.createStory(
+    request(OWNER_ID, {
+      body: {
+        mediaUrl: "https://cdn.stream-io-cdn.com/story-video.mp4",
+        mediaType: "video",
+        mediaSize: 1024,
+        durationSeconds: 60,
+      },
+    }),
+    res,
+  );
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(savedStory.durationSeconds, 60);
+});
+
+test("createStory rejects video duration above 60 seconds", async () => {
+  let createCalled = false;
+  mock.method(Story, "create", async () => {
+    createCalled = true;
+  });
+
+  const res = response();
+  await storyController.createStory(
+    request(OWNER_ID, {
+      body: {
+        mediaUrl: "https://cdn.stream-io-cdn.com/story-video.mp4",
+        mediaType: "video",
+        mediaSize: 1024,
+        durationSeconds: 60.01,
+      },
+    }),
+    res,
+  );
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(createCalled, false);
 });
 
 test("getStories returns counts and viewed state without viewer IDs", async () => {
