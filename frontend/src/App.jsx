@@ -1,11 +1,33 @@
 import { lazy, Suspense } from "react";
-import { Route, Routes, Navigate } from "react-router-dom";
+import { Route, Routes, Navigate, Link } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import PageLoader from "./components/PageLoader.jsx";
 import useAuthUser from "./hooks/useAuthUser.js";
 import Layout from "./components/Layout.jsx";
 import { useThemeStore } from "./store/useThemeStore.js";
 import useInactivityLogout from "./hooks/useInactivityLogout.js";
+
+const NotFoundPage = ({ isAuthenticated }) => (
+  <main className="flex min-h-screen items-center justify-center bg-base-200 px-4 py-10">
+    <section className="w-full max-w-md rounded-3xl border border-base-300 bg-base-100 p-7 text-center shadow-sm sm:p-10">
+      <p className="text-sm font-bold uppercase tracking-[0.2em] text-primary">
+        HyeChat · 404
+      </p>
+      <h1 className="mt-3 text-2xl font-bold text-base-content">
+        This page couldn&apos;t be found
+      </h1>
+      <p className="mt-2 text-sm leading-6 text-base-content/70">
+        The link may be outdated, or the page may have moved.
+      </p>
+      <Link
+        to={isAuthenticated ? "/explore" : "/login"}
+        className="btn btn-primary mt-6 min-h-11"
+      >
+        {isAuthenticated ? "Explore HyeChat" : "Back to sign in"}
+      </Link>
+    </section>
+  </main>
+);
 
 const HomePage = lazy(() => import("./pages/HomePage.jsx"));
 const SignUpPage = lazy(() => import("./pages/SignUpPage.jsx"));
@@ -342,6 +364,10 @@ const App = () => {
             }
           />
           <Route path="/testing" element={<TestingPage />} />
+          <Route
+            path="*"
+            element={<NotFoundPage isAuthenticated={isAuthenticated} />}
+          />
         </Routes>
       </Suspense>
 

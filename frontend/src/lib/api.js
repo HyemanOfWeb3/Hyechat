@@ -129,7 +129,12 @@ export const getAuthUser = async () => {
     const res = await axiosInstance.get("/auth/me");
     return res.data;
   } catch (error) {
-    console.log("Error in getAuthUser:", error);
+    if (error?.response?.status !== 401) {
+      console.warn("Authentication check failed", {
+        status: error?.response?.status || null,
+        code: error?.code || null,
+      });
+    }
     return null;
   }
 };
