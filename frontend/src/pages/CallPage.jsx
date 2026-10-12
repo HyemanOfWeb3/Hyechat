@@ -44,7 +44,6 @@ const CallPage = () => {
   const searchParams = new URLSearchParams(location.search);
   const callType = searchParams.get("type") || "video";
   const chatId = searchParams.get("chatId") || id;
-  const participantId = searchParams.get("participantId");
   const isVoice = callType === "voice";
 
   const { authUser, isLoading: authLoading } = useAuthUser();
@@ -293,7 +292,6 @@ const CallPage = () => {
             await startCallHistory({
               roomId: id,
               callType: isVoice ? "voice" : "video",
-              participantIds: participantId ? [participantId] : [],
             });
           } catch (historyError) {
             console.error("Could not save call history", historyError);
@@ -329,7 +327,6 @@ const CallPage = () => {
     authUser,
     id,
     isVoice,
-    participantId,
     tokenData,
     tokenLoading,
   ]);

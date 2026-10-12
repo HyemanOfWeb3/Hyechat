@@ -31,3 +31,16 @@ export const connectDB = async () => {
 
   return cached.connection;
 };
+
+export const pingMongoConnection = async (connection) => {
+  const database = connection?.connection?.db;
+  if (!database) {
+    throw new Error("MongoDB connection is unavailable");
+  }
+  await database.admin().ping({ maxTimeMS: 5000 });
+};
+
+export const checkDB = async () => {
+  const connection = await connectDB();
+  await pingMongoConnection(connection);
+};

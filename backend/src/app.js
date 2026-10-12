@@ -32,7 +32,9 @@ app.use(
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin))
         return callback(null, true);
-      return callback(new Error("Origin is not allowed by CORS"));
+      const error = new Error("Origin is not allowed by CORS");
+      error.status = 403;
+      return callback(error);
     },
     credentials: true,
   }),
@@ -66,5 +68,39 @@ app.use("/api/communities", communityRoutes);
 app.use("/api/marketplace", marketplaceRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/call-history", callHistoryRoutes);
+
+app.use("/api", (_req, res) => {
+  res.status(404).json({ message: "API route not found" });
+});
+
+app.use((error, _req, res, next) => {
+  if (res.headersSent) return next(error);
+
+  const requestedStatus = error?.statusCode || error?.status;
+  const status =
+    Number.isInteger(requestedStatus) && requestedStatus >= 400 && requestedStatus <= 599
+      ? requestedStatus
+      : 500;
+  const message =
+    status === 400
+      ? "Invalid request"
+      : status === 403
+        ? "Forbidden"
+        : status === 413
+          ? "Request payload too large"
+          : status === 429
+            ? "Too many requests"
+            : status >= 500
+              ? "Internal Server Error"
+              : "Request failed";
+
+  if (status >= 500) {
+    console.error("Unhandled request error", {
+      status,
+      errorType: error?.name || "Error",
+    });
+  }
+  return res.status(status).json({ message });
+});
 
 export default app;

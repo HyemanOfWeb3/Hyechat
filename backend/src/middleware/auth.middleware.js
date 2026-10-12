@@ -28,6 +28,9 @@ export const protectRoute = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ message: "Unauthorized - User not found" });
     }
+    if ((decoded.tokenVersion ?? 0) !== (user.tokenVersion ?? 0)) {
+      return res.status(401).json({ message: "Unauthorized - Session expired" });
+    }
 
     req.user = user;
 
@@ -58,7 +61,10 @@ export const optionalProtectRoute = async (req, res, next) => {
       "-password -emailVerificationOTPHash -emailVerificationExpiresAt -emailVerificationAttempts -emailVerificationLastSentAt -emailVerificationResendCount -resetPasswordToken -resetPasswordExpires",
     );
 
-    req.user = user || null;
+    req.user =
+      user && (decoded.tokenVersion ?? 0) === (user.tokenVersion ?? 0)
+        ? user
+        : null;
     next();
   } catch {
     req.user = null;

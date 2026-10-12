@@ -1196,14 +1196,8 @@ const ChatPage = () => {
   const handleVideoCall = async () => {
     if (channel) {
       const callId = crypto.randomUUID();
-      const callUrl = `${window.location.origin}/call/${callId}?type=video&chatId=${channel.id}&participantId=${normalizedTargetId}`;
+      const callUrl = `${window.location.origin}/call/${callId}?type=video&chatId=${channel.id}`;
 
-      startCallHistory({
-        roomId: callId,
-        callType: "video",
-        participantIds: [normalizedTargetId],
-        answered: false,
-      }).catch(() => {});
       try {
         const videoClient = await getStreamVideoClient({
           user: authUser,
@@ -1214,8 +1208,11 @@ const ChatPage = () => {
           ring: true,
           video: true,
         });
+        await startCallHistory({ roomId: callId, callType: "video" });
       } catch (error) {
-        console.error("Could not ring video call", error);
+        console.error("Could not start video call", error);
+        toast.error("Unable to start the video call. Please try again.");
+        return;
       }
       channel.sendMessage({
         text: `I've started a video call! Join me here: ${callUrl}`,
@@ -1228,14 +1225,8 @@ const ChatPage = () => {
   const handleVoiceCall = async () => {
     if (channel) {
       const callId = crypto.randomUUID();
-      const callUrl = `${window.location.origin}/call/${callId}?type=voice&chatId=${channel.id}&participantId=${normalizedTargetId}`;
+      const callUrl = `${window.location.origin}/call/${callId}?type=voice&chatId=${channel.id}`;
 
-      startCallHistory({
-        roomId: callId,
-        callType: "voice",
-        participantIds: [normalizedTargetId],
-        answered: false,
-      }).catch(() => {});
       try {
         const videoClient = await getStreamVideoClient({
           user: authUser,
@@ -1246,8 +1237,11 @@ const ChatPage = () => {
           ring: true,
           video: false,
         });
+        await startCallHistory({ roomId: callId, callType: "voice" });
       } catch (error) {
-        console.error("Could not ring voice call", error);
+        console.error("Could not start voice call", error);
+        toast.error("Unable to start the voice call. Please try again.");
+        return;
       }
       channel.sendMessage({
         text: `☎️ I started a voice call. Join here: ${callUrl}`,

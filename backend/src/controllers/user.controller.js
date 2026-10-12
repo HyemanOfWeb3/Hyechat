@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import FriendRequest from "../models/FriendRequest.js";
 import Story from "../models/Story.js";
@@ -87,6 +88,7 @@ const profileFields = [
 const publicUser = (user) => {
   const data = user.toObject ? user.toObject() : { ...user };
   delete data.password;
+  delete data.tokenVersion;
   delete data.resetPasswordToken;
   delete data.resetPasswordExpires;
   delete data.emailVerificationOTPHash;
@@ -449,7 +451,20 @@ export async function changeMyPassword(req, res) {
       return res.status(401).json({ message: "Current password is incorrect" });
     }
     user.password = newPassword;
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
+    const token = jwt.sign(
+      { userId: user._id, tokenVersion: user.tokenVersion },
+      process.env.JWT_SECRET_KEY,
+      { expiresIn: "7d" },
+    );
+    res.cookie("jwt", token, {
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+    });
     res
       .status(200)
       .json({ success: true, message: "Password changed successfully" });

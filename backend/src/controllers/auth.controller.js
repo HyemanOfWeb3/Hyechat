@@ -49,6 +49,7 @@ const issueVerificationOTP = async (user) => {
 const publicUser = (user) => {
   const data = user.toObject ? user.toObject() : { ...user };
   delete data.password;
+  delete data.tokenVersion;
   delete data.resetPasswordToken;
   delete data.resetPasswordExpires;
   delete data.emailVerificationOTPHash;
@@ -120,7 +121,7 @@ export async function signup(req, res) {
     }
 
     const token = jwt.sign(
-      { userId: newUser._id },
+      { userId: newUser._id, tokenVersion: newUser.tokenVersion || 0 },
       process.env.JWT_SECRET_KEY,
       {
         expiresIn: "7d",
@@ -253,9 +254,11 @@ export async function login(req, res) {
     if (!isPasswordCorrect)
       return res.status(401).json({ message: "Invalid email or Password" });
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET_KEY, {
-      expiresIn: "7d",
-    });
+    const token = jwt.sign(
+      { userId: user._id, tokenVersion: user.tokenVersion || 0 },
+      process.env.JWT_SECRET_KEY,
+      { expiresIn: "7d" },
+    );
 
     res.cookie("jwt", token, {
       maxAge: 7 * 24 * 60 * 60 * 1000,
@@ -350,6 +353,7 @@ export async function resetPassword(req, res) {
     }
 
     user.password = password;
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     user.resetPasswordToken = null;
     user.resetPasswordExpires = null;
     await user.save();

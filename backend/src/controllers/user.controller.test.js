@@ -101,6 +101,26 @@ test("public profile returns an allowlist and canonical safe social links", asyn
   assert.equal(JSON.stringify(res.body).includes("must-not-leak"), false);
 });
 
+test("authenticated profile response does not expose the internal token version", async () => {
+  const user = {
+    _id: PROFILE_ID,
+    fullName: "Session learner",
+    email: "session@example.test",
+    password: "must-not-leak",
+    tokenVersion: 4,
+    toObject() {
+      return { ...this, toObject: undefined };
+    },
+  };
+
+  const res = response();
+  userController.getMyProfile({ user }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(Object.hasOwn(res.body.user, "tokenVersion"), false);
+  assert.equal(Object.hasOwn(res.body.user, "password"), false);
+});
+
 test("profile metadata escapes user text and validates canonical/image URLs", async () => {
   process.env.CLIENT_URL =
     "https://profiles.example.test/app-path,https://unused.example.test";

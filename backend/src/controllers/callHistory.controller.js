@@ -1,8 +1,10 @@
 import mongoose from "mongoose";
 import CallHistory from "../models/CallHistory.js";
 import User from "../models/User.js";
+import { getStreamVideoCallSnapshot } from "../lib/streamVideo.js";
 
 const allowedTypes = new Set(["voice", "video"]);
+const MAX_ROOM_ID_LENGTH = 128;
 
 const publicCall = (call) => ({
   ...call.toObject(),
@@ -10,45 +12,69 @@ const publicCall = (call) => ({
 });
 
 export async function startCallHistory(req, res) {
-  const {
-    roomId,
-    callType = "video",
-    participantIds = [],
-    answered = true,
-  } = req.body || {};
+  const { roomId, callType = "video" } = req.body || {};
   if (
     typeof roomId !== "string" ||
     !roomId.trim() ||
+    roomId.trim().length > MAX_ROOM_ID_LENGTH ||
     !allowedTypes.has(callType)
   )
     return res.status(400).json({ message: "Invalid call details" });
 
-  const ids = [
-    ...new Set([
-      req.user._id.toString(),
-      ...(Array.isArray(participantIds) ? participantIds : []),
-    ]),
-  ];
-  if (ids.some((id) => !mongoose.isValidObjectId(id)))
-    return res.status(400).json({ message: "Invalid call participant" });
-
   try {
+    let providerCall;
+    try {
+      providerCall = await getStreamVideoCallSnapshot(roomId.trim());
+    } catch {
+      return res
+        .status(503)
+        .json({ message: "Unable to verify call participants" });
+    }
+
+    const authenticatedUserId = req.user._id.toString();
+    if (!providerCall.memberIds.includes(authenticatedUserId)) {
+      return res.status(403).json({ message: "You are not a member of this call" });
+    }
+    if (
+      !providerCall.creatorId ||
+      !mongoose.isValidObjectId(providerCall.creatorId)
+    ) {
+      return res
+        .status(502)
+        .json({ message: "Call participant data is invalid" });
+    }
+
+    const participantIds = [...new Set(providerCall.memberIds)].filter(
+      mongoose.isValidObjectId,
+    );
+    if (!participantIds.includes(authenticatedUserId)) {
+      return res.status(403).json({ message: "You are not a member of this call" });
+    }
+
+    const activeParticipantIds = providerCall.activeParticipantIds.filter(
+      (participantId) => participantIds.includes(participantId),
+    );
+    const answered = new Set(activeParticipantIds).size > 1;
+    const existingCall = await CallHistory.findOne({ roomId: roomId.trim() });
+    if (existingCall?.endedAt) {
+      return res.status(409).json({ message: "Call history has already ended" });
+    }
+
+    const now = new Date();
+    const update = {
+      caller: new mongoose.Types.ObjectId(providerCall.creatorId),
+      participants: participantIds.map((id) => new mongoose.Types.ObjectId(id)),
+      callType,
+      startedAt: existingCall?.startedAt || now,
+      provider: "stream-video",
+      status: answered || existingCall?.answeredAt ? "completed" : "outgoing",
+      ...(answered || existingCall?.answeredAt
+        ? { answeredAt: existingCall?.answeredAt || now }
+        : {}),
+    };
     const call = await CallHistory.findOneAndUpdate(
       { roomId: roomId.trim() },
-      {
-        $setOnInsert: {
-          roomId: roomId.trim(),
-          caller: req.user._id,
-          participants: ids,
-          callType,
-          startedAt: new Date(),
-          provider: "stream-video",
-        },
-        $set: {
-          status: answered ? "completed" : "outgoing",
-          ...(answered ? { answeredAt: new Date() } : {}),
-        },
-      },
+      { $set: { roomId: roomId.trim(), ...update } },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     ).populate("caller participants", "fullName profilePic");
     return res.status(200).json({ success: true, call: publicCall(call) });
@@ -60,15 +86,32 @@ export async function startCallHistory(req, res) {
 
 export async function endCallHistory(req, res) {
   const { roomId } = req.params;
-  if (!roomId)
+  if (typeof roomId !== "string" || !roomId.trim() || roomId.length > MAX_ROOM_ID_LENGTH)
     return res.status(400).json({ message: "Call room is required" });
   try {
-    const call = await CallHistory.findOne({
-      roomId,
-      participants: req.user._id,
-    });
+    let providerCall;
+    try {
+      providerCall = await getStreamVideoCallSnapshot(roomId);
+    } catch {
+      return res
+        .status(503)
+        .json({ message: "Unable to verify call participants" });
+    }
+    if (!providerCall.memberIds.includes(req.user._id.toString())) {
+      return res.status(403).json({ message: "You are not a member of this call" });
+    }
+
+    const call = await CallHistory.findOne({ roomId });
     if (!call)
       return res.status(404).json({ message: "Call history not found" });
+
+    const activeParticipantIds = providerCall.activeParticipantIds.filter(
+      (participantId) => providerCall.memberIds.includes(participantId),
+    );
+    if (activeParticipantIds.length) {
+      return res.status(200).json({ success: true, ended: false });
+    }
+
     if (!call.endedAt) {
       call.endedAt = new Date();
       call.duration = call.answeredAt

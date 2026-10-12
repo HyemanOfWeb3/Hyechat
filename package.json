@@ -20,6 +20,6 @@
     "test:profiles": "node --test backend/src/controllers/user.controller.test.js backend/src/lib/socialLinks.test.js frontend/src/lib/safeSocialLinks.test.js frontend/src/lib/profileSharing.test.js",
     "test:chat": "node --test frontend/src/lib/chatScrollPosition.test.js",
     "test:calls": "node --test backend/src/controllers/callHistory.controller.test.js",
-    "test:security": "node --test backend/src/controllers/callHistory.controller.test.js backend/src/controllers/chat.controller.test.js backend/src/controllers/user.controller.friendRequests.test.js backend/src/controllers/user.controller.emailChange.test.js backend/src/routes/auth.route.test.js"
+    "test:security": "node --test backend/src/app.errors.test.js backend/src/lib/db.test.js backend/src/controllers/callHistory.controller.test.js backend/src/controllers/chat.controller.test.js backend/src/controllers/user.controller.friendRequests.test.js backend/src/controllers/user.controller.emailChange.test.js backend/src/routes/auth.route.test.js backend/src/controllers/passwordSessions.test.js backend/src/middleware/auth.middleware.test.js"
   }
 }
