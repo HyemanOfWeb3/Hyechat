@@ -32,6 +32,7 @@ import {
   Copy,
   Forward,
   UserRound,
+  Trash2,
 } from "lucide-react";
 
 import {
@@ -53,6 +54,7 @@ import ChatLoader from "../components/ChatLoader.jsx";
 import CallButton from "../components/CallButton.jsx";
 import HyeChatCallCard from "../components/HyeChatCallCard.jsx";
 import MediaViewer from "../components/MediaViewer.jsx";
+import UserAvatar from "../components/UserAvatar.jsx";
 import ChatImageGalleryUI from "../components/ChatImageGalleryUI.jsx";
 import { getHyeChatCallDetails } from "../lib/hyeChatCall.js";
 import StoryReplyPreview from "../components/stories/StoryReplyPreview.jsx";
@@ -1197,7 +1199,10 @@ const ChatPage = () => {
           );
           return {
             ...bar,
-            strength: index === prev.length - 1 ? wave : bar.strength * 0.7 + wave * 0.3,
+            strength:
+              index === prev.length - 1
+                ? wave
+                : bar.strength * 0.7 + wave * 0.3,
           };
         }),
       );
@@ -1602,8 +1607,7 @@ const ChatPage = () => {
   };
 
   const canViewPeerProfile =
-    Boolean(peerUser?.id) &&
-    String(peerUser.id) !== String(authUser?._id);
+    Boolean(peerUser?.id) && String(peerUser.id) !== String(authUser?._id);
 
   if (loading) return <ChatLoader />;
 
