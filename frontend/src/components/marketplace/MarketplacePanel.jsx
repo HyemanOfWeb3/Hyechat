@@ -31,6 +31,11 @@ import useAuthUser from "../../hooks/useAuthUser.js";
 import UserProfileLink from "../UserProfileLink.jsx";
 import UserAvatar from "../UserAvatar.jsx";
 import {
+  getMarketplaceCategoryOptions,
+  resolveMarketplaceCategory,
+  selectMarketplaceListingType,
+} from "./marketplaceCategories.js";
+import {
   createMarketplaceListing,
   getMarketplaceCategories,
   getMarketplaceListing,
@@ -46,14 +51,29 @@ import {
 } from "../../lib/api.js";
 
 const listingTypes = [
-  { value: "physical_product", label: "Product", icon: ShoppingBag },
-  { value: "digital_product", label: "Digital product", icon: PackageOpen },
+  { value: "physical_product", label: "Physical Product", icon: ShoppingBag },
+  { value: "digital_product", label: "Digital Product", icon: PackageOpen },
   { value: "service", label: "Service", icon: UsersRound },
-  { value: "creator_offering", label: "Creator offering", icon: Sparkles },
+  { value: "creator_offering", label: "Creator Offering", icon: Sparkles },
   { value: "business", label: "Business", icon: Store },
   { value: "course", label: "Course", icon: GraduationCap },
   { value: "event", label: "Event", icon: CalendarDays },
 ];
+
+const createEmptyListing = () => ({
+  title: "",
+  description: "",
+  type: "physical_product",
+  category: "",
+  customCategory: "",
+  price: "",
+  currency: "USD",
+  condition: "not_applicable",
+  imageUrlsText: "",
+  location: "",
+  contactMethod: "message",
+  contactUrl: "",
+});
 
 const conditions = [
   ["not_applicable", "Not applicable"],
@@ -246,19 +266,7 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportReason, setReportReason] = useState("inappropriate");
   const [reportDetails, setReportDetails] = useState("");
-  const [newListing, setNewListing] = useState({
-    title: "",
-    description: "",
-    type: "physical_product",
-    category: "",
-    price: "",
-    currency: "USD",
-    condition: "not_applicable",
-    imageUrlsText: "",
-    location: "",
-    contactMethod: "message",
-    contactUrl: "",
-  });
+  const [newListing, setNewListing] = useState(createEmptyListing);
   const marketplaceSentinel = useRef(null);
   const communitySearch = searchQuery.trim();
   const hasFilterScope = isMarketplaceScope;
@@ -391,19 +399,7 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
   const createMutation = useMutation({
     mutationFn: createMarketplaceListing,
     onSuccess: () => {
-      setNewListing({
-        title: "",
-        description: "",
-        type: "physical_product",
-        category: "",
-        price: "",
-        currency: "USD",
-        condition: "not_applicable",
-        imageUrlsText: "",
-        location: "",
-        contactMethod: "message",
-        contactUrl: "",
-      });
+      setNewListing(createEmptyListing());
       setShowCreateForm(false);
       setViewMode("mine");
       refreshMarketplace();
@@ -484,6 +480,15 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
 
   const handleCreateListing = (event) => {
     event.preventDefault();
+    const { category, error } = resolveMarketplaceCategory(
+      newListing.category,
+      newListing.customCategory,
+    );
+    if (error) {
+      toast.error(error);
+      return;
+    }
+
     const imageUrls = newListing.imageUrlsText
       .split(/[\n,]/)
       .map((url) => url.trim())
@@ -492,7 +497,7 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
       title: newListing.title,
       description: newListing.description,
       type: newListing.type,
-      category: newListing.category || "Other",
+      category,
       price: newListing.price === "" ? null : Number(newListing.price),
       currency: newListing.currency,
       condition:
@@ -781,21 +786,20 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                 required
               />
             </label>
-            <label className="form-control">
-              <span className="label-text mb-1 font-semibold">Offering</span>
+            <label className="form-control" htmlFor="marketplace-listing-type">
+              <span className="label-text mb-1 font-semibold">
+                Listing type
+              </span>
               <select
+                id="marketplace-listing-type"
                 className="select select-bordered"
                 value={newListing.type}
                 onChange={(event) =>
-                  setNewListing({
-                    ...newListing,
-                    type: event.target.value,
-                    condition:
-                      event.target.value === "physical_product"
-                        ? newListing.condition
-                        : "not_applicable",
-                  })
+                  setNewListing((current) =>
+                    selectMarketplaceListingType(current, event.target.value),
+                  )
                 }
+                required
               >
                 {listingTypes.map((item) => (
                   <option key={item.value} value={item.value}>
@@ -804,24 +808,65 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                 ))}
               </select>
             </label>
-            <label className="form-control">
+            <label className="form-control" htmlFor="marketplace-listing-category">
               <span className="label-text mb-1 font-semibold">Category</span>
-              <input
-                list="marketplace-categories"
-                className="input input-bordered"
+              <select
+                id="marketplace-listing-category"
+                className="select select-bordered"
                 value={newListing.category}
                 onChange={(event) =>
-                  setNewListing({ ...newListing, category: event.target.value })
+                  setNewListing((current) => ({
+                    ...current,
+                    category: event.target.value,
+                    customCategory: "",
+                  }))
                 }
-                maxLength={80}
-                placeholder="e.g. Language learning"
-              />
-              <datalist id="marketplace-categories">
-                {categories.map((item) => (
-                  <option key={item} value={item} />
+                aria-describedby="marketplace-category-help"
+                required
+              >
+                <option value="">Select a category</option>
+                {getMarketplaceCategoryOptions(newListing.type).map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
                 ))}
-              </datalist>
+              </select>
+              <span id="marketplace-category-help" className="mt-1 text-xs opacity-60">
+                Suggestions are flexible. Choose Other to enter a custom
+                category.
+              </span>
             </label>
+            {newListing.category === "Other" && (
+              <label
+                className="form-control sm:col-span-2"
+                htmlFor="marketplace-custom-category"
+              >
+                <span className="label-text mb-1 font-semibold">
+                  Custom category
+                </span>
+                <input
+                  id="marketplace-custom-category"
+                  className="input input-bordered"
+                  value={newListing.customCategory}
+                  onChange={(event) =>
+                    setNewListing((current) => ({
+                      ...current,
+                      customCategory: event.target.value,
+                    }))
+                  }
+                  maxLength={80}
+                  placeholder="Enter your category"
+                  aria-describedby="marketplace-custom-category-help"
+                  required
+                />
+                <span
+                  id="marketplace-custom-category-help"
+                  className="mt-1 text-xs opacity-60"
+                >
+                  Use up to 80 characters.
+                </span>
+              </label>
+            )}
             <label className="form-control sm:col-span-2">
               <span className="label-text mb-1 font-semibold">Description</span>
               <textarea

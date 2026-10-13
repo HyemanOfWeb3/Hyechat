@@ -267,7 +267,7 @@ export async function createMarketplaceListing(req, res) {
     title,
     description = "",
     type,
-    category = "Other",
+    category,
     price = null,
     currency = "USD",
     condition = "not_applicable",
@@ -304,7 +304,10 @@ export async function createMarketplaceListing(req, res) {
       .status(400)
       .json({ message: "Price must be a non-negative number" });
   }
-  if (typeof category !== "string" || category.trim().length > 80) {
+  if (typeof category !== "string" || !category.trim()) {
+    return res.status(400).json({ message: "Category is required" });
+  }
+  if (category.trim().length > 80) {
     return res
       .status(400)
       .json({ message: "Category must be 80 characters or fewer" });
@@ -374,7 +377,7 @@ export async function createMarketplaceListing(req, res) {
       title: title.trim(),
       description: description.trim(),
       type,
-      category: category.trim() || "Other",
+      category: category.trim(),
       price: price === null || price === "" ? null : Number(price),
       currency: currency.trim().toUpperCase(),
       condition,
