@@ -30,6 +30,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import useAuthUser from "../../hooks/useAuthUser.js";
 import UserProfileLink from "../UserProfileLink.jsx";
 import UserAvatar from "../UserAvatar.jsx";
+import MarketplaceMediaUploader from "./MarketplaceMediaUploader.jsx";
 import {
   getMarketplaceCategoryOptions,
   resolveMarketplaceCategory,
@@ -49,6 +50,7 @@ import {
   unsaveMarketplaceListing,
   updateMarketplaceListingStatus,
 } from "../../lib/api.js";
+import { useMarketplaceMedia } from "../../hooks/useMarketplaceMedia.js";
 
 const listingTypes = [
   { value: "physical_product", label: "Physical Product", icon: ShoppingBag },
@@ -123,6 +125,8 @@ const MarketplaceCard = ({
   ownerMode = false,
 }) => {
   const image = listing.imageUrls?.[0] || listing.imageUrl;
+  const [failedImage, setFailedImage] = useState("");
+  useEffect(() => setFailedImage(""), [image]);
   const TypeIcon =
     listingTypes.find((item) => item.value === listing.type)?.icon ||
     PackageOpen;
@@ -135,7 +139,7 @@ const MarketplaceCard = ({
         onClick={() => onOpen(listing)}
         aria-label={`View listing: ${listing.title}`}
       >
-        {image ? (
+        {image && image !== failedImage ? (
           <img
             src={image}
             alt={listing.title}
@@ -145,6 +149,7 @@ const MarketplaceCard = ({
             fetchPriority="low"
             referrerPolicy="no-referrer"
             sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+            onError={() => setFailedImage(image)}
           />
         ) : (
           <span className="flex h-full items-center justify-center">
@@ -152,6 +157,11 @@ const MarketplaceCard = ({
           </span>
         )}
         {listing.imageUrls?.length > 1 && (
+                  {listing.videoUrl && (
+                    <span className="badge badge-neutral absolute left-2 top-2">
+                      Video
+                    </span>
+                  )}
           <span className="badge badge-neutral absolute bottom-2 right-2">
             +{listing.imageUrls.length - 1} photos
           </span>
@@ -251,6 +261,7 @@ const MarketplaceCard = ({
 
 const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
   const { authUser } = useAuthUser();
+  const media = useMarketplaceMedia(authUser?._id);
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [viewMode, setViewMode] = useState("discover");
@@ -402,11 +413,18 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
       setNewListing(createEmptyListing());
       setShowCreateForm(false);
       setViewMode("mine");
+      void media.releasePreviews();
       refreshMarketplace();
       toast.success("Listing published");
     },
-    onError: (error) =>
+    onError: async (error) => {
+      const cleaned = await media.cleanupUnattached();
       toast.error(errorMessage(error, "Unable to create listing")),
+      !cleaned &&
+        toast.error(
+          "Unused uploads could not all be removed. They remain unattached to a listing.",
+        );
+    },
   });
   const saveMutation = useMutation({
     mutationFn: ({ listing, wasSaved }) =>
@@ -489,10 +507,15 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
       return;
     }
 
-    const imageUrls = newListing.imageUrlsText
-      .split(/[\n,]/)
-      .map((url) => url.trim())
-      .filter(Boolean);
+    if (!media.isReady) {
+      toast.error(
+        media.hasPendingUpload
+          ? "Wait for selected media uploads to finish."
+          : "Resolve or remove media errors before publishing.",
+      );
+      return;
+    }
+
     createMutation.mutate({
       title: newListing.title,
       description: newListing.description,
@@ -504,7 +527,8 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
         newListing.type === "physical_product"
           ? newListing.condition
           : "not_applicable",
-      imageUrls,
+      imageUrls: media.images.map((image) => image.url),
+      videoUrl: media.video?.url || "",
       location: newListing.location,
       contactMethod: newListing.contactMethod,
       contactUrl:

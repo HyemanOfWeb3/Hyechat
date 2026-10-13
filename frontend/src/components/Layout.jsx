@@ -22,13 +22,15 @@ const Layout = ({ children, showSidebar = false }) => {
         )}
         <div className="flex min-w-0 flex-1 flex-col">
           <Navbar
-            onMenuClick={() => setSidebarOpen(true)}
-            onCollapseClick={() =>
-              setSidebarCollapsed((collapsed) => !collapsed)
+            onMenuClick={showSidebar ? () => setSidebarOpen(true) : undefined}
+            onCollapseClick={
+              showSidebar
+                ? () => setSidebarCollapsed((collapsed) => !collapsed)
+                : undefined
             }
             sidebarCollapsed={sidebarCollapsed}
           />
-          <main className="flex min-h-0 flex-1 overflow-hidden">
+          <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
             {children}
           </main>
         </div>

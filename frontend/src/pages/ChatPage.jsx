@@ -1634,7 +1634,7 @@ const ChatPage = () => {
   }
 
   return (
-    <div className="chat-page-shell flex h-full min-h-0 w-full max-w-full overflow-hidden">
+    <div className="chat-page-shell flex h-full min-h-0 min-w-0 w-full max-w-full overflow-hidden">
       <ChatMessageActionContext.Provider
         value={{ onForwardMessage: setMessageToForward }}
       >
@@ -1659,7 +1659,7 @@ const ChatPage = () => {
                     <button
                       type="button"
                       onClick={() => navigate("/chat")}
-                      className="btn btn-ghost btn-square btn-sm min-h-11 min-w-11 shrink-0 sm:hidden"
+                      className="btn btn-ghost btn-square btn-sm min-h-11 min-w-11 shrink-0"
                       aria-label="Back to chats"
                     >
                       <ArrowLeft className="size-5" aria-hidden="true" />
@@ -1964,7 +1964,7 @@ const ChatPage = () => {
             role="dialog"
             aria-modal="true"
             aria-labelledby="forward-message-title"
-            className="max-h-[80dvh] w-full overflow-hidden rounded-t-2xl bg-base-100 shadow-2xl sm:max-w-md sm:rounded-2xl"
+            className="max-h-[80dvh] w-full overflow-hidden rounded-t-2xl bg-base-100 pb-[env(safe-area-inset-bottom)] shadow-2xl sm:max-w-md sm:rounded-2xl sm:pb-0"
           >
             <div className="flex items-center justify-between border-b border-base-300 px-4 py-3">
               <h2 id="forward-message-title" className="font-semibold">

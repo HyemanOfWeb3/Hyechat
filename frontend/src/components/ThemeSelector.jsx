@@ -63,7 +63,7 @@ const ThemeSelector = () => {
       {/* DROPDOWN TRIGGER BUTTON */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="btn btn-ghost btn-circle touch-action-none"
+        className="btn btn-ghost btn-circle size-11 min-h-0 min-w-0 touch-action-none"
         aria-label="Theme selector"
         aria-expanded={isOpen}
         type="button"

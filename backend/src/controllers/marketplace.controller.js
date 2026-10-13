@@ -6,9 +6,12 @@ import MarketplaceListing, {
 } from "../models/MarketplaceListing.js";
 import MarketplaceListingReport from "../models/MarketplaceListingReport.js";
 import User from "../models/User.js";
+import {
+  MAX_MARKETPLACE_IMAGES,
+  verifyMarketplaceMediaUrl,
+} from "../lib/marketplaceMedia.js";
 
 const MAX_PAGE_SIZE = 24;
-const MAX_IMAGES = 5;
 const REPORT_REASONS = ["spam", "scam", "inappropriate", "prohibited", "other"];
 const sellerProjection = "fullName profilePic bio emailVerified";
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -273,6 +276,7 @@ export async function createMarketplaceListing(req, res) {
     condition = "not_applicable",
     imageUrls = [],
     imageUrl = "",
+    videoUrl = "",
     location = "",
     contactMethod = "message",
     contactUrl = "",
@@ -330,10 +334,10 @@ export async function createMarketplaceListing(req, res) {
       .status(400)
       .json({ message: "Location must be 120 characters or fewer" });
   }
-  if (!Array.isArray(imageUrls) || imageUrls.length > MAX_IMAGES) {
-    return res
-      .status(400)
-      .json({ message: `Add up to ${MAX_IMAGES} image URLs` });
+  if (!Array.isArray(imageUrls) || imageUrls.length > MAX_MARKETPLACE_IMAGES) {
+    return res.status(400).json({
+      message: `Add up to ${MAX_MARKETPLACE_IMAGES} listing photos`,
+    });
   }
   if (
     imageUrls.some((url) => typeof url !== "string") ||
@@ -350,12 +354,15 @@ export async function createMarketplaceListing(req, res) {
     ),
   ];
   if (
-    normalizedImageUrls.length > MAX_IMAGES ||
-    normalizedImageUrls.some((url) => url.length > 2048 || !isValidHttpUrl(url))
+    normalizedImageUrls.length > MAX_MARKETPLACE_IMAGES ||
+    normalizedImageUrls.some((url) => url.length > 2048)
   ) {
-    return res
-      .status(400)
-      .json({ message: `Use up to ${MAX_IMAGES} valid HTTP(S) image URLs` });
+    return res.status(400).json({
+      message: `Add up to ${MAX_MARKETPLACE_IMAGES} listing photos`,
+    });
+  }
+  if (typeof videoUrl !== "string" || videoUrl.length > 2048) {
+    return res.status(400).json({ message: "Marketplace video URL is invalid" });
   }
   if (!["message", "external_link"].includes(contactMethod)) {
     return res.status(400).json({ message: "Choose a valid contact method" });
@@ -372,6 +379,31 @@ export async function createMarketplaceListing(req, res) {
     return res.status(400).json({ message: "Contact link is too long" });
   }
 
+  const verifiedImageUrls = [];
+  let verifiedVideoUrl = "";
+  try {
+    for (const imageUrlToVerify of normalizedImageUrls) {
+      const media = await verifyMarketplaceMediaUrl(
+        imageUrlToVerify,
+        req.user._id.toString(),
+        "image",
+      );
+      verifiedImageUrls.push(media.url);
+    }
+    if (videoUrl.trim()) {
+      const media = await verifyMarketplaceMediaUrl(
+        videoUrl.trim(),
+        req.user._id.toString(),
+        "video",
+      );
+      verifiedVideoUrl = media.url;
+    }
+  } catch (error) {
+    return res.status(error?.statusCode || 400).json({
+      message: error?.message || "Marketplace media could not be verified",
+    });
+  }
+
   try {
     const listing = await MarketplaceListing.create({
       title: title.trim(),
@@ -381,7 +413,8 @@ export async function createMarketplaceListing(req, res) {
       price: price === null || price === "" ? null : Number(price),
       currency: currency.trim().toUpperCase(),
       condition,
-      imageUrls: normalizedImageUrls,
+      imageUrls: verifiedImageUrls,
+      videoUrl: verifiedVideoUrl,
       location: location.trim(),
       contactMethod,
       contactUrl: contactMethod === "external_link" ? contactUrl.trim() : "",

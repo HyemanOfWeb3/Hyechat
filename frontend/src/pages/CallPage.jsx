@@ -73,7 +73,7 @@ const CallPage = () => {
     return Boolean(
       navigator.mediaDevices?.getDisplayMedia ||
       navigator.getDisplayMedia ||
-      navigator.webkitGetDisplayMedia
+      navigator.webkitGetDisplayMedia,
     );
   });
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -322,14 +322,7 @@ const CallPage = () => {
       setVideoClient(null);
       setCall(null);
     };
-  }, [
-    authLoading,
-    authUser,
-    id,
-    isVoice,
-    tokenData,
-    tokenLoading,
-  ]);
+  }, [authLoading, authUser, id, isVoice, tokenData, tokenLoading]);
 
   if (authLoading || tokenLoading || (!videoClient && !joinError)) {
     return <ChatLoader />;
@@ -354,7 +347,9 @@ const CallPage = () => {
                   </>
                 )}
               </div>
-              <p className="mt-1 text-sm opacity-70">Room: {id || "unknown"}</p>
+              <p className="mt-1 break-all text-sm opacity-70">
+                Room: {id || "unknown"}
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="badge badge-success gap-2">
@@ -406,7 +401,9 @@ const CallPage = () => {
                   {!isVoice ? (
                     <>
                       <Video className="h-4 w-4 text-primary" />
-                      <span className="hidden sm:inline">Secure meeting • screen sharing • reactions</span>
+                      <span className="hidden sm:inline">
+                        Secure meeting • screen sharing • reactions
+                      </span>
                       <span className="sm:hidden">Video call</span>
                     </>
                   ) : (
@@ -456,7 +453,11 @@ const CallPage = () => {
                                     ? "btn-warning"
                                     : "btn-ghost hover:bg-base-700"
                                 }`}
-                                title={isScreenSharing ? "Stop sharing" : "Share screen"}
+                                title={
+                                  isScreenSharing
+                                    ? "Stop sharing"
+                                    : "Share screen"
+                                }
                               >
                                 <ScreenShare className="h-4 w-4" />
                                 <span className="hidden sm:inline">
@@ -470,8 +471,12 @@ const CallPage = () => {
                         <div className="flex h-full flex-col items-center justify-center gap-4 px-4">
                           <div className="flex flex-col items-center gap-3">
                             <Mic className="h-12 w-12 text-primary" />
-                            <h3 className="text-lg font-semibold">Voice call</h3>
-                            <p className="text-sm opacity-70">Room: {id || "unknown"}</p>
+                            <h3 className="text-lg font-semibold">
+                              Voice call
+                            </h3>
+                            <p className="break-all text-sm opacity-70">
+                              Room: {id || "unknown"}
+                            </p>
                           </div>
                           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
                             <CallControls onLeave={handleLeaveCall} />
@@ -513,7 +518,9 @@ const CallPage = () => {
               <div className="rounded-3xl border border-base-300 bg-base-100 p-3 shadow-sm sm:p-4">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-primary" />
-                  <h3 className="font-semibold text-sm sm:text-base">Meeting essentials</h3>
+                  <h3 className="font-semibold text-sm sm:text-base">
+                    Meeting essentials
+                  </h3>
                 </div>
                 <div className="mt-3 space-y-2 text-xs sm:text-sm text-base-content/70">
                   <div className="flex items-center justify-between rounded-xl bg-base-200 px-3 py-2">
@@ -526,7 +533,7 @@ const CallPage = () => {
                   </div>
                   <div className="flex items-center justify-between rounded-xl bg-base-200 px-3 py-2">
                     <span>Room</span>
-                    <span className="font-medium text-base-content truncate">
+                    <span className="min-w-0 truncate font-medium text-base-content">
                       {id || "unknown"}
                     </span>
                   </div>

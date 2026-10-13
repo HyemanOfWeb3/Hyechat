@@ -124,7 +124,7 @@ const NotificationItem = ({
           {isUnread && (
             <button
               type="button"
-              className="btn btn-ghost btn-sm gap-1"
+              className="btn btn-ghost btn-sm min-h-11 gap-1"
               onClick={handleAction(onMarkAsRead)}
               disabled={isMarkingAsRead}
               aria-label={`Mark ${actorName}'s notification as read`}
@@ -140,7 +140,7 @@ const NotificationItem = ({
           {actor?._id && (
             <UserProfileLink
               userId={actor._id}
-              className="btn btn-ghost btn-square btn-sm"
+              className="btn btn-ghost btn-square btn-sm min-h-11 min-w-11"
               aria-label={`View ${actorName}'s profile`}
               title="View profile"
             >
@@ -149,7 +149,7 @@ const NotificationItem = ({
           )}
           <button
             type="button"
-            className="btn btn-ghost btn-square btn-sm"
+            className="btn btn-ghost btn-square btn-sm min-h-11 min-w-11"
             onClick={handleAction(onDelete)}
             disabled={isDeleting}
             aria-label={`Delete ${actorName}'s notification`}

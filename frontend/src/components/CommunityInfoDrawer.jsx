@@ -8,7 +8,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import useStreamClient from "../hooks/useStreamClient.js";
 import { CommunityAvatar } from "./CommunityChatHeader.jsx";
@@ -46,6 +46,16 @@ const CommunityInfoDrawer = ({
     description: community.description || "",
     avatar: community.avatar || "",
   });
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -143,14 +153,14 @@ const CommunityInfoDrawer = ({
           <h2 className="text-lg font-bold">Community info</h2>
           <button
             type="button"
-            className="btn btn-ghost btn-sm btn-square"
+            className="btn btn-ghost btn-square min-h-11 min-w-11"
             onClick={onClose}
             aria-label="Close community information"
           >
             <X className="size-5" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
           <section className="flex flex-col items-center text-center">
             <div className="relative">
               <CommunityAvatar
@@ -161,7 +171,7 @@ const CommunityInfoDrawer = ({
                 size="size-20"
               />
               {isEditing && (
-                <label className="absolute -bottom-2 -right-2 flex size-9 cursor-pointer items-center justify-center rounded-full border border-base-300 bg-base-100 shadow-md">
+                <label className="absolute -bottom-2 -right-2 flex size-11 cursor-pointer items-center justify-center rounded-full border border-base-300 bg-base-100 shadow-md">
                   <Camera className="size-4" />
                   <input
                     type="file"
@@ -296,7 +306,7 @@ const CommunityInfoDrawer = ({
                 return (
                   <div
                     key={userId}
-                    className="flex items-center gap-3 rounded-xl px-2 py-2.5 hover:bg-base-200"
+                    className="rounded-xl px-2 py-2.5 hover:bg-base-200"
                   >
                     <UserProfileLink
                       userId={userId}
@@ -316,42 +326,48 @@ const CommunityInfoDrawer = ({
                         <p className="text-xs opacity-55">{member.role}</p>
                       </div>
                     </UserProfileLink>
-                    {isOwner && !isMemberOwner && (
-                      <select
-                        className="select select-bordered select-xs w-24"
-                        value={member.role}
-                        onChange={(event) =>
-                          memberMutation.mutate({
-                            userId,
-                            role: event.target.value,
-                          })
-                        }
-                        disabled={memberMutation.isPending}
-                        aria-label={`Change role for ${user?.fullName || "member"}`}
-                      >
-                        <option value="member">Member</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    )}
-                    {isOwner && !isMemberOwner && (
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-xs"
-                        onClick={() => onTransfer(userId)}
-                        disabled={transferMutation.isPending}
-                      >
-                        Transfer
-                      </button>
-                    )}
-                    {canManageMembers && !isMemberOwner && (
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-xs text-error"
-                        onClick={() => memberMutation.mutate({ userId })}
-                        disabled={memberMutation.isPending}
-                      >
-                        Remove
-                      </button>
+                    {(isOwner || canManageMembers) && !isMemberOwner && (
+                      <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5">
+                        {isOwner && (
+                          <>
+                            <select
+                              className="select select-bordered select-sm h-10 min-h-10 w-28"
+                              value={member.role}
+                              onChange={(event) =>
+                                memberMutation.mutate({
+                                  userId,
+                                  role: event.target.value,
+                                })
+                              }
+                              disabled={memberMutation.isPending}
+                              aria-label={`Change role for ${user?.fullName || "member"}`}
+                            >
+                              <option value="member">Member</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm min-h-10"
+                              onClick={() => onTransfer(userId)}
+                              disabled={transferMutation.isPending}
+                              aria-label={`Transfer ownership to ${user?.fullName || "member"}`}
+                            >
+                              Transfer
+                            </button>
+                          </>
+                        )}
+                        {canManageMembers && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm min-h-10 text-error"
+                            onClick={() => memberMutation.mutate({ userId })}
+                            disabled={memberMutation.isPending}
+                            aria-label={`Remove ${user?.fullName || "member"} from community`}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 );

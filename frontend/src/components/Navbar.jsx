@@ -41,10 +41,10 @@ const Navbar = ({ onMenuClick, onCollapseClick, sidebarCollapsed }) => {
   };
 
   return (
-    <nav className="bg-base-200 border-b border-base-300 sticky top-0 z-30 h-16 flex items-center">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2">
+    <nav className="sticky top-0 z-30 flex h-16 items-center border-b border-base-300 bg-base-200">
+      <div className="container mx-auto min-w-0 px-2 sm:px-6 lg:px-8">
+        <div className="flex w-full min-w-0 items-center gap-1 sm:gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             {onMenuClick && (
               <button
                 type="button"
@@ -75,17 +75,17 @@ const Navbar = ({ onMenuClick, onCollapseClick, sidebarCollapsed }) => {
           {/* LOGO - ONLY ON THE CHAT PAGE */}
 
           {isChatPage && (
-            <div className="pl-5">
-              <Link to="/" className="flex items-center gap-2.5">
-                <ShipWheelIcon className="size-9 text-primary " />
-                <span className="text-3xl font-bold font-mono bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary tracking-wider">
+            <div className="min-w-0 pl-1 sm:pl-3">
+              <Link to="/" className="flex items-center gap-1.5 sm:gap-2.5">
+                <ShipWheelIcon className="size-7 shrink-0 text-primary sm:size-9" />
+                <span className="hidden truncate text-3xl font-bold font-mono bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary tracking-wider sm:inline">
                   HyeChat
                 </span>
               </Link>
             </div>
           )}
 
-          <div className="flex items-center gap-3 sm:gap-4 ml-auto">
+          <div className="ml-auto flex min-w-0 shrink-0 items-center gap-0 sm:gap-2">
             <form
               onSubmit={submitGlobalSearch}
               className="input input-bordered hidden h-10 w-48 items-center gap-2 md:flex lg:w-72"
@@ -104,14 +104,14 @@ const Navbar = ({ onMenuClick, onCollapseClick, sidebarCollapsed }) => {
             </form>
             <Link
               to="/search"
-              className="btn btn-ghost btn-circle md:hidden"
+              className="btn btn-ghost btn-circle size-11 min-h-0 min-w-0 p-0 md:hidden"
               aria-label="Search HyeChat"
             >
               <SearchIcon className="size-5 text-base-content opacity-70" />
             </Link>
             <Link
               to="/notifications"
-              className="btn btn-ghost btn-circle relative"
+              className="btn btn-ghost btn-circle relative size-11 min-h-0 min-w-0 p-0"
               aria-label="Notifications"
             >
               <BellIcon className="h-6 w-6 text-base-content opacity-70" />
@@ -145,7 +145,7 @@ const Navbar = ({ onMenuClick, onCollapseClick, sidebarCollapsed }) => {
               {/* Logout Button */}
               <button
                 onClick={logoutMutation}
-                className="btn btn-ghost btn-circle"
+                className="btn btn-ghost btn-circle size-11 min-h-0 min-w-0 p-0"
                 aria-label="Log out"
               >
                 <LogOutIcon className="h-6 w-6 text-base-content opacity-70" />

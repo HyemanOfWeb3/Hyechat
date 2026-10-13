@@ -36,6 +36,7 @@ select {
 .chat-page-shell > .str-chat,
 .chat-page-shell .str-chat__channel {
   width: 100%;
+  min-width: 0;
   height: 100%;
   min-height: 0;
 }
@@ -74,9 +75,18 @@ select {
 }
 
 .chat-window-shell .str-chat__message-input {
+  width: 100%;
+  min-width: 0;
   flex: 0 0 auto;
   max-height: min(35dvh, 16rem);
   overflow-y: auto;
+}
+
+.chat-window-shell .str-chat__message-input-inner,
+.chat-window-shell .str-chat__textarea,
+.chat-window-shell .str-chat__message-attachment {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .chat-window-shell .str-chat__message-inner,
@@ -223,6 +233,12 @@ select {
 @media (prefers-reduced-motion: reduce) {
   .chat-page-shell .transition {
     transition-duration: 0.01ms !important;
+  }
+
+  .community-drawer-layer,
+  .community-info-drawer {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
 

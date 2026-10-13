@@ -58,7 +58,7 @@ const Sidebar = ({ collapsed = false, mobileOpen = false, onClose }) => {
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 flex-col border-r border-base-300 bg-base-200 shadow-xl transition-transform lg:sticky lg:z-0 lg:shadow-none ${collapsed ? "lg:w-20" : "lg:w-64"} ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+        className={`fixed inset-y-0 left-0 z-50 flex h-dvh w-64 flex-col border-r border-base-300 bg-base-200 shadow-xl transition-transform lg:sticky lg:z-0 lg:shadow-none ${collapsed ? "lg:w-20" : "lg:w-64"} ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
         {/* LOGO */}
 
@@ -129,7 +129,7 @@ const Sidebar = ({ collapsed = false, mobileOpen = false, onClose }) => {
         {/* USER PROFILE SECTION */}
 
         <div
-          className={`mt-auto border-t border-base-300 p-4 ${collapsed ? "lg:px-2" : ""}`}
+          className={`mt-auto border-t border-base-300 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] ${collapsed ? "lg:px-2" : ""}`}
         >
           <div className="flex items-center gap-3">
             <UserAvatar

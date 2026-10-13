@@ -48,7 +48,7 @@ const CallsPage = () => {
   const calls = historyQuery.data?.calls || [];
 
   return (
-    <div className="min-h-full w-full bg-base-100 px-4 py-6 sm:px-6 lg:px-10">
+    <div className="h-full min-h-0 w-full overflow-y-auto overscroll-contain bg-base-100 px-4 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-10">
       <div className="mx-auto max-w-4xl">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary">
@@ -133,7 +133,7 @@ const CallsPage = () => {
                     >
                       {other?.fullName || "Call participant"}
                     </UserProfileLink>
-                    <p className="flex items-center gap-1 text-sm opacity-65">
+                    <p className="flex min-w-0 flex-wrap items-center gap-x-1 text-sm opacity-65">
                       {outgoing ? (
                         <ArrowUpRight className="size-3.5" />
                       ) : (
@@ -145,7 +145,10 @@ const CallsPage = () => {
                         <Phone className="size-3.5" />
                       )}
                       {call.status} ·{" "}
-                      {new Date(call.createdAt).toLocaleString()}
+                      {new Date(call.createdAt).toLocaleString([], {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}
                     </p>
                   </div>
                   <span className="hidden text-sm opacity-65 sm:inline">
