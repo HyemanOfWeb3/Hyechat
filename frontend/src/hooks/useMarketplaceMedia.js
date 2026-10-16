@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { uploadPresigned } from "@vercel/blob/client";
 import toast from "react-hot-toast";
 import { cleanupMarketplaceMedia } from "../lib/api.js";
 import {
-  MARKETPLACE_MEDIA_LIMITS,
   createMarketplacePendingPath,
+  getMarketplaceMediaState,
   inspectMarketplaceImageDimensions,
   inspectMarketplaceVideoDuration,
+  splitMarketplaceImageSelection,
   validateMarketplaceMediaSelection,
 } from "../components/marketplace/marketplaceMedia.js";
 
@@ -26,6 +27,7 @@ export const useMarketplaceMedia = (userId) => {
   const uploadPromisesRef = useRef(new Map());
   const imageReservationsRef = useRef(0);
   const videoSelectionInProgressRef = useRef(false);
+  const selectionGenerationRef = useRef(0);
   const mountedRef = useRef(false);
 
   const updateImages = useCallback((updater) => {
@@ -193,18 +195,18 @@ export const useMarketplaceMedia = (userId) => {
   }, [cleanupPaths]);
 
   const addImages = useCallback(async (files) => {
-    const selectedFiles = Array.from(files || []);
-    const available = Math.max(
-      0,
-      MARKETPLACE_MEDIA_LIMITS.image.maxCount -
-        imagesRef.current.length -
+    const generation = selectionGenerationRef.current;
+    const { accepted: acceptedFiles, rejected: rejectedFiles } =
+      splitMarketplaceImageSelection(
+        files,
+        imagesRef.current.length,
         imageReservationsRef.current,
     );
-    const acceptedFiles = selectedFiles.slice(0, available);
     imageReservationsRef.current += acceptedFiles.length;
+    let reservationHeld = true;
     setActiveValidations((count) => count + acceptedFiles.length);
 
-    for (const file of selectedFiles.slice(available)) {
+    for (const file of rejectedFiles) {
       addError(file, "You can add up to 5 photos.");
     }
 
@@ -212,24 +214,39 @@ export const useMarketplaceMedia = (userId) => {
       const prepared = await Promise.all(
         acceptedFiles.map((file) => prepareItem(file, "image")),
       );
+      if (!mountedRef.current || generation !== selectionGenerationRef.current) {
+        prepared.forEach((result) => {
+          if (result.item?.previewUrl) URL.revokeObjectURL(result.item.previewUrl);
+        });
+        return;
+      }
       const readyItems = [];
       prepared.forEach((result, index) => {
         if (result.cancelled) return;
         if (result.error) addError(acceptedFiles[index], result.error);
         else readyItems.push(result.item);
       });
-      if (!readyItems.length) return;
-      if (!mountedRef.current) {
-        readyItems.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-        return;
+      if (readyItems.length) {
+        if (!mountedRef.current) {
+          readyItems.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+          return;
+        }
+        updateImages((current) => [...current, ...readyItems]);
       }
-      updateImages((current) => [...current, ...readyItems]);
-      await Promise.all(readyItems.map(startUpload));
-    } finally {
       imageReservationsRef.current = Math.max(
         0,
         imageReservationsRef.current - acceptedFiles.length,
       );
+      reservationHeld = false;
+      if (!readyItems.length) return;
+      await Promise.all(readyItems.map(startUpload));
+    } finally {
+      if (reservationHeld && generation === selectionGenerationRef.current) {
+        imageReservationsRef.current = Math.max(
+          0,
+          imageReservationsRef.current - acceptedFiles.length,
+        );
+      }
       if (mountedRef.current) {
         setActiveValidations((count) => Math.max(0, count - acceptedFiles.length));
       }
@@ -237,28 +254,50 @@ export const useMarketplaceMedia = (userId) => {
   }, [addError, prepareItem, startUpload, updateImages]);
 
   const replaceImage = useCallback(async (itemId, file) => {
+    const generation = selectionGenerationRef.current;
     const oldItems = imagesRef.current;
     const oldIndex = oldItems.findIndex((item) => item.id === itemId);
     if (oldIndex < 0) return;
 
-    const { item, error } = await prepareItem(file, "image");
-    if (error || !mountedRef.current) {
-      if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
-      if (!mountedRef.current) return;
-      addError(file, error);
-      return;
-    }
+    setActiveValidations((count) => count + 1);
+    try {
+      const { item, error } = await prepareItem(file, "image");
+      if (error || !mountedRef.current || generation !== selectionGenerationRef.current) {
+        if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+        if (!mountedRef.current || generation !== selectionGenerationRef.current) return;
+        addError(file, error);
+        return;
+      }
 
-    const oldItem = oldItems[oldIndex];
-    await releaseItems([oldItem]);
-    updateImages((current) => {
-      const index = current.findIndex((candidate) => candidate.id === itemId);
-      if (index < 0) return current;
-      const next = [...current];
-      next.splice(index, 1, item);
-      return next;
-    });
-    await startUpload(item);
+      const oldItem = oldItems[oldIndex];
+      await releaseItems([oldItem]);
+      if (
+        !mountedRef.current ||
+        generation !== selectionGenerationRef.current ||
+        !imagesRef.current.some((candidate) => candidate.id === itemId)
+      ) {
+        URL.revokeObjectURL(item.previewUrl);
+        return;
+      }
+      let replaced = false;
+      updateImages((current) => {
+        const index = current.findIndex((candidate) => candidate.id === itemId);
+        if (index < 0) return current;
+        const next = [...current];
+        next.splice(index, 1, item);
+        replaced = true;
+        return next;
+      });
+      if (!replaced) {
+        URL.revokeObjectURL(item.previewUrl);
+        return;
+      }
+      await startUpload(item);
+    } finally {
+      if (mountedRef.current) {
+        setActiveValidations((count) => Math.max(0, count - 1));
+      }
+    }
   }, [addError, prepareItem, releaseItems, startUpload, updateImages]);
 
   const removeImage = useCallback(async (itemId) => {
@@ -281,20 +320,25 @@ export const useMarketplaceMedia = (userId) => {
 
   const addVideo = useCallback(async (file) => {
     if (videoSelectionInProgressRef.current) return;
+    const generation = selectionGenerationRef.current;
     videoSelectionInProgressRef.current = true;
     setActiveValidations((count) => count + 1);
     try {
       const { item, error } = await prepareItem(file, "video");
-      if (error || !mountedRef.current) {
+      if (error || !mountedRef.current || generation !== selectionGenerationRef.current) {
         if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || generation !== selectionGenerationRef.current) return;
         addError(file, error);
         return;
       }
       const previous = videoRef.current;
       if (previous) await releaseItems([previous]);
+      if (!mountedRef.current || generation !== selectionGenerationRef.current) {
+        URL.revokeObjectURL(item.previewUrl);
+        return;
+      }
       updateVideo(item);
-      await startUpload(item);
+      void startUpload(item);
     } finally {
       videoSelectionInProgressRef.current = false;
       if (mountedRef.current) {
@@ -315,6 +359,7 @@ export const useMarketplaceMedia = (userId) => {
   }, []);
 
   const resetMedia = useCallback(async ({ cleanup = true } = {}) => {
+    selectionGenerationRef.current += 1;
     const allItems = [...imagesRef.current, ...(videoRef.current ? [videoRef.current] : [])];
     updateImages([]);
     updateVideo(null);
@@ -325,29 +370,30 @@ export const useMarketplaceMedia = (userId) => {
 
   useEffect(() => {
     mountedRef.current = true;
+    const uploadControllers = uploadControllersRef.current;
+    const uploadPromises = uploadPromisesRef.current;
     return () => {
       mountedRef.current = false;
+      selectionGenerationRef.current += 1;
       const allItems = [...imagesRef.current, ...(videoRef.current ? [videoRef.current] : [])];
       for (const item of allItems) {
-        uploadControllersRef.current.get(item.id)?.abort();
+        uploadControllers.get(item.id)?.abort();
         if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
       }
       void Promise.all(
-        allItems.map((item) => uploadPromisesRef.current.get(item.id)?.catch(() => null)),
+        allItems.map((item) => uploadPromises.get(item.id)?.catch(() => null)),
       ).then(() => cleanupPaths(allItems.map((item) => item.path)));
     };
   }, [cleanupPaths]);
 
-  const allItems = [...images, ...(video ? [video] : [])];
-  const hasUploadError =
-    errors.length > 0 || allItems.some((item) => item.status === "error");
-  const isReady =
-    activeValidations === 0 &&
-    !hasUploadError &&
-    allItems.every((item) => item.status === "uploaded");
-  const hasPendingUpload = allItems.some(
-    (item) => item.status === "validating" || item.status === "uploading",
-  ) || activeValidations > 0;
+  const allItems = useMemo(
+    () => [...images, ...(video ? [video] : [])],
+    [images, video],
+  );
+  const { hasUploadError, isReady, hasPendingUpload } = useMemo(
+    () => getMarketplaceMediaState({ images, video, errors, activeValidations }),
+    [images, video, errors, activeValidations],
+  );
 
   const cleanupUnattached = useCallback(async () => {
     const paths = allItems.map((item) => item.path).filter(Boolean);
@@ -382,4 +428,3 @@ export const useMarketplaceMedia = (userId) => {
     releasePreviews,
   };
 };
-*** End Patch

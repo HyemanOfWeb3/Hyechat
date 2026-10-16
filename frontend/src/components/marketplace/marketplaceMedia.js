@@ -3,6 +3,52 @@ export const MARKETPLACE_MEDIA_LIMITS = {
   video: { maxCount: 1, maxBytes: 25 * 1024 * 1024, maxDuration: 30 },
 };
 
+export const splitMarketplaceImageSelection = (
+  files,
+  currentCount,
+  reservedCount = 0,
+) => {
+  const selectedFiles = Array.from(files || []);
+  const available = Math.max(
+    0,
+    MARKETPLACE_MEDIA_LIMITS.image.maxCount - currentCount - reservedCount,
+  );
+  return {
+    accepted: selectedFiles.slice(0, available),
+    rejected: selectedFiles.slice(available),
+  };
+};
+
+export const getMarketplaceMediaState = ({
+  images = [],
+  video = null,
+  errors = [],
+  activeValidations = 0,
+}) => {
+  const allItems = [...images, ...(video ? [video] : [])];
+  const hasUploadError =
+    errors.length > 0 || allItems.some((item) => item.status === "error");
+  return {
+    hasUploadError,
+    isReady:
+      activeValidations === 0 &&
+      !hasUploadError &&
+      allItems.every((item) => item.status === "uploaded"),
+    hasPendingUpload:
+      activeValidations > 0 ||
+      allItems.some(
+        (item) => item.status === "validating" || item.status === "uploading",
+      ),
+  };
+};
+
+export const getMarketplaceListingImages = (listing) =>
+  listing?.imageUrls?.length
+    ? listing.imageUrls
+    : listing?.imageUrl
+      ? [listing.imageUrl]
+      : [];
+
 const mediaTypes = {
   "image/jpeg": { extension: "jpg", kind: "image" },
   "image/png": { extension: "png", kind: "image" },

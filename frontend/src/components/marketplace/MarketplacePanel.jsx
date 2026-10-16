@@ -51,6 +51,7 @@ import {
   updateMarketplaceListingStatus,
 } from "../../lib/api.js";
 import { useMarketplaceMedia } from "../../hooks/useMarketplaceMedia.js";
+import { getMarketplaceListingImages } from "./marketplaceMedia.js";
 
 const listingTypes = [
   { value: "physical_product", label: "Physical Product", icon: ShoppingBag },
@@ -71,7 +72,6 @@ const createEmptyListing = () => ({
   price: "",
   currency: "USD",
   condition: "not_applicable",
-  imageUrlsText: "",
   location: "",
   contactMethod: "message",
   contactUrl: "",
@@ -124,9 +124,9 @@ const MarketplaceCard = ({
   saving,
   ownerMode = false,
 }) => {
-  const image = listing.imageUrls?.[0] || listing.imageUrl;
+  const images = getMarketplaceListingImages(listing);
+  const image = images[0];
   const [failedImage, setFailedImage] = useState("");
-  useEffect(() => setFailedImage(""), [image]);
   const TypeIcon =
     listingTypes.find((item) => item.value === listing.type)?.icon ||
     PackageOpen;
@@ -156,14 +156,14 @@ const MarketplaceCard = ({
             <TypeIcon className="size-10 opacity-35" />
           </span>
         )}
-        {listing.imageUrls?.length > 1 && (
-                  {listing.videoUrl && (
-                    <span className="badge badge-neutral absolute left-2 top-2">
-                      Video
-                    </span>
-                  )}
+        {listing.videoUrl && (
+          <span className="badge badge-neutral absolute left-2 top-2">
+            Video
+          </span>
+        )}
+        {images.length > 1 && (
           <span className="badge badge-neutral absolute bottom-2 right-2">
-            +{listing.imageUrls.length - 1} photos
+            +{images.length - 1} photos
           </span>
         )}
       </button>
@@ -256,6 +256,67 @@ const MarketplaceCard = ({
         )}
       </div>
     </article>
+  );
+};
+
+export const MarketplaceListingGallery = ({ listing }) => {
+  const images = getMarketplaceListingImages(listing);
+  const [failedImages, setFailedImages] = useState(() => new Set());
+  const [failedVideo, setFailedVideo] = useState("");
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {images.map((image, index) => (
+        <div
+          key={`${image}-${index}`}
+          className={`relative aspect-[4/3] max-h-[420px] overflow-hidden rounded-xl bg-base-200 ${index === 0 ? "sm:col-span-2" : ""}`}
+        >
+          {failedImages.has(image) ? (
+            <div className="flex size-full flex-col items-center justify-center gap-2 text-sm opacity-60">
+              <PackageOpen className="size-10" aria-hidden="true" />
+              <span>Image unavailable</span>
+            </div>
+          ) : (
+            <img
+              src={image}
+              alt={`${listing.title} photo ${index + 1}`}
+              className="size-full object-cover"
+              loading={index === 0 ? "eager" : "lazy"}
+              decoding="async"
+              fetchPriority={index === 0 ? "high" : "low"}
+              onError={() =>
+                setFailedImages((current) => new Set([...current, image]))
+              }
+            />
+          )}
+        </div>
+      ))}
+      {images.length === 0 && (
+        <div className="flex aspect-[4/3] max-h-[420px] items-center justify-center rounded-xl bg-base-200 sm:col-span-2">
+          <PackageOpen className="size-12 opacity-30" aria-hidden="true" />
+          <span className="sr-only">No listing photos</span>
+        </div>
+      )}
+      {listing.videoUrl && (
+        <div className="aspect-video overflow-hidden rounded-xl bg-black sm:col-span-2">
+          {failedVideo === listing.videoUrl ? (
+            <div className="flex size-full items-center justify-center bg-base-200 text-sm opacity-60" role="status">
+              Video unavailable
+            </div>
+          ) : (
+            <video
+              src={listing.videoUrl}
+              controls
+              playsInline
+              preload="metadata"
+              className="size-full object-contain"
+              aria-label={`${listing.title} listing video`}
+              onError={() => setFailedVideo(listing.videoUrl)}
+            />
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -498,6 +559,7 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
 
   const handleCreateListing = (event) => {
     event.preventDefault();
+    if (createMutation.isPending) return;
     const { category, error } = resolveMarketplaceCategory(
       newListing.category,
       newListing.customCategory,
@@ -553,6 +615,13 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
         toast.error("Could not share this listing");
       }
     }
+  };
+
+  const cancelCreateListing = () => {
+    if (createMutation.isPending) return;
+    setShowCreateForm(false);
+    setNewListing(createEmptyListing());
+    void media.resetMedia();
   };
 
   const renderEmpty = (title, description) => (
@@ -719,8 +788,9 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
               className="btn btn-outline btn-sm"
               onClick={() => {
                 setViewMode("mine");
-                setShowCreateForm(false);
+                if (showCreateForm) cancelCreateListing();
               }}
+              disabled={createMutation.isPending}
             >
               My listings
             </button>
@@ -729,8 +799,10 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
               className="btn btn-primary btn-sm"
               onClick={() => {
                 setViewMode("mine");
-                setShowCreateForm((show) => !show);
+                if (showCreateForm) cancelCreateListing();
+                else setShowCreateForm(true);
               }}
+              disabled={createMutation.isPending}
             >
               <Plus className="size-4" /> Create listing
             </button>
@@ -791,7 +863,8 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
               type="button"
               className="btn btn-ghost btn-square btn-sm"
               aria-label="Close listing form"
-              onClick={() => setShowCreateForm(false)}
+              onClick={cancelCreateListing}
+              disabled={createMutation.isPending}
             >
               <X className="size-4" />
             </button>
@@ -1013,41 +1086,49 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                 />
               </label>
             )}
-            <label className="form-control sm:col-span-2">
-              <span className="label-text mb-1 font-semibold">
-                Image URLs (up to 5, one per line)
-              </span>
-              <textarea
-                className="textarea textarea-bordered min-h-20"
-                value={newListing.imageUrlsText}
-                onChange={(event) =>
-                  setNewListing({
-                    ...newListing,
-                    imageUrlsText: event.target.value,
-                  })
-                }
-                placeholder="https://image.example/photo.jpg"
+            <div className="min-w-0 sm:col-span-2">
+              <MarketplaceMediaUploader
+                images={media.images}
+                video={media.video}
+                allowVideo
+                disabled={createMutation.isPending}
+                onAddImages={media.addImages}
+                onReplaceImage={media.replaceImage}
+                onRemoveImage={media.removeImage}
+                onMoveImage={media.moveImage}
+                onAddVideo={media.addVideo}
+                onRetryVideo={media.addVideo}
+                onRemoveVideo={media.removeVideo}
+                errors={media.errors}
+                onDismissError={media.clearError}
               />
-              <span className="mt-1 text-xs opacity-60">
-                Use image URLs you have permission to share. Images are loaded
-                lazily in listings.
-              </span>
-            </label>
+            </div>
           </div>
           <div className="mt-4 flex justify-end gap-2">
             <button
               type="button"
               className="btn btn-ghost btn-sm"
-              onClick={() => setShowCreateForm(false)}
+              onClick={cancelCreateListing}
+              disabled={createMutation.isPending}
             >
               Cancel
             </button>
             <button
               type="submit"
               className="btn btn-primary btn-sm"
-              disabled={createMutation.isPending}
+              disabled={
+                createMutation.isPending ||
+                media.hasPendingUpload ||
+                media.hasUploadError
+              }
             >
-              {createMutation.isPending ? "Publishing…" : "Publish listing"}
+              {createMutation.isPending
+                ? "Publishing…"
+                : media.hasPendingUpload
+                  ? "Uploading media…"
+                  : media.hasUploadError
+                    ? "Resolve media issues"
+                    : "Publish listing"}
             </button>
           </div>
         </form>
@@ -1284,30 +1365,10 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
             </div>
             <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
               <div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {(selectedListing.imageUrls?.length
-                    ? selectedListing.imageUrls
-                    : selectedListing.imageUrl
-                      ? [selectedListing.imageUrl]
-                      : []
-                  ).map((image, index) => (
-                    <img
-                      key={image}
-                      src={image}
-                      alt={`${selectedListing.title} photo ${index + 1}`}
-                      className={`max-h-[420px] w-full rounded-xl bg-base-200 object-cover ${index === 0 ? "sm:col-span-2" : ""}`}
-                      loading={index === 0 ? "eager" : "lazy"}
-                      decoding="async"
-                      fetchPriority={index === 0 ? "high" : "low"}
-                    />
-                  ))}
-                  {!selectedListing.imageUrls?.length &&
-                    !selectedListing.imageUrl && (
-                      <div className="flex h-64 items-center justify-center rounded-xl bg-base-200">
-                        <PackageOpen className="size-12 opacity-30" />
-                      </div>
-                    )}
-                </div>
+                <MarketplaceListingGallery
+                  key={selectedListing._id}
+                  listing={selectedListing}
+                />
                 <h2
                   id="marketplace-listing-title"
                   className="mt-5 text-2xl font-bold"

@@ -112,7 +112,7 @@ const buildActiveListingFilter = async (query) => {
   return { filter };
 };
 
-const serializeListing = (listing, savedIds = new Set()) => ({
+export const serializeListing = (listing, savedIds = new Set()) => ({
   ...listing,
   imageUrls: imageListFor(listing),
   isSaved: savedIds.has(listing._id.toString()),

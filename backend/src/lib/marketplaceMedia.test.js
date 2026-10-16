@@ -8,6 +8,7 @@ import {
   getMarketplacePendingMediaPath,
   inspectMarketplaceMediaBuffer,
   validateMarketplaceMediaMetadata,
+  validateMarketplaceUploadCompletion,
   verifyMarketplaceMediaUrl,
 } from "./marketplaceMedia.js";
 
@@ -100,7 +101,7 @@ test("validates server-side image and video size, MIME, dimensions, and duration
         kind: "image",
         size: 100,
         declaredMimeType: "image/png",
-        detectedMimeType: "image/svg+xml",
+        detectedMimeType: "image/jpeg",
         width: 1,
         height: 1,
       }),
@@ -146,12 +147,16 @@ test("verifies Blob metadata and bytes without trusting a submitted URL alone", 
   const pathname = `marketplace/pending/${userId}/${uploadId}.png`;
   const url = `https://store.public.blob.vercel-storage.com/${pathname}`;
   const result = await verifyMarketplaceMediaUrl(url, userId, "image", {
-    headBlob: async () => ({
-      pathname,
-      contentType: "image/png",
-      size: onePixelPng.length,
-      etag: "mock-etag",
-    }),
+    headBlob: async (path) => {
+      assert.equal(path, pathname);
+      return {
+        pathname,
+        url,
+        contentType: "image/png",
+        size: onePixelPng.length,
+        etag: "mock-etag",
+      };
+    },
     fetchBlob: async () => new Response(onePixelPng, { status: 200 }),
   });
   assert.equal(result.url, url);
@@ -162,12 +167,62 @@ test("verifies Blob metadata and bytes without trusting a submitted URL alone", 
     verifyMarketplaceMediaUrl(url, userId, "image", {
       headBlob: async () => ({
         pathname,
+        url,
         contentType: "image/png",
-        size: onePixelPng.length,
+        size: Buffer.byteLength("not PNG"),
         etag: "mock-etag",
       }),
       fetchBlob: async () => new Response(Buffer.from("not PNG"), { status: 200 }),
     }),
     /corrupt or unsupported/,
+  );
+
+  await assert.rejects(
+    verifyMarketplaceMediaUrl(url, userId, "image", {
+      headBlob: async () => ({
+        pathname,
+        url: `https://another-store.public.blob.vercel-storage.com/${pathname}`,
+        contentType: "image/png",
+        size: onePixelPng.length,
+        etag: "mock-etag",
+      }),
+      fetchBlob: async () => new Response(onePixelPng, { status: 200 }),
+    }),
+    /metadata is invalid/,
+  );
+});
+
+test("validates signed upload completion metadata and verifies its blob", async () => {
+  const pathname = `marketplace/pending/${userId}/${uploadId}.png`;
+  const url = `https://store.public.blob.vercel-storage.com/${pathname}`;
+  let verified;
+
+  const result = await validateMarketplaceUploadCompletion(
+    {
+      blob: { url },
+      tokenPayload: JSON.stringify({ userId, kind: "image", pathname }),
+    },
+    {
+      verifyMedia: async (...args) => {
+        verified = args;
+      },
+    },
+  );
+
+  assert.equal(result.pathname, pathname);
+  assert.deepEqual(verified, [url, userId, "image"]);
+  await assert.rejects(
+    validateMarketplaceUploadCompletion({
+      blob: { url },
+      tokenPayload: "{invalid",
+    }),
+    /Invalid marketplace upload metadata/,
+  );
+  await assert.rejects(
+    validateMarketplaceUploadCompletion({
+      blob: { url },
+      tokenPayload: JSON.stringify({ userId, kind: "image", pathname: "wrong" }),
+    }),
+    /path did not match its token/,
   );
 });

@@ -61,7 +61,6 @@ const marketplaceListingSchema = new mongoose.Schema(
     // Kept for listings created by the first Explore release.
     imageUrl: { type: String, default: "", trim: true, maxlength: 2048 },
     videoUrl: { type: String, default: "", trim: true, maxlength: 2048 },
-    videoUrl: { type: String, default: "", trim: true, maxlength: 2048 },
     location: { type: String, default: "", trim: true, maxlength: 120 },
     contactMethod: {
       type: String,

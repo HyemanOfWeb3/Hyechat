@@ -6,9 +6,9 @@ import Story from "../models/Story.js";
 import User from "../models/User.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 import {
-  getMarketplaceMediaPathFromUrl,
   getMarketplacePendingMediaPath,
   MarketplaceMediaError,
+  validateMarketplaceUploadCompletion,
 } from "../lib/marketplaceMedia.js";
 
 const MAX_MEDIA_PER_CLEANUP = 6;
@@ -79,21 +79,19 @@ export async function handleMarketplaceMediaUpload(req, res) {
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
-        let payload;
         try {
-          payload = JSON.parse(tokenPayload || "{}");
-        } catch {
-            throw new MarketplaceMediaError("Invalid marketplace upload metadata");
-        }
-        const media = getMarketplaceMediaPathFromUrl(
-          blob.url,
-          payload.userId,
-          payload.kind,
-        );
-        if (media.pathname !== payload.pathname) {
-          throw new MarketplaceMediaError(
-            "Marketplace upload path did not match its token",
-          );
+          await validateMarketplaceUploadCompletion({ blob, tokenPayload });
+        } catch (error) {
+          try {
+            if (blob.etag && !(await isMarketplaceMediaReferenced(blob.url))) {
+              await del(blob.url, { access: "public", ifMatch: blob.etag });
+            }
+          } catch (cleanupError) {
+            console.warn("Could not remove rejected Marketplace media", {
+              errorType: cleanupError?.name || "Error",
+            });
+          }
+          throw error;
         }
       },
     });
@@ -106,14 +104,22 @@ export async function handleMarketplaceMediaUpload(req, res) {
   }
 }
 
-const isMediaReferenced = async (url) => {
+export const isMarketplaceMediaReferenced = async (
+  url,
+  {
+    listingModel = MarketplaceListing,
+    storyModel = Story,
+    userModel = User,
+    communityModel = Community,
+  } = {},
+) => {
   const references = await Promise.all([
-    MarketplaceListing.exists({
+    listingModel.exists({
       $or: [{ imageUrls: url }, { imageUrl: url }, { videoUrl: url }],
     }),
-    Story.exists({ mediaUrl: url }),
-    User.exists({ profilePic: url }),
-    Community.exists({ avatar: url }),
+    storyModel.exists({ mediaUrl: url }),
+    userModel.exists({ profilePic: url }),
+    communityModel.exists({ avatar: url }),
   ]);
   return references.some(Boolean);
 };
@@ -156,7 +162,7 @@ export async function cleanupMarketplaceMedia(req, res) {
 
       if (
         blob.pathname !== media.pathname ||
-        (await isMediaReferenced(blob.url))
+        (await isMarketplaceMediaReferenced(blob.url))
       ) {
         skippedPaths.push(path);
         continue;

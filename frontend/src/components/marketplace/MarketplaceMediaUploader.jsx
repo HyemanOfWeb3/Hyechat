@@ -5,7 +5,7 @@ const UploadProgress = ({ item }) => (
   <div className="mt-2 space-y-1">
     <div className="flex items-center justify-between gap-2 text-xs">
       <span className="min-w-0 truncate opacity-70">{item.file.name}</span>
-      <span className="shrink-0">
+      <span className="shrink-0" role="status" aria-live="polite">
         {item.status === "uploading"
           ? `${Math.round(item.progress || 0)}%`
           : item.status === "uploaded"
@@ -25,13 +25,14 @@ const UploadProgress = ({ item }) => (
         aria-label={`Uploading ${item.file.name}`}
       />
     )}
-    {item.error && <p className="text-xs text-error">{item.error}</p>}
+    {item.error && <p className="text-xs text-error" role="alert">{item.error}</p>}
   </div>
 );
 
 const MarketplaceMediaUploader = ({
   images,
   video,
+  allowVideo = false,
   disabled = false,
   onAddImages,
   onReplaceImage,
@@ -52,6 +53,7 @@ const MarketplaceMediaUploader = ({
     const replaceImageId = replaceImageIdRef.current;
     replaceImageIdRef.current = null;
     event.currentTarget.value = "";
+    event.currentTarget.multiple = true;
     if (replaceImageId) {
       if (files[0]) onReplaceImage(replaceImageId, files[0]);
       return;
@@ -86,6 +88,7 @@ const MarketplaceMediaUploader = ({
             className="btn btn-outline btn-sm min-h-11"
             onClick={() => {
               replaceImageIdRef.current = null;
+              if (imageInputRef.current) imageInputRef.current.multiple = true;
               imageInputRef.current?.click();
             }}
             disabled={disabled || images.length >= 5}
@@ -93,15 +96,17 @@ const MarketplaceMediaUploader = ({
             <ImagePlus className="size-4" aria-hidden="true" />
             Add photos ({images.length}/5)
           </button>
-          <button
-            type="button"
-            className="btn btn-outline btn-sm min-h-11"
-            onClick={() => videoInputRef.current?.click()}
-            disabled={disabled}
-          >
-            <Video className="size-4" aria-hidden="true" />
-            {video ? "Replace video" : "Add video"}
-          </button>
+          {allowVideo && (
+            <button
+              type="button"
+              className="btn btn-outline btn-sm min-h-11"
+              onClick={() => videoInputRef.current?.click()}
+              disabled={disabled}
+            >
+              <Video className="size-4" aria-hidden="true" />
+              {video ? "Replace video" : "Add video"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -115,27 +120,31 @@ const MarketplaceMediaUploader = ({
         onChange={handleImagesSelected}
         disabled={disabled}
       />
-      <input
-        ref={videoInputRef}
-        type="file"
-        accept="video/mp4,video/webm"
-        className="sr-only"
-        aria-label="Choose listing video"
-        onChange={handleVideoSelected}
-        disabled={disabled}
-      />
+      {allowVideo && (
+        <input
+          ref={videoInputRef}
+          type="file"
+          accept="video/mp4,video/webm"
+          className="sr-only"
+          aria-label="Choose listing video"
+          onChange={handleVideoSelected}
+          disabled={disabled}
+        />
+      )}
 
-      {images.length === 0 && !video ? (
+      {images.length === 0 && (!allowVideo || !video) ? (
         <button
           type="button"
           className="flex min-h-24 w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-base-300 bg-base-200/60 px-3 py-4 text-center transition-colors hover:border-primary/50 hover:bg-base-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           onClick={() => imageInputRef.current?.click()}
           disabled={disabled}
-          aria-label="Choose listing photos or add a video"
+          aria-label={allowVideo ? "Choose listing photos or add a video" : "Choose listing photos"}
         >
           <Upload className="size-5 text-primary" aria-hidden="true" />
-          <span className="text-sm font-medium">Choose photos or video</span>
-          <span className="text-xs opacity-60">Images and video are optional</span>
+          <span className="text-sm font-medium">Choose photos from your device</span>
+          <span className="text-xs opacity-60">
+            {allowVideo ? "Photos and video are optional" : "JPEG, PNG, or WebP · up to 5 MB each"}
+          </span>
         </button>
       ) : (
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -171,6 +180,7 @@ const MarketplaceMediaUploader = ({
                     className="btn btn-ghost btn-xs min-h-10"
                     onClick={() => {
                       replaceImageIdRef.current = item.id;
+                      if (imageInputRef.current) imageInputRef.current.multiple = false;
                       imageInputRef.current?.click();
                     }}
                     disabled={disabled || item.status === "uploading" || item.status === "validating"}
@@ -220,7 +230,7 @@ const MarketplaceMediaUploader = ({
               </div>
             </article>
           ))}
-          {video && (
+          {allowVideo && video && (
             <article className="min-w-0 overflow-hidden rounded-xl border border-base-300 bg-base-200">
               <video
                 src={video.previewUrl}

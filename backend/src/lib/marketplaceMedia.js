@@ -138,6 +138,32 @@ export const getMarketplaceMediaPathFromUrl = (
   };
 };
 
+export const validateMarketplaceUploadCompletion = async (
+  { blob, tokenPayload },
+  { verifyMedia = verifyMarketplaceMediaUrl } = {},
+) => {
+  let payload;
+  try {
+    payload = JSON.parse(tokenPayload || "{}");
+  } catch {
+    throw new MarketplaceMediaError("Invalid marketplace upload metadata");
+  }
+
+  const media = getMarketplaceMediaPathFromUrl(
+    blob?.url,
+    payload.userId,
+    payload.kind,
+  );
+  if (media.pathname !== payload.pathname) {
+    throw new MarketplaceMediaError(
+      "Marketplace upload path did not match its token",
+    );
+  }
+
+  await verifyMedia(blob.url, payload.userId, payload.kind);
+  return media;
+};
+
 export const validateMarketplaceMediaMetadata = ({
   kind,
   size,
@@ -267,7 +293,9 @@ export const verifyMarketplaceMediaUrl = async (
   const media = getMarketplaceMediaPathFromUrl(value, userId, expectedKind);
   let blob;
   try {
-    blob = await headBlob(media.url, { access: "public" });
+    // Resolve by pathname against this application's configured store, not by
+    // an arbitrary client-supplied Blob URL on another Vercel store.
+    blob = await headBlob(media.pathname, { access: "public" });
   } catch {
     throw new MarketplaceMediaError(
       "Uploaded media could not be verified. Please upload again.",
@@ -277,6 +305,7 @@ export const verifyMarketplaceMediaUrl = async (
 
   if (
     blob.pathname !== media.pathname ||
+    blob.url !== media.url ||
     blob.contentType !== media.mimeType ||
     !Number.isSafeInteger(blob.size) ||
     blob.size <= 0 ||
@@ -287,7 +316,7 @@ export const verifyMarketplaceMediaUrl = async (
 
   let response;
   try {
-    response = await fetchBlob(media.url, { signal: AbortSignal.timeout(30_000) });
+    response = await fetchBlob(blob.url, { signal: AbortSignal.timeout(30_000) });
   } catch {
     throw new MarketplaceMediaError(
       "Uploaded media could not be verified. Please upload again.",
