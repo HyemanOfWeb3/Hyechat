@@ -21,6 +21,8 @@ import {
 import { joinPublicCommunity, searchGlobalCategory } from "../lib/api.js";
 import UserProfileLink from "../components/UserProfileLink.jsx";
 import UserAvatar from "../components/UserAvatar.jsx";
+import useAuthUser from "../hooks/useAuthUser.js";
+import ReportedBadge from "../components/marketplace/ReportedBadge.jsx";
 
 const categories = [
   { id: "people", label: "People", icon: UsersRound, verb: "people" },
@@ -33,9 +35,9 @@ const categories = [
   { id: "marketplace", label: "Marketplace", icon: Store, verb: "listings" },
 ];
 
-const useCategorySearch = (category, query) =>
+const useCategorySearch = (category, query, viewerId) =>
   useInfiniteQuery({
-    queryKey: ["globalSearch", category, query],
+    queryKey: ["globalSearch", category, viewerId, query],
     queryFn: ({ pageParam }) =>
       searchGlobalCategory(category, { query, page: pageParam, limit: 8 }),
     initialPageParam: 1,
@@ -49,10 +51,11 @@ const ResultSection = ({
   title,
   icon: Icon,
   query,
+  viewerId,
   search,
   renderItem,
 }) => {
-  const result = useCategorySearch(id, query);
+  const result = useCategorySearch(id, query, viewerId);
   const items = result.data?.pages.flatMap((page) => page.results || []) || [];
 
   return (
@@ -221,7 +224,15 @@ const MarketplaceResult = ({ listing }) => {
         </span>
       )}
       <div className="min-w-0 flex-1">
-        <p className="line-clamp-1 font-semibold">{listing.title}</p>
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="line-clamp-1 min-w-0 flex-1 font-semibold">
+            {listing.title}
+          </p>
+          <ReportedBadge
+            reportedByMe={listing.reportedByMe}
+            className="badge-xs shrink-0"
+          />
+        </div>
         <p className="truncate text-xs opacity-60">
           {listing.category} · {listing.currency || "USD"}{" "}
           {listing.price ?? "Contact for price"}
@@ -243,6 +254,7 @@ const MarketplaceResult = ({ listing }) => {
 };
 
 const GlobalSearchPage = () => {
+  const { authUser } = useAuthUser();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryFromUrl = searchParams.get("query") || "";
   const [search, setSearch] = useState(queryFromUrl);
@@ -329,6 +341,7 @@ const GlobalSearchPage = () => {
               title={label}
               icon={icon}
               query={hasSearch ? debouncedSearch : ""}
+              viewerId={authUser?._id || ""}
               search={debouncedSearch}
               renderItem={(item) => {
                 if (id === "people")

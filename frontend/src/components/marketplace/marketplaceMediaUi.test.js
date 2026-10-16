@@ -7,7 +7,9 @@ import { createServer } from "vite";
 
 let vite;
 let MarketplaceMediaUploader;
+let MarketplaceCard;
 let MarketplaceListingGallery;
+let ReportedBadge;
 
 before(async () => {
   const frontendRoot = fileURLToPath(new URL("../../../", import.meta.url));
@@ -21,8 +23,11 @@ before(async () => {
   ({ default: MarketplaceMediaUploader } = await vite.ssrLoadModule(
     "/src/components/marketplace/MarketplaceMediaUploader.jsx",
   ));
-  ({ MarketplaceListingGallery } = await vite.ssrLoadModule(
+  ({ MarketplaceCard, MarketplaceListingGallery } = await vite.ssrLoadModule(
     "/src/components/marketplace/MarketplacePanel.jsx",
+  ));
+  ({ default: ReportedBadge } = await vite.ssrLoadModule(
+    "/src/components/marketplace/ReportedBadge.jsx",
   ));
 });
 
@@ -113,6 +118,40 @@ test("shows a clear per-file upload failure instead of hiding the error", () => 
   assert.match(markup, /Needs attention/);
   assert.match(markup, /This image is corrupt or could not be read\./);
   assert.match(markup, /role="alert"/);
+});
+
+test("a card shows the reported label only when the server marks this viewer", () => {
+  const renderCard = (reportedByMe) =>
+    renderToStaticMarkup(createElement(MarketplaceCard, {
+      listing: {
+        _id: "listing-1",
+        title: "Handmade pottery",
+        type: "physical_product",
+        category: "Home",
+        price: null,
+        status: "active",
+        reportedByMe,
+      },
+      onOpen() {},
+      onSave() {},
+      saving: false,
+    }));
+
+  assert.match(renderCard(true), /Reported/);
+  assert.doesNotMatch(renderCard(false), /Reported/);
+});
+
+test("reported badge is subtle and absent for an unrelated viewer", () => {
+  const reportedMarkup = renderToStaticMarkup(
+    createElement(ReportedBadge, { reportedByMe: true }),
+  );
+  const unreportedMarkup = renderToStaticMarkup(
+    createElement(ReportedBadge, { reportedByMe: false }),
+  );
+
+  assert.match(reportedMarkup, /Reported/);
+  assert.match(reportedMarkup, /badge-ghost/);
+  assert.equal(unreportedMarkup, "");
 });
 
 test("listing detail keeps legacy images and renders optional native video playback", () => {

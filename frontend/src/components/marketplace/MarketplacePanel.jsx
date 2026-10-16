@@ -31,6 +31,7 @@ import useAuthUser from "../../hooks/useAuthUser.js";
 import UserProfileLink from "../UserProfileLink.jsx";
 import UserAvatar from "../UserAvatar.jsx";
 import MarketplaceMediaUploader from "./MarketplaceMediaUploader.jsx";
+import ReportedBadge from "./ReportedBadge.jsx";
 import {
   getMarketplaceCategoryOptions,
   resolveMarketplaceCategory,
@@ -117,7 +118,7 @@ const priceLabel = (listing) =>
     ? "Contact for price"
     : `${listing.currency || "USD"} ${Number(listing.price).toFixed(2)}`;
 
-const MarketplaceCard = ({
+export const MarketplaceCard = ({
   listing,
   onOpen,
   onSave,
@@ -178,6 +179,7 @@ const MarketplaceCard = ({
                 {listing.category}
               </span>
             )}
+            <ReportedBadge reportedByMe={listing.reportedByMe} />
           </div>
           <span className="shrink-0 text-sm font-bold">
             {priceLabel(listing)}
@@ -335,6 +337,7 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedListingState, setSelectedListing] = useState(null);
+  const [selectedListingViewerId, setSelectedListingViewerId] = useState(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportReason, setReportReason] = useState("inappropriate");
   const [reportDetails, setReportDetails] = useState("");
@@ -345,6 +348,7 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
   const activeViewMode = isMarketplaceScope ? viewMode : "discover";
   const listingId = searchParams.get("listing") || "";
   const isModerator = Boolean(authUser?.isMarketplaceModerator);
+  const viewerId = authUser?._id || "";
 
   const marketplaceFilters = useMemo(
     () => ({
@@ -369,7 +373,7 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
   );
 
   const discoverQuery = useInfiniteQuery({
-    queryKey: ["marketplace", "discover", marketplaceFilters],
+    queryKey: ["marketplace", "discover", viewerId, marketplaceFilters],
     queryFn: ({ pageParam }) =>
       getMarketplaceListings({ ...marketplaceFilters, page: pageParam }),
     initialPageParam: 1,
@@ -377,14 +381,14 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
     enabled: activeViewMode === "discover",
   });
   const mineQuery = useInfiniteQuery({
-    queryKey: ["marketplace", "mine"],
+    queryKey: ["marketplace", "mine", viewerId],
     queryFn: ({ pageParam }) => getMyMarketplaceListings({ page: pageParam }),
     initialPageParam: 1,
     getNextPageParam: getNextPage,
     enabled: activeViewMode === "mine",
   });
   const savedQuery = useInfiniteQuery({
-    queryKey: ["marketplace", "saved"],
+    queryKey: ["marketplace", "saved", viewerId],
     queryFn: ({ pageParam }) =>
       getSavedMarketplaceListings({ page: pageParam }),
     initialPageParam: 1,
@@ -392,7 +396,7 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
     enabled: activeViewMode === "saved",
   });
   const reportsQuery = useQuery({
-    queryKey: ["marketplace", "moderationReports"],
+    queryKey: ["marketplace", "moderationReports", viewerId],
     queryFn: getMarketplaceModerationReports,
     enabled: activeViewMode === "reports" && isModerator,
   });
@@ -401,14 +405,16 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
     queryFn: getMarketplaceCategories,
   });
   const listingDetailQuery = useQuery({
-    queryKey: ["marketplace", "listing", listingId],
+    queryKey: ["marketplace", "listing", viewerId, listingId],
     queryFn: () => getMarketplaceListing(listingId),
     enabled: Boolean(listingId),
   });
   const selectedListing =
-    selectedListingState || listingDetailQuery.data?.listing || null;
+    (selectedListingViewerId === viewerId ? selectedListingState : null) ||
+    listingDetailQuery.data?.listing ||
+    null;
   const sellerListingsQuery = useInfiniteQuery({
-    queryKey: ["marketplace", "seller", selectedListing?.seller?._id],
+    queryKey: ["marketplace", "seller", viewerId, selectedListing?.seller?._id],
     queryFn: ({ pageParam }) =>
       getMarketplaceListings({
         seller: selectedListing.seller._id,
@@ -450,6 +456,7 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
 
   const closeListing = () => {
     setSelectedListing(null);
+    setSelectedListingViewerId(null);
     setShowReportForm(false);
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
@@ -460,6 +467,7 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
 
   const openListing = (listing) => {
     setSelectedListing(listing);
+    setSelectedListingViewerId(viewerId);
     setShowReportForm(false);
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
@@ -506,11 +514,22 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
   });
   const reportMutation = useMutation({
     mutationFn: ({ id, report }) => reportMarketplaceListing(id, report),
-    onSuccess: () => {
-      refreshMarketplace();
-      closeListing();
+    onSuccess: (_result, { id }) => {
+      setSelectedListing((current) =>
+        current?._id === id ? { ...current, reportedByMe: true } : current,
+      );
+      queryClient.setQueryData(
+        ["marketplace", "listing", viewerId, id],
+        (current) =>
+          current?.listing
+            ? { ...current, listing: { ...current.listing, reportedByMe: true } }
+            : current,
+      );
+      setShowReportForm(false);
       setReportDetails("");
-      toast.success("Thanks. This listing is hidden while it is reviewed.");
+      refreshMarketplace();
+      queryClient.invalidateQueries({ queryKey: ["globalSearch", "marketplace"] });
+      toast.success("Report submitted for review. The listing remains visible unless moderated.");
     },
     onError: (error) =>
       toast.error(errorMessage(error, "Unable to submit report")),
@@ -1155,10 +1174,16 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase text-warning">
-                      {report.reason} · reported by{" "}
-                      {report.reporter?.fullName || "member"}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="badge badge-warning badge-sm">Open report</span>
+                      <span className="badge badge-ghost badge-sm">
+                        Listing: {statusLabels[report.listing?.status] || "Unavailable"}
+                      </span>
+                      <p className="text-xs font-semibold uppercase text-warning">
+                        {report.reason} · reported by{" "}
+                        {report.reporter?.fullName || "member"}
+                      </p>
+                    </div>
                     <h3 className="mt-1 font-bold">
                       {report.listing?.title || "Listing unavailable"}
                     </h3>
@@ -1173,9 +1198,25 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    {report.listing?.status === "reported" && (
+                      <button
+                        type="button"
+                        className="btn btn-success btn-outline btn-sm"
+                        disabled={statusMutation.isPending}
+                        onClick={() =>
+                          statusMutation.mutate({
+                            id: report.listing._id,
+                            status: "active",
+                          })
+                        }
+                      >
+                        Restore legacy listing
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn btn-outline btn-sm"
+                      disabled={moderationMutation.isPending}
                       onClick={() =>
                         moderationMutation.mutate({
                           reportId: report._id,
@@ -1183,11 +1224,12 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                         })
                       }
                     >
-                      Dismiss
+                      Dismiss report
                     </button>
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"
+                      disabled={moderationMutation.isPending}
                       onClick={() =>
                         moderationMutation.mutate({
                           reportId: report._id,
@@ -1195,11 +1237,12 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                         })
                       }
                     >
-                      Keep hidden
+                      Hide listing
                     </button>
                     <button
                       type="button"
                       className="btn btn-error btn-sm"
+                      disabled={moderationMutation.isPending}
                       onClick={() =>
                         moderationMutation.mutate({
                           reportId: report._id,
@@ -1347,6 +1390,7 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                     {selectedListing.category}
                   </span>
                 )}
+                <ReportedBadge reportedByMe={selectedListing.reportedByMe} />
                 {selectedListing.condition &&
                   selectedListing.condition !== "not_applicable" && (
                     <span className="badge badge-ghost">
@@ -1482,7 +1526,13 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                   >
                     <Share2 className="size-4" /> Share
                   </button>
-                  {selectedListing.seller?._id !== authUser?._id && (
+                  {selectedListing.seller?._id !== authUser?._id &&
+                    (selectedListing.reportedByMe ? (
+                      <ReportedBadge
+                        reportedByMe
+                        className="col-span-2 justify-self-start"
+                      />
+                    ) : (
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm col-span-2"
@@ -1490,7 +1540,7 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                     >
                       <Flag className="size-4" /> Report listing
                     </button>
-                  )}
+                    ))}
                 </div>
                 {showReportForm && (
                   <form

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Community from "../models/Community.js";
 import MarketplaceListing from "../models/MarketplaceListing.js";
 import User from "../models/User.js";
+import { getReportedMarketplaceListingIds } from "../lib/marketplaceReportState.js";
 
 const MAX_PAGE_SIZE = 12;
 const USER_FIELDS =
@@ -139,15 +140,19 @@ export async function searchMarketplace(req, res) {
         .lean(),
       MarketplaceListing.countDocuments(filter),
     ]);
-    const results = listings
-      .filter((listing) => listing.seller)
-      .map((listing) => ({
+    const visibleListings = listings.filter((listing) => listing.seller);
+    const reportedIds = await getReportedMarketplaceListingIds(
+      req.user._id,
+      visibleListings,
+    );
+    const results = visibleListings.map((listing) => ({
         ...listing,
         imageUrls: listing.imageUrls?.length
           ? listing.imageUrls
           : listing.imageUrl
             ? [listing.imageUrl]
             : [],
+        reportedByMe: reportedIds.has(listing._id.toString()),
       }));
     return res.status(200).json({
       results,

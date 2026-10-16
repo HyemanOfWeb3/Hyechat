@@ -10,6 +10,7 @@ import {
   MAX_MARKETPLACE_IMAGES,
   verifyMarketplaceMediaUrl,
 } from "../lib/marketplaceMedia.js";
+import { getReportedMarketplaceListingIds } from "../lib/marketplaceReportState.js";
 
 const MAX_PAGE_SIZE = 24;
 const REPORT_REASONS = ["spam", "scam", "inappropriate", "prohibited", "other"];
@@ -112,10 +113,15 @@ const buildActiveListingFilter = async (query) => {
   return { filter };
 };
 
-export const serializeListing = (listing, savedIds = new Set()) => ({
+export const serializeListing = (
+  listing,
+  savedIds = new Set(),
+  reportedIds = new Set(),
+) => ({
   ...listing,
   imageUrls: imageListFor(listing),
   isSaved: savedIds.has(listing._id.toString()),
+  reportedByMe: reportedIds.has(listing._id.toString()),
 });
 
 const getSavedIds = async (userId) => {
@@ -144,9 +150,13 @@ export async function getMarketplaceListings(req, res) {
       MarketplaceListing.distinct("category", { status: "active" }),
       getSavedIds(req.user._id),
     ]);
+    const reportedIds = await getReportedMarketplaceListingIds(
+      req.user._id,
+      listings,
+    );
     const visibleListings = listings
       .filter((listing) => listing.seller)
-      .map((listing) => serializeListing(listing, savedIds));
+      .map((listing) => serializeListing(listing, savedIds, reportedIds));
 
     return res.status(200).json({
       listings: visibleListings,
@@ -187,8 +197,14 @@ export async function getMyMarketplaceListings(req, res) {
         .lean(),
       MarketplaceListing.countDocuments(filter),
     ]);
+    const reportedIds = await getReportedMarketplaceListingIds(
+      req.user._id,
+      listings,
+    );
     return res.status(200).json({
-      listings: listings.map((listing) => serializeListing(listing)),
+      listings: listings.map((listing) =>
+        serializeListing(listing, new Set(), reportedIds),
+      ),
       pagination: { page, limit, hasMore: page * limit < total },
     });
   } catch (error) {
@@ -229,10 +245,15 @@ export async function getSavedMarketplaceListings(req, res) {
         status: "active",
       }),
     ]);
+    const visibleListings = listings.filter((listing) => listing.seller);
+    const reportedIds = await getReportedMarketplaceListingIds(
+      req.user._id,
+      visibleListings,
+    );
     return res.status(200).json({
-      listings: listings
-        .filter((listing) => listing.seller)
-        .map((listing) => serializeListing(listing, new Set(ids.map(String)))),
+      listings: visibleListings.map((listing) =>
+        serializeListing(listing, new Set(ids.map(String)), reportedIds),
+      ),
       pagination: { page, limit, hasMore: page * limit < total },
     });
   } catch (error) {
@@ -256,8 +277,12 @@ export async function getMarketplaceListing(req, res) {
     if (listing.status !== "active" && !isOwner && !isModerator(req.user)) {
       return res.status(404).json({ message: "Listing not found" });
     }
+    const [savedIds, reportedIds] = await Promise.all([
+      getSavedIds(req.user._id),
+      getReportedMarketplaceListingIds(req.user._id, [listing]),
+    ]);
     return res.status(200).json({
-      listing: serializeListing(listing, await getSavedIds(req.user._id)),
+      listing: serializeListing(listing, savedIds, reportedIds),
     });
   } catch (error) {
     console.error("Error getting marketplace listing", error.message);
@@ -503,11 +528,11 @@ export async function reportMarketplaceListing(req, res) {
       reason,
       details: details.trim(),
     });
-    await MarketplaceListing.updateOne(
-      { _id: listing._id, status: "active" },
-      { $set: { status: "reported" } },
-    );
-    return res.status(201).json({ success: true, message: "Report submitted" });
+    return res.status(201).json({
+      success: true,
+      reportedByMe: true,
+      message: "Report submitted",
+    });
   } catch (error) {
     if (error.code === 11000) {
       return res
@@ -620,19 +645,15 @@ export async function resolveMarketplaceModerationReport(req, res) {
     );
     if (!report)
       return res.status(404).json({ message: "Open report not found" });
-    const otherOpenReports = await MarketplaceListingReport.countDocuments({
-      listing: report.listing,
-      status: "open",
-    });
     if (decision === "removed") {
       await MarketplaceListing.updateOne(
         { _id: report.listing },
         { $set: { status: "removed" } },
       );
-    } else if (otherOpenReports === 0) {
+    } else if (decision === "hidden") {
       await MarketplaceListing.updateOne(
-        { _id: report.listing, status: "reported" },
-        { $set: { status: decision } },
+        { _id: report.listing, status: { $ne: "removed" } },
+        { $set: { status: "hidden" } },
       );
     }
     return res.status(200).json({ success: true, decision });
