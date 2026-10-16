@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import useAuthUser from "../hooks/useAuthUser.js";
+import useStreamClient from "../hooks/useStreamClient.js";
 import toast from "react-hot-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { completeOnboarding } from "../lib/api.js";
@@ -9,11 +10,34 @@ import {
   Loader,
 } from "lucide-react";
 import { LANGUAGES } from "../constants/index.js";
-import UserAvatar from "../components/UserAvatar.jsx";
+import OnboardingProfilePicturePicker from "../components/OnboardingProfilePicturePicker.jsx";
+import {
+  inspectProfilePictureFile,
+  validateProfilePictureFile,
+} from "../lib/profilePicture.js";
+import {
+  buildOnboardingPayload,
+  uploadOnboardingProfilePicture,
+} from "../lib/onboarding.js";
+
+const getErrorMessage = (error) =>
+  error?.response?.data?.message || error?.message || "Unable to complete onboarding";
 
 const OnboardingPage = () => {
   const { authUser } = useAuthUser();
+  const { client: streamClient } = useStreamClient();
   const queryClient = useQueryClient();
+  const [selectedProfileImage, setSelectedProfileImage] = useState(null);
+  const [uploadedProfilePic, setUploadedProfilePic] = useState("");
+  const [profilePicRemoved, setProfilePicRemoved] = useState(false);
+  const [profilePictureError, setProfilePictureError] = useState("");
+  const [isValidatingPicture, setIsValidatingPicture] = useState(false);
+  const [isUploadingPicture, setIsUploadingPicture] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const selectionGenerationRef = useRef(0);
+  const previewUrlRef = useRef("");
+  const removalBeforeSelectionRef = useRef(false);
+  const submitInFlightRef = useRef(false);
 
   const [formState, setFormState] = useState({
     fullName: authUser?.fullName || "",
@@ -22,25 +46,151 @@ const OnboardingPage = () => {
     learningLanguage: authUser?.learningLanguage || "",
     interests: (authUser?.interests || []).join(", "),
     location: authUser?.location || "",
-    profilePic: authUser?.profilePic || "",
   });
 
-  const { mutate: onboardingMutation, isPending } = useMutation({
-    mutationFn: completeOnboarding,
+  useEffect(
+    () => () => {
+      selectionGenerationRef.current += 1;
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = "";
+      }
+    },
+    [],
+  );
+
+  const { mutateAsync: completeOnboardingAsync, isPending } = useMutation({
+    mutationFn: async ({ values, imageFile, existingUpload, removePicture }) => {
+      let profilePic;
+      if (imageFile) {
+        profilePic = existingUpload;
+        if (!profilePic) {
+          setIsUploadingPicture(true);
+          setUploadProgress(0);
+          try {
+            profilePic = await uploadOnboardingProfilePicture({
+              file: imageFile,
+              streamClient,
+              userId: authUser?._id,
+              onProgress: setUploadProgress,
+            });
+            setUploadedProfilePic(profilePic);
+            setUploadProgress(100);
+          } catch (error) {
+            error.phase = "profile-picture-upload";
+            throw error;
+          } finally {
+            setIsUploadingPicture(false);
+          }
+        }
+      } else if (removePicture) {
+        profilePic = "";
+      }
+
+      return completeOnboarding(
+        buildOnboardingPayload(values, { profilePic, removePicture }),
+      );
+    },
     onSuccess: () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = "";
+      }
+      setSelectedProfileImage(null);
+      setUploadedProfilePic("");
       toast.success("Onboarding completed successfully!");
       queryClient.invalidateQueries({ queryKey: ["authUser"] });
     },
-
     onError: (error) => {
-      toast.error(error.response.data.message);
+      const message = getErrorMessage(error);
+      if (error?.phase === "profile-picture-upload") {
+        setProfilePictureError(message);
+      }
+      toast.error(message);
     },
   });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleProfilePictureSelect = async (event) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
 
-    onboardingMutation(formState);
+    const validationError = validateProfilePictureFile(file);
+    if (validationError) {
+      setProfilePictureError(validationError);
+      return;
+    }
+
+    const generation = ++selectionGenerationRef.current;
+    setIsValidatingPicture(true);
+    setProfilePictureError("");
+    try {
+      const imageError = await inspectProfilePictureFile(file);
+      if (generation !== selectionGenerationRef.current) return;
+      if (imageError) {
+        setProfilePictureError(imageError);
+        return;
+      }
+
+      const previewUrl = URL.createObjectURL(file);
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = previewUrl;
+      removalBeforeSelectionRef.current = profilePicRemoved;
+      setSelectedProfileImage({
+        file,
+        previewUrl,
+      });
+      setUploadedProfilePic("");
+      setProfilePicRemoved(false);
+    } catch {
+      if (generation === selectionGenerationRef.current) {
+        setProfilePictureError("This image is corrupt or could not be read.");
+      }
+    } finally {
+      if (generation === selectionGenerationRef.current) {
+        setIsValidatingPicture(false);
+      }
+    }
+  };
+
+  const handleProfilePictureRemove = () => {
+    selectionGenerationRef.current += 1;
+    setIsValidatingPicture(false);
+    setProfilePictureError("");
+    if (selectedProfileImage) {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = "";
+      }
+      setSelectedProfileImage(null);
+      setUploadedProfilePic("");
+      setProfilePicRemoved(removalBeforeSelectionRef.current);
+      return;
+    }
+    setProfilePicRemoved(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (submitInFlightRef.current || isPending) return;
+    if (isValidatingPicture) {
+      toast.error("Wait for the selected photo to finish checking.");
+      return;
+    }
+
+    submitInFlightRef.current = true;
+    try {
+      await completeOnboardingAsync({
+        values: formState,
+        imageFile: selectedProfileImage?.file || null,
+        existingUpload: uploadedProfilePic,
+        removePicture: profilePicRemoved,
+      });
+    } catch {
+      // The mutation reports the failure; the entered form values remain intact.
+    } finally {
+      submitInFlightRef.current = false;
+    }
   };
 
   return (
@@ -52,21 +202,22 @@ const OnboardingPage = () => {
           </h1>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* PROFILE AVATAR CONTAINER*/}
-            <div className="flex flex-col items-center justify-center space-y-4">
-              {/* AVATAR PREVIEW */}
-              <UserAvatar
-                src={formState.profilePic}
-                name={formState.fullName}
-                userId={authUser?._id}
-                alt="Profile preview"
-                className="size-32 text-3xl"
-              />
-
-              <p className="text-center text-xs text-base-content/60">
-                Your initials make a reliable avatar until you add a photo.
-              </p>
-            </div>
+            <OnboardingProfilePicturePicker
+              src={
+                selectedProfileImage?.previewUrl ||
+                (profilePicRemoved ? "" : authUser?.profilePic || "")
+              }
+              name={formState.fullName}
+              userId={authUser?._id}
+              hasSelectedFile={Boolean(selectedProfileImage)}
+              isValidating={isValidatingPicture}
+              isUploading={isUploadingPicture}
+              uploadProgress={uploadProgress}
+              disabled={isPending}
+              error={profilePictureError}
+              onSelect={handleProfilePictureSelect}
+              onRemove={handleProfilePictureRemove}
+            />
 
             {/* FULL NAME */}
             <div className="form-control">
@@ -80,8 +231,9 @@ const OnboardingPage = () => {
                 className="input input-bordered w-full"
                 value={formState.fullName}
                 onChange={(e) =>
-                  setFormState({ ...formState, fullName: e.target.value })
+                  setFormState((current) => ({ ...current, fullName: e.target.value }))
                 }
+                disabled={isPending}
               />
             </div>
 
@@ -94,8 +246,9 @@ const OnboardingPage = () => {
                 name="bio"
                 value={formState.bio}
                 onChange={(e) =>
-                  setFormState({ ...formState, bio: e.target.value })
+                  setFormState((current) => ({ ...current, bio: e.target.value }))
                 }
+                disabled={isPending}
                 className="textarea textarea-bordered h-24"
                 placeholder="A short bio about yourself"
               />
@@ -114,11 +267,12 @@ const OnboardingPage = () => {
                   className="select select-bordered w-full"
                   value={formState.nativeLanguage}
                   onChange={(e) =>
-                    setFormState({
-                      ...formState,
+                    setFormState((current) => ({
+                      ...current,
                       nativeLanguage: e.target.value,
-                    })
+                    }))
                   }
+                  disabled={isPending}
                 >
                   <option value="" disabled>
                     Select your native language
@@ -142,11 +296,12 @@ const OnboardingPage = () => {
                   className="select select-bordered w-full"
                   value={formState.learningLanguage}
                   onChange={(e) =>
-                    setFormState({
-                      ...formState,
+                    setFormState((current) => ({
+                      ...current,
                       learningLanguage: e.target.value,
-                    })
+                    }))
                   }
+                  disabled={isPending}
                 >
                   <option value="" disabled>
                     Select your learning language
@@ -175,8 +330,9 @@ const OnboardingPage = () => {
                   className="input input-bordered w-full pl-10"
                   value={formState.location}
                   onChange={(e) =>
-                    setFormState({ ...formState, location: e.target.value })
+                    setFormState((current) => ({ ...current, location: e.target.value }))
                   }
+                  disabled={isPending}
                 />
               </div>
             </div>
@@ -192,8 +348,9 @@ const OnboardingPage = () => {
                 className="input input-bordered w-full"
                 value={formState.interests}
                 onChange={(e) =>
-                  setFormState({ ...formState, interests: e.target.value })
+                  setFormState((current) => ({ ...current, interests: e.target.value }))
                 }
+                disabled={isPending}
               />
               <span className="mt-1 text-xs opacity-60">
                 Separate interests with commas to help find compatible language
@@ -206,7 +363,7 @@ const OnboardingPage = () => {
             <button
               type="submit"
               className="btn btn-primary w-full"
-              disabled={isPending}
+              disabled={isPending || isValidatingPicture}
             >
               {!isPending ? (
                 <>

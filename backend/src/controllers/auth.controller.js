@@ -4,6 +4,7 @@ import {
   sendPasswordResetEmail,
 } from "../lib/mail.js";
 import User from "../models/User.js";
+import { normalizeOptionalProfilePictureUrl } from "../lib/profilePicture.js";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 
@@ -377,7 +378,11 @@ export async function logout(req, res) {
 
 //ONBOARDING
 
-export async function onboard(req, res) {
+export async function onboard(
+  req,
+  res,
+  { userModel = User, upsertUser = upsertStreamUser } = {},
+) {
   try {
     if (!req.user.emailVerified) {
       return res
@@ -431,24 +436,29 @@ export async function onboard(req, res) {
       .slice(0, 12)
       .map((interest) => interest.slice(0, 40));
 
-    const profilePic =
-      typeof req.body?.profilePic === "string"
-        ? req.body.profilePic.trim()
-        : "";
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      {
-        fullName: fullName.trim(),
-        bio: bio.trim(),
-        nativeLanguage: nativeLanguage.trim(),
-        learningLanguage: learningLanguage.trim(),
-        location: location.trim(),
-        profilePic,
-        interests,
-        isOnboarded: true,
-      },
-      { new: true, runValidators: true },
-    );
+    const hasProfilePic = Object.hasOwn(req.body || {}, "profilePic");
+    const profilePicResult = hasProfilePic
+      ? normalizeOptionalProfilePictureUrl(req.body.profilePic)
+      : null;
+    if (profilePicResult?.error) {
+      return res.status(400).json({ message: profilePicResult.error });
+    }
+
+    const updates = {
+      fullName: fullName.trim(),
+      bio: bio.trim(),
+      nativeLanguage: nativeLanguage.trim(),
+      learningLanguage: learningLanguage.trim(),
+      location: location.trim(),
+      interests,
+      isOnboarded: true,
+    };
+    if (hasProfilePic) updates.profilePic = profilePicResult.value;
+
+    const updatedUser = await userModel.findByIdAndUpdate(userId, updates, {
+      new: true,
+      runValidators: true,
+    });
 
     if (!updatedUser)
       return res.status(404).json({ message: "User not found" });
@@ -456,7 +466,7 @@ export async function onboard(req, res) {
     //UPDATE THE USER INFO IN STREAM
 
     try {
-      await upsertStreamUser({
+      await upsertUser({
         id: updatedUser._id.toString(),
         name: updatedUser.fullName,
         image: updatedUser.profilePic || "",
