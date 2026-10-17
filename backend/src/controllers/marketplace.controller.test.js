@@ -3,9 +3,8 @@ import test from "node:test";
 import mongoose from "mongoose";
 import MarketplaceListing from "../models/MarketplaceListing.js";
 
-const { createMarketplaceListing, serializeListing } = await import(
-  "./marketplace.controller.js"
-);
+const { createMarketplaceListing, serializeListing } =
+  await import("./marketplace.controller.js");
 
 const makeResponse = () => ({
   statusCode: null,
@@ -81,7 +80,10 @@ test("listing creation trims predefined and custom categories into category", as
 
 test("listing creation enforces the five-image maximum", async () => {
   const req = makeRequest("Electronics");
-  req.body.imageUrls = Array.from({ length: 6 }, (_, index) => `https://image${index}.example/photo.jpg`);
+  req.body.imageUrls = Array.from(
+    { length: 6 },
+    (_, index) => `https://image${index}.example/photo.jpg`,
+  );
   const res = makeResponse();
 
   await createMarketplaceListing(req, res);
@@ -93,7 +95,10 @@ test("listing creation enforces the five-image maximum", async () => {
 test("listing serialization preserves current and legacy image references", () => {
   const modernListing = {
     _id: new mongoose.Types.ObjectId(),
-    imageUrls: ["https://cdn.example/first.webp", "https://cdn.example/second.webp"],
+    imageUrls: [
+      "https://cdn.example/first.webp",
+      "https://cdn.example/second.webp",
+    ],
     imageUrl: "https://cdn.example/legacy.jpg",
     videoUrl: "https://cdn.example/clip.mp4",
   };
@@ -102,7 +107,15 @@ test("listing serialization preserves current and legacy image references", () =
     imageUrl: "https://cdn.example/legacy.jpg",
   };
 
-  assert.deepEqual(serializeListing(modernListing).imageUrls, modernListing.imageUrls);
-  assert.equal(serializeListing(modernListing).videoUrl, modernListing.videoUrl);
-  assert.deepEqual(serializeListing(legacyListing).imageUrls, [legacyListing.imageUrl]);
+  assert.deepEqual(
+    serializeListing(modernListing).imageUrls,
+    modernListing.imageUrls,
+  );
+  assert.equal(
+    serializeListing(modernListing).videoUrl,
+    modernListing.videoUrl,
+  );
+  assert.deepEqual(serializeListing(legacyListing).imageUrls, [
+    legacyListing.imageUrl,
+  ]);
 });

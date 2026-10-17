@@ -14,7 +14,9 @@ let ReportedBadge;
 before(async () => {
   const frontendRoot = fileURLToPath(new URL("../../../", import.meta.url));
   vite = await createServer({
-    configFile: fileURLToPath(new URL("../../../vite.config.js", import.meta.url)),
+    configFile: fileURLToPath(
+      new URL("../../../vite.config.js", import.meta.url),
+    ),
     root: frontendRoot,
     server: { middlewareMode: true },
     appType: "custom",
@@ -62,13 +64,15 @@ test("photo picker is accessible, multi-select, and has a useful empty state", (
 test("selected images show the primary photo and individual replace/reorder/remove actions", () => {
   const markup = render(MarketplaceMediaUploader, {
     ...uploaderProps,
-    images: [{
-      id: "photo-1",
-      file: { name: "photo.webp" },
-      previewUrl: "blob:local-photo",
-      status: "uploaded",
-      progress: 100,
-    }],
+    images: [
+      {
+        id: "photo-1",
+        file: { name: "photo.webp" },
+        previewUrl: "blob:local-photo",
+        status: "uploaded",
+        progress: 100,
+      },
+    ],
   });
   assert.match(markup, /src="blob:local-photo"/);
   assert.match(markup, /Primary photo/);
@@ -106,14 +110,16 @@ test("optional video picker previews controls and upload progress", () => {
 test("shows a clear per-file upload failure instead of hiding the error", () => {
   const markup = render(MarketplaceMediaUploader, {
     ...uploaderProps,
-    images: [{
-      id: "failed-photo",
-      file: { name: "broken.png" },
-      previewUrl: "blob:broken-photo",
-      status: "error",
-      progress: 0,
-      error: "This image is corrupt or could not be read.",
-    }],
+    images: [
+      {
+        id: "failed-photo",
+        file: { name: "broken.png" },
+        previewUrl: "blob:broken-photo",
+        status: "error",
+        progress: 0,
+        error: "This image is corrupt or could not be read.",
+      },
+    ],
   });
   assert.match(markup, /Needs attention/);
   assert.match(markup, /This image is corrupt or could not be read\./);
@@ -122,20 +128,22 @@ test("shows a clear per-file upload failure instead of hiding the error", () => 
 
 test("a card shows the reported label only when the server marks this viewer", () => {
   const renderCard = (reportedByMe) =>
-    renderToStaticMarkup(createElement(MarketplaceCard, {
-      listing: {
-        _id: "listing-1",
-        title: "Handmade pottery",
-        type: "physical_product",
-        category: "Home",
-        price: null,
-        status: "active",
-        reportedByMe,
-      },
-      onOpen() {},
-      onSave() {},
-      saving: false,
-    }));
+    renderToStaticMarkup(
+      createElement(MarketplaceCard, {
+        listing: {
+          _id: "listing-1",
+          title: "Handmade pottery",
+          type: "physical_product",
+          category: "Home",
+          price: null,
+          status: "active",
+          reportedByMe,
+        },
+        onOpen() {},
+        onSave() {},
+        saving: false,
+      }),
+    );
 
   assert.match(renderCard(true), /Reported/);
   assert.doesNotMatch(renderCard(false), /Reported/);

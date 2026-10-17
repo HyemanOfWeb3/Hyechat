@@ -1,6 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useMutation } from "@tanstack/react-query";
 import { logout } from "../lib/api.js";
+import { disconnectStreamClient } from "./useStreamClient.js";
+import { disconnectStreamVideoClient } from "../lib/streamVideoClient.js";
 
 const useLogout = () => {
   const queryClient = useQueryClient();
@@ -10,7 +12,13 @@ const useLogout = () => {
     isPending,
     error,
   } = useMutation({
-    mutationFn: logout,
+    mutationFn: async () => {
+      await Promise.allSettled([
+        disconnectStreamClient(),
+        disconnectStreamVideoClient(),
+      ]);
+      return logout();
+    },
     onSuccess: () => {
       queryClient.setQueryData(["authUser"], null);
       queryClient.removeQueries({

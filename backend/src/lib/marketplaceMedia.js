@@ -95,11 +95,7 @@ export const getMarketplacePendingMediaPath = (
   return { pathname, ...type };
 };
 
-export const getMarketplaceMediaPathFromUrl = (
-  value,
-  userId,
-  expectedKind,
-) => {
+export const getMarketplaceMediaPathFromUrl = (value, userId, expectedKind) => {
   if (typeof value !== "string" || !value.trim() || value.length > 2048) {
     throw new MarketplaceMediaError("Invalid marketplace media URL");
   }
@@ -188,7 +184,11 @@ export const validateMarketplaceMediaMetadata = ({
     );
   }
 
-  if (!Object.values(mediaTypes).some((type) => type.kind === kind && type.mimeType === detectedMimeType)) {
+  if (
+    !Object.values(mediaTypes).some(
+      (type) => type.kind === kind && type.mimeType === detectedMimeType,
+    )
+  ) {
     throw new MarketplaceMediaError("Unsupported marketplace media content");
   }
   if (declaredMimeType !== detectedMimeType) {
@@ -207,7 +207,9 @@ export const validateMarketplaceMediaMetadata = ({
       height > MAX_MARKETPLACE_IMAGE_DIMENSION ||
       width * height > MAX_MARKETPLACE_IMAGE_PIXELS
     ) {
-      throw new MarketplaceMediaError("Image dimensions are invalid or too large");
+      throw new MarketplaceMediaError(
+        "Image dimensions are invalid or too large",
+      );
     }
   } else if (
     !Number.isFinite(duration) ||
@@ -223,7 +225,9 @@ export const inspectMarketplaceMediaBuffer = async (
   { kind, declaredMimeType },
 ) => {
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
-    throw new MarketplaceMediaError("The uploaded media is empty or unreadable");
+    throw new MarketplaceMediaError(
+      "The uploaded media is empty or unreadable",
+    );
   }
 
   const maxSize =
@@ -242,7 +246,9 @@ export const inspectMarketplaceMediaBuffer = async (
 
   const detected = await fileTypeFromBuffer(buffer);
   if (!detected) {
-    throw new MarketplaceMediaError("The uploaded file is corrupt or unsupported");
+    throw new MarketplaceMediaError(
+      "The uploaded file is corrupt or unsupported",
+    );
   }
 
   if (kind === "image") {
@@ -250,7 +256,9 @@ export const inspectMarketplaceMediaBuffer = async (
     try {
       dimensions = imageSize(buffer);
     } catch {
-      throw new MarketplaceMediaError("The uploaded image is corrupt or unreadable");
+      throw new MarketplaceMediaError(
+        "The uploaded image is corrupt or unreadable",
+      );
     }
     validateMarketplaceMediaMetadata({
       kind,
@@ -267,7 +275,9 @@ export const inspectMarketplaceMediaBuffer = async (
   try {
     metadata = await parseBuffer(buffer, detected.mime, { duration: true });
   } catch {
-    throw new MarketplaceMediaError("The uploaded video is corrupt or unreadable");
+    throw new MarketplaceMediaError(
+      "The uploaded video is corrupt or unreadable",
+    );
   }
 
   validateMarketplaceMediaMetadata({
@@ -316,7 +326,9 @@ export const verifyMarketplaceMediaUrl = async (
 
   let response;
   try {
-    response = await fetchBlob(blob.url, { signal: AbortSignal.timeout(30_000) });
+    response = await fetchBlob(blob.url, {
+      signal: AbortSignal.timeout(30_000),
+    });
   } catch {
     throw new MarketplaceMediaError(
       "Uploaded media could not be verified. Please upload again.",
@@ -337,7 +349,9 @@ export const verifyMarketplaceMediaUrl = async (
     throw new MarketplaceMediaError("Uploaded media could not be read", 502);
   }
   if (buffer.length !== blob.size) {
-    throw new MarketplaceMediaError("Uploaded media size could not be verified");
+    throw new MarketplaceMediaError(
+      "Uploaded media size could not be verified",
+    );
   }
 
   const inspected = await inspectMarketplaceMediaBuffer(buffer, {

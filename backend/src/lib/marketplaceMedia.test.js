@@ -29,11 +29,7 @@ test("only permits media URLs in the authenticated user's pending Blob path", ()
   assert.equal(getMarketplaceMediaPathFromUrl(url, userId, "image").url, url);
   assert.throws(
     () =>
-      getMarketplaceMediaPathFromUrl(
-        url,
-        "64a000000000000000000012",
-        "image",
-      ),
+      getMarketplaceMediaPathFromUrl(url, "64a000000000000000000012", "image"),
     /current user/,
   );
   assert.throws(
@@ -172,7 +168,8 @@ test("verifies Blob metadata and bytes without trusting a submitted URL alone", 
         size: Buffer.byteLength("not PNG"),
         etag: "mock-etag",
       }),
-      fetchBlob: async () => new Response(Buffer.from("not PNG"), { status: 200 }),
+      fetchBlob: async () =>
+        new Response(Buffer.from("not PNG"), { status: 200 }),
     }),
     /corrupt or unsupported/,
   );
@@ -221,7 +218,11 @@ test("validates signed upload completion metadata and verifies its blob", async 
   await assert.rejects(
     validateMarketplaceUploadCompletion({
       blob: { url },
-      tokenPayload: JSON.stringify({ userId, kind: "image", pathname: "wrong" }),
+      tokenPayload: JSON.stringify({
+        userId,
+        kind: "image",
+        pathname: "wrong",
+      }),
     }),
     /path did not match its token/,
   );

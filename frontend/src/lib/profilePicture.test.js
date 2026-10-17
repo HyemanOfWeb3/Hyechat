@@ -40,13 +40,18 @@ test("rejects empty, unsupported, and oversized profile pictures", () => {
 });
 
 test("inspects image decodability and releases bitmap resources", async (context) => {
-  const original = Object.getOwnPropertyDescriptor(globalThis, "createImageBitmap");
+  const original = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "createImageBitmap",
+  );
   context.after(() => restoreGlobal("createImageBitmap", original));
   let closed = false;
   globalThis.createImageBitmap = async () => ({
     width: 24,
     height: 24,
-    close: () => { closed = true; },
+    close: () => {
+      closed = true;
+    },
   });
 
   assert.equal(await inspectProfilePictureFile({}), "");
@@ -55,7 +60,10 @@ test("inspects image decodability and releases bitmap resources", async (context
   globalThis.createImageBitmap = async () => {
     throw new Error("decode failed");
   };
-  assert.match(await inspectProfilePictureFile({}), /corrupt or could not be read/);
+  assert.match(
+    await inspectProfilePictureFile({}),
+    /corrupt or could not be read/,
+  );
 });
 
 test("onboarding omits an unchanged optional picture and only clears on intent", () => {
@@ -98,7 +106,12 @@ test("uses the authenticated Stream client, returns its image URL, and reports p
   });
 
   assert.equal(url, "https://cdn.stream-io-cdn.com/users/profile.jpg");
-  assert.deepEqual(uploadedArgs.slice(0, 4), [file, "profile.jpg", "image/jpeg", undefined]);
+  assert.deepEqual(uploadedArgs.slice(0, 4), [
+    file,
+    "profile.jpg",
+    "image/jpeg",
+    undefined,
+  ]);
   assert.deepEqual(progressValues, [40]);
 });
 
@@ -109,7 +122,12 @@ test("refuses an unconnected or mismatched Stream user and missing upload URLs",
     uploadOnboardingProfilePicture({
       file,
       userId: "user-1",
-      streamClient: { userID: "another-user", uploadFile: async () => { uploadCalls += 1; } },
+      streamClient: {
+        userID: "another-user",
+        uploadFile: async () => {
+          uploadCalls += 1;
+        },
+      },
     }),
     /Secure photo upload is not ready/,
   );

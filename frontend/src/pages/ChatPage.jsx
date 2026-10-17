@@ -15,7 +15,6 @@ import {
   getTranslationLanguages,
   getStreamToken,
   getUserFriends,
-  startCallHistory,
   translateMessage,
 } from "../lib/api.js";
 import { toast } from "react-hot-toast";
@@ -61,6 +60,7 @@ import VoiceNoteTranslation from "../components/VoiceNoteTranslation.jsx";
 import UserProfileLink from "../components/UserProfileLink.jsx";
 import { buildChatChannelId } from "../lib/utils.js";
 import { getStreamVideoClient } from "../lib/streamVideoClient.js";
+import { buildCallUrl, createAndRingChatCall } from "../lib/callSession.js";
 import {
   captureChatScrollPosition,
   getChatScrollStorageKey,
@@ -947,6 +947,8 @@ const ChatPage = () => {
     queryFn: getStreamToken,
     enabled: !!authUser, // this will run only when authUser is available
   });
+  const [startingCallType, setStartingCallType] = useState("");
+  const callStartInFlightRef = useRef(false);
 
   const initializeChat = useCallback(async () => {
     const requestId = ++initializationRequestRef.current;
@@ -1193,63 +1195,71 @@ const ChatPage = () => {
     return () => window.clearInterval(interval);
   }, [isVoiceRecording]);
 
-  const handleVideoCall = async () => {
-    if (channel) {
-      const callId = crypto.randomUUID();
-      const callUrl = `${window.location.origin}/call/${callId}?type=video&chatId=${channel.id}`;
+  const startChatCall = async (callType) => {
+    if (callStartInFlightRef.current) return;
+    if (!channel || !authUser || !normalizedTargetId) {
+      toast.error("This conversation is not ready for a call.");
+      return;
+    }
+    if (!tokenData?.token) {
+      toast.error("Secure calling is not ready yet. Please try again.");
+      return;
+    }
 
-      try {
-        const videoClient = await getStreamVideoClient({
-          user: authUser,
-          token: tokenData.token,
-        });
-        await videoClient.call("default", callId).getOrCreate({
-          data: { members: [{ user_id: normalizedTargetId }] },
-          ring: true,
-          video: true,
-        });
-        await startCallHistory({ roomId: callId, callType: "video" });
-      } catch (error) {
-        console.error("Could not start video call", error);
-        toast.error("Unable to start the video call. Please try again.");
-        return;
-      }
-      channel.sendMessage({
-        text: `I've started a video call! Join me here: ${callUrl}`,
+    callStartInFlightRef.current = true;
+    setStartingCallType(callType);
+    const callId = crypto.randomUUID();
+    const callUrl = buildCallUrl(
+      window.location.origin,
+      callId,
+      callType,
+      channel.id,
+    );
+
+    try {
+      const videoClient = await getStreamVideoClient({
+        user: authUser,
+        token: tokenData.token,
+      });
+      await createAndRingChatCall({
+        client: videoClient,
+        callId,
+        chatId: channel.id,
+        targetUserId: normalizedTargetId,
+        callType,
       });
 
-      toast.success("Video call link sent successfully!");
+      try {
+        await channel.sendMessage({
+          text:
+            callType === "video"
+              ? `I've started a video call! Join me here: ${callUrl}`
+              : `☎️ I started a voice call. Join here: ${callUrl}`,
+        });
+      } catch (messageError) {
+        console.error("Could not send the call link in chat", messageError);
+        toast.error(
+          "The call is ringing, but its chat link could not be sent.",
+        );
+      }
+
+      navigate(
+        `/call/${encodeURIComponent(callId)}?type=${callType}&chatId=${encodeURIComponent(channel.id)}`,
+      );
+    } catch (error) {
+      console.error(`Could not start ${callType} call`, {
+        errorType: error?.name || "Error",
+        status: error?.status || error?.response?.status || null,
+      });
+      toast.error(`Unable to start the ${callType} call. Please try again.`);
+    } finally {
+      callStartInFlightRef.current = false;
+      setStartingCallType("");
     }
   };
 
-  const handleVoiceCall = async () => {
-    if (channel) {
-      const callId = crypto.randomUUID();
-      const callUrl = `${window.location.origin}/call/${callId}?type=voice&chatId=${channel.id}`;
-
-      try {
-        const videoClient = await getStreamVideoClient({
-          user: authUser,
-          token: tokenData.token,
-        });
-        await videoClient.call("default", callId).getOrCreate({
-          data: { members: [{ user_id: normalizedTargetId }] },
-          ring: true,
-          video: false,
-        });
-        await startCallHistory({ roomId: callId, callType: "voice" });
-      } catch (error) {
-        console.error("Could not start voice call", error);
-        toast.error("Unable to start the voice call. Please try again.");
-        return;
-      }
-      channel.sendMessage({
-        text: `☎️ I started a voice call. Join here: ${callUrl}`,
-      });
-
-      toast.success("Voice call link sent successfully!");
-    }
-  };
+  const handleVideoCall = () => void startChatCall("video");
+  const handleVoiceCall = () => void startChatCall("voice");
 
   const handleRetryFailedMessage = async () => {
     if (!channel || !failedRetryMessage) return;
@@ -1735,16 +1745,32 @@ const ChatPage = () => {
                       onClick={handleVoiceCall}
                       className="btn btn-ghost btn-sm min-h-11 min-w-11 hover:bg-slate-200"
                       aria-label="Start voice call"
+                      title={
+                        startingCallType === "voice"
+                          ? "Starting voice call…"
+                          : "Start voice call"
+                      }
+                      disabled={Boolean(startingCallType) || !tokenData?.token}
                     >
-                      <Phone className="h-4 w-4" />
+                      <Phone
+                        className={`h-4 w-4 ${startingCallType === "voice" ? "animate-pulse" : ""}`}
+                      />
                     </button>
                     <button
                       type="button"
                       onClick={handleVideoCall}
                       className="btn btn-success btn-sm min-h-11 min-w-11 text-white shadow-sm"
                       aria-label="Start video call"
+                      title={
+                        startingCallType === "video"
+                          ? "Starting video call…"
+                          : "Start video call"
+                      }
+                      disabled={Boolean(startingCallType) || !tokenData?.token}
                     >
-                      <Video className="h-4 w-4" />
+                      <Video
+                        className={`h-4 w-4 ${startingCallType === "video" ? "animate-pulse" : ""}`}
+                      />
                     </button>
                   </div>
                 </div>

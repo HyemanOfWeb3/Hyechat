@@ -60,8 +60,14 @@ test("onboarding without a picture preserves the existing profile picture", asyn
   await onboard(makeRequest(), res, dependencies);
 
   assert.equal(res.statusCode, 200);
-  assert.equal(Object.hasOwn(dependencies.calls.updates[0].updates, "profilePic"), false);
-  assert.equal(res.body.user.profilePic, "https://cdn.example.test/existing.png");
+  assert.equal(
+    Object.hasOwn(dependencies.calls.updates[0].updates, "profilePic"),
+    false,
+  );
+  assert.equal(
+    res.body.user.profilePic,
+    "https://cdn.example.test/existing.png",
+  );
   assert.equal(
     dependencies.calls.streamUsers[0].image,
     "https://cdn.example.test/existing.png",
@@ -113,7 +119,9 @@ test("an explicitly empty picture URL removes the profile photo", async () => {
 });
 
 test("unverified users remain blocked from onboarding", async () => {
-  const request = makeRequest({ profilePic: "https://cdn.example.test/photo.png" });
+  const request = makeRequest({
+    profilePic: "https://cdn.example.test/photo.png",
+  });
   request.user.emailVerified = false;
   const dependencies = makeDependencies({});
   const res = makeResponse();

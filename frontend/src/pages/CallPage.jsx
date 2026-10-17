@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  PanelRightClose,
   PhoneOff,
   ScreenShare,
   Users,
@@ -15,13 +14,16 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
-  CallControls,
+  CancelCallButton,
+  ReactionsButton,
   SpeakerLayout,
   StreamCall,
   StreamTheme,
   StreamVideo,
   CallRecordingList,
   CallingState,
+  ToggleAudioPublishingButton,
+  ToggleVideoPublishingButton,
   useCallStateHooks,
 } from "@stream-io/video-react-sdk";
 import "@stream-io/video-react-sdk/dist/css/styles.css";
@@ -29,34 +31,71 @@ import "@stream-io/video-react-sdk/dist/css/styles.css";
 import { getStreamToken } from "../lib/api.js";
 import { endCallHistory, startCallHistory } from "../lib/api.js";
 import useAuthUser from "../hooks/useAuthUser.js";
-import ChatLoader from "../components/ChatLoader.jsx";
 import { getStreamVideoClient } from "../lib/streamVideoClient.js";
+import {
+  getCallConnectionLabel,
+  getCallChatId,
+  getCallJoinErrorMessage,
+  activateCallMedia,
+  joinStreamCall,
+  leaveStreamCall,
+} from "../lib/callSession.js";
+
+const CallStateObserver = ({ onCallingStateChange }) => {
+  const { useCallCallingState } = useCallStateHooks();
+  const callingState = useCallCallingState();
+
+  useEffect(() => {
+    onCallingStateChange(callingState);
+  }, [callingState, onCallingStateChange]);
+
+  return null;
+};
+
+const CallMediaControls = ({ isVoice, onLeave, onMediaError }) => (
+  <div className="str-video__call-controls">
+    <ToggleAudioPublishingButton onError={onMediaError} />
+    {!isVoice && <ToggleVideoPublishingButton onError={onMediaError} />}
+    <ReactionsButton />
+    <CancelCallButton onLeave={onLeave} />
+  </div>
+);
 
 const meetingHighlights = [
-  { label: "HD video", value: "Enabled" },
-  { label: "Noise reduction", value: "On" },
-  { label: "Instant reactions", value: "Ready" },
+  { label: "Audio", value: "Use the mic control to enable" },
+  { label: "Video", value: "Use the camera control to enable" },
+  { label: "Connection", value: "Secured by Stream" },
 ];
 
 const CallPage = () => {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
   const callType = searchParams.get("type") || "video";
-  const chatId = searchParams.get("chatId") || id;
+  const requestedChatId = searchParams.get("chatId") || "";
   const isVoice = callType === "voice";
 
   const { authUser, isLoading: authLoading } = useAuthUser();
-  const keepCallAliveRef = useRef(false);
   const historyStartedRef = useRef(false);
   const historyEndedRef = useRef(false);
-  const { data: tokenData, isLoading: tokenLoading } = useQuery({
-    queryKey: ["streamToken"],
+  const historyStartPromiseRef = useRef(null);
+  const leaveInProgressRef = useRef(false);
+  const activeCallRef = useRef(null);
+  const [chatId, setChatId] = useState(requestedChatId);
+  const [isJoining, setIsJoining] = useState(true);
+  const [callingState, setCallingState] = useState(CallingState.UNKNOWN);
+  const [mediaError, setMediaError] = useState("");
+  const [joinAttempt, setJoinAttempt] = useState(0);
+  const {
+    data: tokenData,
+    isLoading: tokenLoading,
+    refetch: refetchToken,
+  } = useQuery({
+    queryKey: ["streamToken", authUser?._id],
     queryFn: getStreamToken,
     enabled: !!authUser,
   });
-  const { useCallState } = useCallStateHooks();
-  const callingState = useCallState();
 
   const [videoClient, setVideoClient] = useState(null);
   const [call, setCall] = useState(null);
@@ -79,6 +118,15 @@ const CallPage = () => {
   const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const recordingDestination = import.meta.env.VITE_RECORDING_DESTINATION;
+  const unavailableError =
+    !authLoading && !authUser
+      ? "Sign in to join this call."
+      : !id
+        ? "This call link is incomplete. Return to chat and start a new call."
+        : !tokenLoading && authUser && !tokenData?.token
+          ? "Unable to get secure calling access. Return to chat and try again."
+          : "";
+  const visibleJoinError = joinError || unavailableError;
 
   const refreshRecordings = async () => {
     if (!call?.listRecordings) return;
@@ -159,30 +207,77 @@ const CallPage = () => {
   };
 
   const goToChat = useCallback(() => {
-    if (!chatId) return;
-    window.location.assign(`/chat/${chatId}?refresh=${Date.now()}`);
-  }, [chatId]);
+    if (chatId) {
+      navigate(`/chat/${encodeURIComponent(chatId)}?refresh=${Date.now()}`, {
+        replace: true,
+      });
+    } else {
+      navigate("/calls", { replace: true });
+    }
+  }, [chatId, navigate]);
 
-  const handleBackToChat = () => {
-    if (!chatId) return;
-    keepCallAliveRef.current = true;
-    window.location.assign(`/chat/${chatId}?refresh=${Date.now()}`);
-  };
+  const finalizeCallHistory = useCallback(() => {
+    if (historyEndedRef.current) return;
+    const pendingStart = historyStartPromiseRef.current;
+    void Promise.resolve(pendingStart).then(async () => {
+      if (!historyStartedRef.current || historyEndedRef.current) return;
+      historyEndedRef.current = true;
+      try {
+        await endCallHistory(id);
+      } catch (error) {
+        console.error("Could not finalize call history", error);
+      }
+    });
+  }, [id]);
+
+  const ensureCallHistory = useCallback(() => {
+    if (historyStartedRef.current) return Promise.resolve(true);
+    if (historyStartPromiseRef.current) return historyStartPromiseRef.current;
+
+    historyStartPromiseRef.current = startCallHistory({
+      roomId: id,
+      callType: isVoice ? "voice" : "video",
+    })
+      .then(() => {
+        historyStartedRef.current = true;
+        return true;
+      })
+      .catch((error) => {
+        console.error("Could not save call history", error);
+        return false;
+      });
+    return historyStartPromiseRef.current;
+  }, [id, isVoice]);
+
+  const finishCallUi = useCallback(() => {
+    setVideoClient(null);
+    setCall(null);
+    goToChat();
+  }, [goToChat]);
+
+  const handleCallingStateChange = useCallback(
+    (nextState) => {
+      setCallingState(nextState);
+      if (nextState !== CallingState.LEFT) return;
+      finalizeCallHistory();
+      if (!leaveInProgressRef.current) {
+        leaveInProgressRef.current = true;
+        finishCallUi();
+      }
+    },
+    [finalizeCallHistory, finishCallUi],
+  );
 
   const handleLeaveCall = async () => {
-    keepCallAliveRef.current = false;
+    if (leaveInProgressRef.current) return;
+    leaveInProgressRef.current = true;
     try {
-      if (call?.leave) await call.leave({ reason: "local" });
-      if (historyStartedRef.current && !historyEndedRef.current) {
-        historyEndedRef.current = true;
-        await endCallHistory(id);
-      }
-    } catch (e) {
-      console.error("Error leaving call", e);
+      await leaveStreamCall(call);
+    } catch (error) {
+      console.error("Error leaving call", error);
     } finally {
-      setVideoClient(null);
-      setCall(null);
-      goToChat();
+      finalizeCallHistory();
+      finishCallUi();
     }
   };
 
@@ -203,6 +298,18 @@ const CallPage = () => {
       setSwitchingCamera(false);
     }
   };
+
+  const handleMediaError = useCallback(
+    (error) => {
+      const message = getCallJoinErrorMessage(
+        error,
+        isVoice ? "voice" : "video",
+      );
+      setMediaError(message);
+      toast.error(message);
+    },
+    [isVoice],
+  );
 
   const handleScreenShare = async () => {
     if (!call || !supportsScreenShare) return;
@@ -229,55 +336,54 @@ const CallPage = () => {
     }
   };
 
-  useEffect(() => {
-    if (
-      (callingState === CallingState.ENDED ||
-        callingState === CallingState.LEFT) &&
-      chatId
-    ) {
-      goToChat();
+  const loadCameraDevices = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter(
+        (device) => device.kind === "videoinput" && device.deviceId,
+      );
+      setCameraDevices(videoInputs);
+      setSelectedCameraDeviceId((current) =>
+        videoInputs.some((device) => device.deviceId === current)
+          ? current
+          : videoInputs[0]?.deviceId || null,
+      );
+    } catch (error) {
+      console.error("Failed to load camera devices", error);
     }
-  }, [callingState, chatId, goToChat]);
-
-  useEffect(() => {
-    if (
-      callingState !== CallingState.ENDED &&
-      callingState !== CallingState.LEFT
-    )
-      return;
-    if (!historyStartedRef.current || historyEndedRef.current) return;
-    historyEndedRef.current = true;
-    endCallHistory(id).catch((error) =>
-      console.error("Could not finalize call history", error),
-    );
-  }, [callingState, id]);
-
-  useEffect(() => {
-    const loadCameraDevices = async () => {
-      if (!navigator.mediaDevices?.enumerateDevices) return;
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoInputs = devices.filter(
-          (device) => device.kind === "videoinput" && device.deviceId,
-        );
-        setCameraDevices(videoInputs);
-        setSelectedCameraDeviceId(videoInputs[0]?.deviceId || null);
-      } catch (error) {
-        console.error("Failed to load camera devices", error);
-      }
-    };
-
-    loadCameraDevices();
   }, []);
 
+  const retryJoining = async () => {
+    setJoinError("");
+    setMediaError("");
+    setIsJoining(true);
+    await refetchToken();
+    setJoinAttempt((attempt) => attempt + 1);
+  };
+
   useEffect(() => {
-    if (authLoading || tokenLoading || !authUser || !tokenData?.token || !id) {
-      return;
-    }
+    const devices = navigator.mediaDevices;
+    devices?.addEventListener?.("devicechange", loadCameraDevices);
+    return () =>
+      devices?.removeEventListener?.("devicechange", loadCameraDevices);
+  }, [loadCameraDevices]);
 
+  useEffect(() => {
+    if (authLoading || tokenLoading) return undefined;
     let isActive = true;
-
     let videoCall;
+
+    if (!authUser || !id) {
+      return () => {
+        isActive = false;
+      };
+    }
+    if (!tokenData?.token) {
+      return () => {
+        isActive = false;
+      };
+    }
 
     const joinCall = async () => {
       try {
@@ -286,26 +392,37 @@ const CallPage = () => {
           token: tokenData.token,
         });
         videoCall = client.call("default", id);
-        await videoCall.join({ create: true });
-        if (!historyStartedRef.current) {
-          try {
-            await startCallHistory({
-              roomId: id,
-              callType: isVoice ? "voice" : "video",
-            });
-          } catch (historyError) {
-            console.error("Could not save call history", historyError);
-          }
-          historyStartedRef.current = true;
+        await joinStreamCall(videoCall);
+        const storedChatId = getCallChatId(videoCall);
+        if (!requestedChatId && typeof storedChatId === "string") {
+          setChatId(storedChatId);
         }
-        if (isActive) {
-          setVideoClient(client);
-          setCall(videoCall);
+        if (!isActive) {
+          await leaveStreamCall(videoCall).catch(() => {});
+          return;
         }
+        const mediaErrors = await activateCallMedia(
+          videoCall,
+          isVoice ? "voice" : "video",
+        );
+        if (mediaErrors.length) {
+          setMediaError(mediaErrors.join(" "));
+          toast.error(mediaErrors[0]);
+        }
+        activeCallRef.current = videoCall;
+        setCallingState(videoCall.state.callingState);
+        setVideoClient(client);
+        setCall(videoCall);
+        setIsJoining(false);
+        void loadCameraDevices();
+        void ensureCallHistory();
       } catch (error) {
         console.error("Unable to join Stream call:", error);
         if (isActive) {
-          setJoinError("Unable to join the call right now. Please try again.");
+          setJoinError(
+            getCallJoinErrorMessage(error, isVoice ? "voice" : "video"),
+          );
+          setIsJoining(false);
         }
       }
     };
@@ -314,18 +431,44 @@ const CallPage = () => {
 
     return () => {
       isActive = false;
-      if (keepCallAliveRef.current) {
-        keepCallAliveRef.current = false;
-        return;
-      }
-      videoCall?.leave().catch(() => {});
-      setVideoClient(null);
-      setCall(null);
+      const activeCall = activeCallRef.current;
+      activeCallRef.current = null;
+      void (async () => {
+        if (activeCall && activeCall.state.callingState !== CallingState.LEFT) {
+          await leaveStreamCall(activeCall).catch(() => {});
+        }
+        finalizeCallHistory();
+      })();
     };
-  }, [authLoading, authUser, id, isVoice, tokenData, tokenLoading]);
+  }, [
+    authLoading,
+    authUser,
+    ensureCallHistory,
+    finalizeCallHistory,
+    id,
+    isVoice,
+    joinAttempt,
+    loadCameraDevices,
+    requestedChatId,
+    tokenData?.token,
+    tokenLoading,
+  ]);
 
-  if (authLoading || tokenLoading || (!videoClient && !joinError)) {
-    return <ChatLoader />;
+  if (authLoading || tokenLoading || (isJoining && !visibleJoinError)) {
+    return (
+      <div
+        className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-base-200 p-4 text-center"
+        role="status"
+        aria-live="polite"
+      >
+        <span className="loading loading-spinner loading-lg text-primary" />
+        <p className="font-medium">
+          {authLoading || tokenLoading
+            ? "Connecting securely to Stream…"
+            : `Joining ${isVoice ? "voice" : "video"} call…`}
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -352,25 +495,19 @@ const CallPage = () => {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="badge badge-success gap-2">
-                <Users className="h-3.5 w-3.5" />
-                Live
-              </div>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm gap-2"
-                onClick={handleBackToChat}
+              <div
+                className={`badge gap-2 ${callingState === CallingState.JOINED ? "badge-success" : "badge-warning"}`}
               >
-                <PanelRightClose className="h-4 w-4" />
-                Back
-              </button>
+                <Users className="h-3.5 w-3.5" />
+                {getCallConnectionLabel(callingState, isJoining)}
+              </div>
               <button
                 type="button"
                 className="btn btn-error btn-sm gap-2"
                 onClick={handleLeaveCall}
               >
                 <PhoneOff className="h-4 w-4" />
-                End call
+                Leave call
               </button>
             </div>
           </div>
@@ -389,12 +526,35 @@ const CallPage = () => {
           </div>
         </div>
 
-        {joinError ? (
+        {visibleJoinError ? (
           <div className="rounded-2xl border border-base-300 bg-base-100 p-8 text-center shadow-sm">
-            <p className="font-medium">{joinError}</p>
+            <p className="font-medium" role="alert">
+              {visibleJoinError}
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={retryJoining}
+              >
+                Retry joining
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={goToChat}
+              >
+                Return to chat
+              </button>
+            </div>
           </div>
         ) : videoClient && call ? (
           <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[1.6fr_0.8fr]">
+            {mediaError && (
+              <div className="alert alert-warning lg:col-span-2" role="alert">
+                <span>{mediaError}</span>
+              </div>
+            )}
             <div className="order-1 flex flex-col overflow-hidden rounded-3xl border border-base-300 bg-base-100 shadow-xl lg:order-none">
               <div className="flex items-center justify-between border-b border-base-300 px-4 py-3 text-sm">
                 <div className="flex items-center gap-2">
@@ -417,12 +577,19 @@ const CallPage = () => {
               <div className="relative min-h-[400px] flex-1 overflow-hidden bg-base-200/70 flex flex-col sm:min-h-[560px]">
                 <StreamVideo client={videoClient}>
                   <StreamCall call={call}>
+                    <CallStateObserver
+                      onCallingStateChange={handleCallingStateChange}
+                    />
                     <StreamTheme>
                       {!isVoice ? (
                         <>
                           <SpeakerLayout participantBarPosition="bottom" />
                           <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-wrap items-center justify-center gap-2 bg-gradient-to-t from-base-900/80 to-transparent px-3 py-4 sm:px-4 sm:py-6">
-                            <CallControls onLeave={handleLeaveCall} />
+                            <CallMediaControls
+                              isVoice={false}
+                              onLeave={handleLeaveCall}
+                              onMediaError={handleMediaError}
+                            />
                             {cameraDevices.length > 1 && (
                               <select
                                 className="select select-sm select-bordered h-11 min-w-[120px]"
@@ -469,6 +636,9 @@ const CallPage = () => {
                         </>
                       ) : (
                         <div className="flex h-full flex-col items-center justify-center gap-4 px-4">
+                          <div className="w-full min-h-48 max-h-[360px] flex-1 overflow-hidden">
+                            <SpeakerLayout participantsBarPosition="bottom" />
+                          </div>
                           <div className="flex flex-col items-center gap-3">
                             <Mic className="h-12 w-12 text-primary" />
                             <h3 className="text-lg font-semibold">
@@ -479,31 +649,23 @@ const CallPage = () => {
                             </p>
                           </div>
                           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-                            <CallControls onLeave={handleLeaveCall} />
-                            {cameraDevices.length > 1 && (
-                              <select
-                                className="select select-sm select-bordered h-11"
-                                value={selectedCameraDeviceId || ""}
-                                onChange={(event) =>
-                                  handleSwitchCamera(event.target.value)
-                                }
-                                disabled={switchingCamera}
-                              >
-                                {cameraDevices.map((device) => (
-                                  <option
-                                    key={device.deviceId}
-                                    value={device.deviceId}
-                                  >
-                                    {device.label ||
-                                      `Camera ${device.deviceId.slice(0, 4)}`}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
+                            <CallMediaControls
+                              isVoice
+                              onLeave={handleLeaveCall}
+                              onMediaError={handleMediaError}
+                            />
                           </div>
                           {cameraSelectionError && (
                             <p className="text-xs text-error text-center">
                               {cameraSelectionError}
+                            </p>
+                          )}
+                          {mediaError && (
+                            <p
+                              className="max-w-md text-center text-xs text-warning"
+                              role="status"
+                            >
+                              {mediaError}
                             </p>
                           )}
                         </div>

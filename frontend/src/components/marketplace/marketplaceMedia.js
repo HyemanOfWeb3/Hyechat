@@ -125,7 +125,8 @@ export const inspectMarketplaceImageDimensions = async (file) => {
   try {
     const image = new Image();
     const dimensions = await new Promise((resolve, reject) => {
-      image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+      image.onload = () =>
+        resolve({ width: image.naturalWidth, height: image.naturalHeight });
       image.onerror = () => reject(new Error("Could not decode image"));
       image.src = temporaryUrl;
     });

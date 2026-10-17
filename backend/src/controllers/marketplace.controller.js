@@ -387,7 +387,9 @@ export async function createMarketplaceListing(req, res) {
     });
   }
   if (typeof videoUrl !== "string" || videoUrl.length > 2048) {
-    return res.status(400).json({ message: "Marketplace video URL is invalid" });
+    return res
+      .status(400)
+      .json({ message: "Marketplace video URL is invalid" });
   }
   if (!["message", "external_link"].includes(contactMethod)) {
     return res.status(400).json({ message: "Choose a valid contact method" });
@@ -583,11 +585,9 @@ export async function updateMarketplaceListingStatus(req, res) {
         (status === "hidden" && listing.status !== "removed") ||
         (status === "active" && listing.status === "hidden");
       if (!ownerAllowed) {
-        return res
-          .status(403)
-          .json({
-            message: "Only a moderator can change this moderation state",
-          });
+        return res.status(403).json({
+          message: "Only a moderator can change this moderation state",
+        });
       }
     }
     listing.status = status;

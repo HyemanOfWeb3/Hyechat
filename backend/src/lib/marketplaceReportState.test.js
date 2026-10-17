@@ -37,7 +37,11 @@ test("loads only report IDs for the authenticated viewer and requested listing p
 
 test("does not query report state for an empty listing page", async () => {
   let queried = false;
-  const reportModel = { find: () => { queried = true; } };
+  const reportModel = {
+    find: () => {
+      queried = true;
+    },
+  };
 
   assert.deepEqual(
     await getReportedMarketplaceListingIds("user-1", [], { reportModel }),

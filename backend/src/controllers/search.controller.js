@@ -146,14 +146,14 @@ export async function searchMarketplace(req, res) {
       visibleListings,
     );
     const results = visibleListings.map((listing) => ({
-        ...listing,
-        imageUrls: listing.imageUrls?.length
-          ? listing.imageUrls
-          : listing.imageUrl
-            ? [listing.imageUrl]
-            : [],
-        reportedByMe: reportedIds.has(listing._id.toString()),
-      }));
+      ...listing,
+      imageUrls: listing.imageUrls?.length
+        ? listing.imageUrls
+        : listing.imageUrl
+          ? [listing.imageUrl]
+          : [],
+      reportedByMe: reportedIds.has(listing._id.toString()),
+    }));
     return res.status(200).json({
       results,
       pagination: { page, limit, hasMore: page * limit < total },

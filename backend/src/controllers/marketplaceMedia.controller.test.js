@@ -7,10 +7,18 @@ const modelReturning = (result) => ({ exists: async () => result });
 test("cleanup reference check protects media attached to any existing resource", async () => {
   for (const resource of ["listing", "story", "profile", "community"]) {
     const models = {
-      listingModel: modelReturning(resource === "listing" ? { _id: "listing" } : null),
-      storyModel: modelReturning(resource === "story" ? { _id: "story" } : null),
-      userModel: modelReturning(resource === "profile" ? { _id: "user" } : null),
-      communityModel: modelReturning(resource === "community" ? { _id: "community" } : null),
+      listingModel: modelReturning(
+        resource === "listing" ? { _id: "listing" } : null,
+      ),
+      storyModel: modelReturning(
+        resource === "story" ? { _id: "story" } : null,
+      ),
+      userModel: modelReturning(
+        resource === "profile" ? { _id: "user" } : null,
+      ),
+      communityModel: modelReturning(
+        resource === "community" ? { _id: "community" } : null,
+      ),
     };
 
     assert.equal(

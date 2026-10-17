@@ -4,11 +4,7 @@ import useStreamClient from "../hooks/useStreamClient.js";
 import toast from "react-hot-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { completeOnboarding } from "../lib/api.js";
-import {
-  MapPinIcon,
-  ShipWheelIcon,
-  Loader,
-} from "lucide-react";
+import { MapPinIcon, ShipWheelIcon, Loader } from "lucide-react";
 import { LANGUAGES } from "../constants/index.js";
 import OnboardingProfilePicturePicker from "../components/OnboardingProfilePicturePicker.jsx";
 import {
@@ -21,7 +17,9 @@ import {
 } from "../lib/onboarding.js";
 
 const getErrorMessage = (error) =>
-  error?.response?.data?.message || error?.message || "Unable to complete onboarding";
+  error?.response?.data?.message ||
+  error?.message ||
+  "Unable to complete onboarding";
 
 const OnboardingPage = () => {
   const { authUser } = useAuthUser();
@@ -60,7 +58,12 @@ const OnboardingPage = () => {
   );
 
   const { mutateAsync: completeOnboardingAsync, isPending } = useMutation({
-    mutationFn: async ({ values, imageFile, existingUpload, removePicture }) => {
+    mutationFn: async ({
+      values,
+      imageFile,
+      existingUpload,
+      removePicture,
+    }) => {
       let profilePic;
       if (imageFile) {
         profilePic = existingUpload;
@@ -231,7 +234,10 @@ const OnboardingPage = () => {
                 className="input input-bordered w-full"
                 value={formState.fullName}
                 onChange={(e) =>
-                  setFormState((current) => ({ ...current, fullName: e.target.value }))
+                  setFormState((current) => ({
+                    ...current,
+                    fullName: e.target.value,
+                  }))
                 }
                 disabled={isPending}
               />
@@ -246,7 +252,10 @@ const OnboardingPage = () => {
                 name="bio"
                 value={formState.bio}
                 onChange={(e) =>
-                  setFormState((current) => ({ ...current, bio: e.target.value }))
+                  setFormState((current) => ({
+                    ...current,
+                    bio: e.target.value,
+                  }))
                 }
                 disabled={isPending}
                 className="textarea textarea-bordered h-24"
@@ -330,7 +339,10 @@ const OnboardingPage = () => {
                   className="input input-bordered w-full pl-10"
                   value={formState.location}
                   onChange={(e) =>
-                    setFormState((current) => ({ ...current, location: e.target.value }))
+                    setFormState((current) => ({
+                      ...current,
+                      location: e.target.value,
+                    }))
                   }
                   disabled={isPending}
                 />
@@ -348,7 +360,10 @@ const OnboardingPage = () => {
                 className="input input-bordered w-full"
                 value={formState.interests}
                 onChange={(e) =>
-                  setFormState((current) => ({ ...current, interests: e.target.value }))
+                  setFormState((current) => ({
+                    ...current,
+                    interests: e.target.value,
+                  }))
                 }
                 disabled={isPending}
               />

@@ -109,12 +109,18 @@ test("prefers imageUrls and falls back to the legacy imageUrl field", () => {
 });
 
 test("splits selections at the five-image limit and includes pending reservations", () => {
-  const files = Array.from({ length: 7 }, (_, index) => ({ name: `${index}.jpg` }));
+  const files = Array.from({ length: 7 }, (_, index) => ({
+    name: `${index}.jpg`,
+  }));
   const firstSelection = splitMarketplaceImageSelection(files, 0);
   assert.equal(firstSelection.accepted.length, 5);
   assert.deepEqual(firstSelection.rejected, files.slice(5));
 
-  const laterSelection = splitMarketplaceImageSelection(files.slice(0, 2), 2, 1);
+  const laterSelection = splitMarketplaceImageSelection(
+    files.slice(0, 2),
+    2,
+    1,
+  );
   assert.deepEqual(laterSelection.accepted, [files[0], files[1]]);
   const fullSelection = splitMarketplaceImageSelection(files, 4, 1);
   assert.deepEqual(fullSelection.accepted, []);

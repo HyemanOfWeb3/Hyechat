@@ -17,7 +17,10 @@ export const normalizeOptionalProfilePictureUrl = (value) => {
       url.username ||
       url.password ||
       url.port ||
-      !(hostname === "stream-io-cdn.com" || hostname.endsWith(".stream-io-cdn.com")) ||
+      !(
+        hostname === "stream-io-cdn.com" ||
+        hostname.endsWith(".stream-io-cdn.com")
+      ) ||
       !url.pathname ||
       url.pathname === "/"
     ) {

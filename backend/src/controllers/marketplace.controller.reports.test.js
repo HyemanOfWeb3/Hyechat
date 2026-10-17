@@ -65,7 +65,10 @@ test("reporting an active listing creates an open report without changing visibi
   assert.equal(res.statusCode, 201);
   assert.equal(res.body.reportedByMe, true);
   assert.equal(reports[0].status, undefined);
-  assert.equal(MarketplaceListingReport.schema.path("status").getDefault(), "open");
+  assert.equal(
+    MarketplaceListingReport.schema.path("status").getDefault(),
+    "open",
+  );
   assert.equal(reports[0].listing, listingId);
   assert.equal(reports[0].reporter, reporterA);
   assert.equal(listingUpdates.length, 0);
@@ -77,7 +80,11 @@ test("reporting a legacy `reported` listing does not automatically reactivate it
   context.mock.method(MarketplaceListing, "findOne", () => ({
     select: async () => makeListing("reported"),
   }));
-  context.mock.method(MarketplaceListingReport, "create", async (report) => report);
+  context.mock.method(
+    MarketplaceListingReport,
+    "create",
+    async (report) => report,
+  );
   context.mock.method(MarketplaceListing, "updateOne", async (...args) => {
     listingUpdates.push(args);
   });
@@ -138,10 +145,18 @@ test("listing refresh returns only the authenticated viewer's report state", asy
   context.mock.method(MarketplaceListing, "find", (filter) => {
     requestedFilter = filter;
     return {
-      populate() { return this; },
-      sort() { return this; },
-      skip() { return this; },
-      limit() { return this; },
+      populate() {
+        return this;
+      },
+      sort() {
+        return this;
+      },
+      skip() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
       lean: async () => [listing],
     };
   });
@@ -173,24 +188,38 @@ test("listing refresh returns only the authenticated viewer's report state", asy
   assert.equal(requestedFilter.status, "active");
   assert.equal(ownResult.body.listings[0].reportedByMe, true);
   assert.equal(unrelatedResult.body.listings[0].reportedByMe, false);
-  assert.equal(JSON.stringify(unrelatedResult.body).includes("reporter"), false);
-  assert.equal(MarketplaceListingReport.schema.path("status").defaultValue, "open");
+  assert.equal(
+    JSON.stringify(unrelatedResult.body).includes("reporter"),
+    false,
+  );
+  assert.equal(
+    MarketplaceListingReport.schema.path("status").defaultValue,
+    "open",
+  );
 });
 
 test("moderator dismissal closes only that report and never changes listing visibility", async (context) => {
   const reportUpdates = [];
   const listingUpdates = [];
-  context.mock.method(MarketplaceListingReport, "findOneAndUpdate", async (...args) => {
-    reportUpdates.push(args);
-    return { _id: reportId, listing: listingId, status: "dismissed" };
-  });
+  context.mock.method(
+    MarketplaceListingReport,
+    "findOneAndUpdate",
+    async (...args) => {
+      reportUpdates.push(args);
+      return { _id: reportId, listing: listingId, status: "dismissed" };
+    },
+  );
   context.mock.method(MarketplaceListing, "updateOne", async (...args) => {
     listingUpdates.push(args);
   });
 
   const res = makeResponse();
   await resolveMarketplaceModerationReport(
-    { params: { reportId: reportId.toString() }, body: { decision: "active" }, user: { isMarketplaceModerator: true } },
+    {
+      params: { reportId: reportId.toString() },
+      body: { decision: "active" },
+      user: { isMarketplaceModerator: true },
+    },
     res,
   );
 
@@ -202,17 +231,25 @@ test("moderator dismissal closes only that report and never changes listing visi
 
 test("moderator hide does not reactivate or downgrade a removed listing", async (context) => {
   const listingUpdates = [];
-  context.mock.method(MarketplaceListingReport, "findOneAndUpdate", async () => ({
-    _id: reportId,
-    listing: listingId,
-  }));
+  context.mock.method(
+    MarketplaceListingReport,
+    "findOneAndUpdate",
+    async () => ({
+      _id: reportId,
+      listing: listingId,
+    }),
+  );
   context.mock.method(MarketplaceListing, "updateOne", async (...args) => {
     listingUpdates.push(args);
   });
 
   const res = makeResponse();
   await resolveMarketplaceModerationReport(
-    { params: { reportId: reportId.toString() }, body: { decision: "hidden" }, user: { isMarketplaceModerator: true } },
+    {
+      params: { reportId: reportId.toString() },
+      body: { decision: "hidden" },
+      user: { isMarketplaceModerator: true },
+    },
     res,
   );
 
@@ -226,17 +263,25 @@ test("moderator hide does not reactivate or downgrade a removed listing", async 
 
 test("moderator removal explicitly removes the listing while resolving its report", async (context) => {
   let listingUpdate;
-  context.mock.method(MarketplaceListingReport, "findOneAndUpdate", async () => ({
-    _id: reportId,
-    listing: listingId,
-  }));
+  context.mock.method(
+    MarketplaceListingReport,
+    "findOneAndUpdate",
+    async () => ({
+      _id: reportId,
+      listing: listingId,
+    }),
+  );
   context.mock.method(MarketplaceListing, "updateOne", async (...args) => {
     listingUpdate = args;
   });
 
   const res = makeResponse();
   await resolveMarketplaceModerationReport(
-    { params: { reportId: reportId.toString() }, body: { decision: "removed" }, user: { isMarketplaceModerator: true } },
+    {
+      params: { reportId: reportId.toString() },
+      body: { decision: "removed" },
+      user: { isMarketplaceModerator: true },
+    },
     res,
   );
 
@@ -246,7 +291,10 @@ test("moderator removal explicitly removes the listing while resolving its repor
 
 test("non-moderators cannot access the moderator report queue", async () => {
   const res = makeResponse();
-  await getMarketplaceModerationReports({ user: { isMarketplaceModerator: false } }, res);
+  await getMarketplaceModerationReports(
+    { user: { isMarketplaceModerator: false } },
+    res,
+  );
   assert.equal(res.statusCode, 403);
 });
 
@@ -255,14 +303,23 @@ test("moderator queue requests only open reports", async (context) => {
   context.mock.method(MarketplaceListingReport, "find", (value) => {
     filter = value;
     return {
-      populate() { return this; },
-      sort() { return this; },
-      limit() { return this; },
+      populate() {
+        return this;
+      },
+      sort() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
       lean: async () => [],
     };
   });
   const res = makeResponse();
-  await getMarketplaceModerationReports({ user: { isMarketplaceModerator: true } }, res);
+  await getMarketplaceModerationReports(
+    { user: { isMarketplaceModerator: true } },
+    res,
+  );
 
   assert.equal(res.statusCode, 200);
   assert.deepEqual(filter, { status: "open" });

@@ -29,7 +29,8 @@ const OnboardingProfilePicturePicker = ({
     <div className="flex min-w-0 flex-col items-center gap-2 text-center sm:items-start sm:text-left">
       <div>
         <h2 id="onboarding-profile-picture-heading" className="font-semibold">
-          Profile picture <span className="font-normal opacity-60">(optional)</span>
+          Profile picture{" "}
+          <span className="font-normal opacity-60">(optional)</span>
         </h2>
         <p className="mt-1 text-xs opacity-60">
           Choose a JPG, PNG, or WebP image up to 5 MB.
@@ -66,8 +67,14 @@ const OnboardingProfilePicturePicker = ({
         </p>
       )}
       {isUploading && (
-        <div className="w-full min-w-48 space-y-1" role="status" aria-live="polite">
-          <p className="text-xs">Uploading photo… {Math.round(uploadProgress)}%</p>
+        <div
+          className="w-full min-w-48 space-y-1"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="text-xs">
+            Uploading photo… {Math.round(uploadProgress)}%
+          </p>
           <progress
             className="progress progress-primary h-1.5 w-full"
             value={uploadProgress}
@@ -76,7 +83,11 @@ const OnboardingProfilePicturePicker = ({
           />
         </div>
       )}
-      {error && <p className="text-sm text-error" role="alert">{error}</p>}
+      {error && (
+        <p className="text-sm text-error" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   </section>
 );

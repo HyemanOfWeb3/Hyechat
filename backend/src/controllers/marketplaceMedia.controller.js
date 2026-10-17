@@ -17,8 +17,8 @@ const CLIENT_UPLOAD_TOKEN_TTL_MS = 15 * 60 * 1000;
 const hasBlobConfiguration = () =>
   Boolean(
     process.env.BLOB_STORE_ID &&
-      process.env.BLOB_WEBHOOK_PUBLIC_KEY &&
-      (process.env.VERCEL_OIDC_TOKEN || process.env.BLOB_READ_WRITE_TOKEN),
+    process.env.BLOB_WEBHOOK_PUBLIC_KEY &&
+    (process.env.VERCEL_OIDC_TOKEN || process.env.BLOB_READ_WRITE_TOKEN),
   );
 
 export const authenticateMarketplaceUploadRequest = (req, res, next) => {

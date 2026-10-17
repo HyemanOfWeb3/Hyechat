@@ -5,9 +5,7 @@ export const getReportedMarketplaceListingIds = async (
   listings,
   { reportModel = MarketplaceListingReport } = {},
 ) => {
-  const listingIds = listings
-    .map((listing) => listing?._id)
-    .filter(Boolean);
+  const listingIds = listings.map((listing) => listing?._id).filter(Boolean);
   if (!reporterId || listingIds.length === 0) return new Set();
 
   const reports = await reportModel

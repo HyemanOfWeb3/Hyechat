@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Phone, PhoneOff, Video } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -6,11 +6,14 @@ import { getStreamToken } from "../lib/api.js";
 import useAuthUser from "../hooks/useAuthUser.js";
 import { getStreamVideoClient } from "../lib/streamVideoClient.js";
 import UserAvatar from "./UserAvatar.jsx";
+import { getCallChatId, getIncomingCallType } from "../lib/callSession.js";
 
 const IncomingCallOverlay = () => {
   const { authUser } = useAuthUser();
   const navigate = useNavigate();
   const [incomingCall, setIncomingCall] = useState(null);
+  const [isResponding, setIsResponding] = useState(false);
+  const responseInFlightRef = useRef(false);
   const { data: tokenData } = useQuery({
     queryKey: ["streamToken"],
     queryFn: getStreamToken,
@@ -33,8 +36,9 @@ const IncomingCallOverlay = () => {
           setIncomingCall({
             call: ringingCall,
             callId,
-            video: Boolean(event.video),
+            callType: getIncomingCallType(event),
             caller: event.user,
+            chatId: getCallChatId(ringingCall),
           });
       } catch (error) {
         console.error("Unable to prepare incoming call", error);
@@ -58,21 +62,42 @@ const IncomingCallOverlay = () => {
   if (!incomingCall) return null;
   const callerName = incomingCall.caller?.name || "Incoming call";
   const accept = async () => {
+    if (responseInFlightRef.current) return;
+    responseInFlightRef.current = true;
+    setIsResponding(true);
     try {
-      await incomingCall.call.accept();
-      navigate(
-        `/call/${incomingCall.callId}?type=${incomingCall.video ? "video" : "voice"}`,
-      );
+      const params = new URLSearchParams({
+        type: incomingCall.callType,
+      });
+      if (incomingCall.chatId) params.set("chatId", incomingCall.chatId);
+      navigate(`/call/${encodeURIComponent(incomingCall.callId)}?${params}`);
       setIncomingCall(null);
+      setIsResponding(false);
+      responseInFlightRef.current = false;
     } catch (error) {
-      console.error("Unable to accept incoming call", error);
+      console.error("Unable to accept incoming call", {
+        errorType: error?.name || "Error",
+        status: error?.status || error?.response?.status || null,
+      });
+      setIsResponding(false);
+      responseInFlightRef.current = false;
     }
   };
   const decline = async () => {
+    if (responseInFlightRef.current) return;
+    responseInFlightRef.current = true;
+    setIsResponding(true);
     try {
       await incomingCall.call.reject("decline");
+    } catch (error) {
+      console.error("Unable to decline incoming call", {
+        errorType: error?.name || "Error",
+        status: error?.status || error?.response?.status || null,
+      });
     } finally {
       setIncomingCall(null);
+      setIsResponding(false);
+      responseInFlightRef.current = false;
     }
   };
 
@@ -88,11 +113,11 @@ const IncomingCallOverlay = () => {
         />
         <div className="min-w-0 flex-1">
           <p className="text-xs uppercase tracking-wider opacity-60">
-            Incoming {incomingCall.video ? "video" : "voice"} call
+            Incoming {incomingCall.callType} call
           </p>
           <h2 className="truncate font-bold">{callerName}</h2>
         </div>
-        {incomingCall.video ? (
+        {incomingCall.callType === "video" ? (
           <Video className="size-5 text-primary" />
         ) : (
           <Phone className="size-5 text-primary" />
@@ -103,6 +128,7 @@ const IncomingCallOverlay = () => {
           type="button"
           className="btn btn-error btn-sm flex-1"
           onClick={decline}
+          disabled={isResponding}
         >
           <PhoneOff className="size-4" /> Decline
         </button>
@@ -110,6 +136,7 @@ const IncomingCallOverlay = () => {
           type="button"
           className="btn btn-success btn-sm flex-1 text-white"
           onClick={accept}
+          disabled={isResponding}
         >
           <Phone className="size-4" /> Accept
         </button>

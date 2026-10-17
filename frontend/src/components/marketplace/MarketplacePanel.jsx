@@ -302,7 +302,10 @@ export const MarketplaceListingGallery = ({ listing }) => {
       {listing.videoUrl && (
         <div className="aspect-video overflow-hidden rounded-xl bg-black sm:col-span-2">
           {failedVideo === listing.videoUrl ? (
-            <div className="flex size-full items-center justify-center bg-base-200 text-sm opacity-60" role="status">
+            <div
+              className="flex size-full items-center justify-center bg-base-200 text-sm opacity-60"
+              role="status"
+            >
               Video unavailable
             </div>
           ) : (
@@ -488,11 +491,11 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
     },
     onError: async (error) => {
       const cleaned = await media.cleanupUnattached();
-      toast.error(errorMessage(error, "Unable to create listing")),
-      !cleaned &&
-        toast.error(
-          "Unused uploads could not all be removed. They remain unattached to a listing.",
-        );
+      (toast.error(errorMessage(error, "Unable to create listing")),
+        !cleaned &&
+          toast.error(
+            "Unused uploads could not all be removed. They remain unattached to a listing.",
+          ));
     },
   });
   const saveMutation = useMutation({
@@ -522,14 +525,21 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
         ["marketplace", "listing", viewerId, id],
         (current) =>
           current?.listing
-            ? { ...current, listing: { ...current.listing, reportedByMe: true } }
+            ? {
+                ...current,
+                listing: { ...current.listing, reportedByMe: true },
+              }
             : current,
       );
       setShowReportForm(false);
       setReportDetails("");
       refreshMarketplace();
-      queryClient.invalidateQueries({ queryKey: ["globalSearch", "marketplace"] });
-      toast.success("Report submitted for review. The listing remains visible unless moderated.");
+      queryClient.invalidateQueries({
+        queryKey: ["globalSearch", "marketplace"],
+      });
+      toast.success(
+        "Report submitted for review. The listing remains visible unless moderated.",
+      );
     },
     onError: (error) =>
       toast.error(errorMessage(error, "Unable to submit report")),
@@ -924,7 +934,10 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                 ))}
               </select>
             </label>
-            <label className="form-control" htmlFor="marketplace-listing-category">
+            <label
+              className="form-control"
+              htmlFor="marketplace-listing-category"
+            >
               <span className="label-text mb-1 font-semibold">Category</span>
               <select
                 id="marketplace-listing-category"
@@ -947,7 +960,10 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                   </option>
                 ))}
               </select>
-              <span id="marketplace-category-help" className="mt-1 text-xs opacity-60">
+              <span
+                id="marketplace-category-help"
+                className="mt-1 text-xs opacity-60"
+              >
                 Suggestions are flexible. Choose Other to enter a custom
                 category.
               </span>
@@ -1175,9 +1191,12 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="badge badge-warning badge-sm">Open report</span>
+                      <span className="badge badge-warning badge-sm">
+                        Open report
+                      </span>
                       <span className="badge badge-ghost badge-sm">
-                        Listing: {statusLabels[report.listing?.status] || "Unavailable"}
+                        Listing:{" "}
+                        {statusLabels[report.listing?.status] || "Unavailable"}
                       </span>
                       <p className="text-xs font-semibold uppercase text-warning">
                         {report.reason} · reported by{" "}
@@ -1533,13 +1552,13 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                         className="col-span-2 justify-self-start"
                       />
                     ) : (
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm col-span-2"
-                      onClick={() => setShowReportForm((show) => !show)}
-                    >
-                      <Flag className="size-4" /> Report listing
-                    </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm col-span-2"
+                        onClick={() => setShowReportForm((show) => !show)}
+                      >
+                        <Flag className="size-4" /> Report listing
+                      </button>
                     ))}
                 </div>
                 {showReportForm && (
