@@ -399,6 +399,14 @@ export async function createMarketplaceListing(listingData) {
   return res.data;
 }
 
+export async function updateMarketplaceListing(listingId, listingData) {
+  const res = await axiosInstance.patch(
+    `/marketplace/${listingId}`,
+    listingData,
+  );
+  return res.data;
+}
+
 export async function cleanupMarketplaceMedia(paths) {
   const res = await axiosInstance.post("/marketplace/media/cleanup", { paths });
   return res.data;

@@ -10,6 +10,11 @@ import {
   MAX_MARKETPLACE_IMAGES,
   verifyMarketplaceMediaUrl,
 } from "../lib/marketplaceMedia.js";
+import {
+  isValidMarketplaceContactUrl,
+  resolveMarketplaceListingMedia,
+  validateMarketplaceListingUpdate,
+} from "../lib/marketplaceListingUpdate.js";
 import { getReportedMarketplaceListingIds } from "../lib/marketplaceReportState.js";
 
 const MAX_PAGE_SIZE = 24;
@@ -454,6 +459,73 @@ export async function createMarketplaceListing(req, res) {
     return res
       .status(500)
       .json({ message: "Unable to create marketplace listing" });
+  }
+}
+
+export async function updateMarketplaceListing(req, res) {
+  if (!req.user?._id) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(404).json({ message: "Listing not found" });
+  }
+
+  const validation = validateMarketplaceListingUpdate(req.body);
+  if (validation.error) {
+    return res.status(400).json({ message: validation.error });
+  }
+
+  try {
+    const listing = await MarketplaceListing.findOne({
+      _id: req.params.id,
+      seller: req.user._id,
+      type: "event",
+    });
+    if (!listing) return res.status(404).json({ message: "Listing not found" });
+
+    const updates = validation.updates;
+    const contactMethod = updates.contactMethod ?? listing.contactMethod;
+    const contactUrl = updates.contactUrl ?? listing.contactUrl;
+    if (
+      contactMethod === "external_link" &&
+      (!contactUrl || !isValidMarketplaceContactUrl(contactUrl))
+    ) {
+      return res.status(400).json({
+        message: "External contact links must use HTTP or HTTPS",
+      });
+    }
+
+    let resolvedUpdates;
+    try {
+      resolvedUpdates = await resolveMarketplaceListingMedia({
+        updates,
+        listing,
+        userId: req.user._id.toString(),
+        verifyMediaUrl: verifyMarketplaceMediaUrl,
+      });
+    } catch (error) {
+      return res.status(error?.statusCode || 400).json({
+        message: error?.message || "Marketplace media could not be verified",
+      });
+    }
+
+    listing.set(resolvedUpdates);
+    await listing.save();
+    await listing.populate("seller", sellerProjection);
+    const [savedIds, reportedIds] = await Promise.all([
+      getSavedIds(req.user._id),
+      getReportedMarketplaceListingIds(req.user._id, [listing]),
+    ]);
+    const listingData =
+      typeof listing.toObject === "function" ? listing.toObject() : listing;
+
+    return res.status(200).json({
+      success: true,
+      listing: serializeListing(listingData, savedIds, reportedIds),
+    });
+  } catch (error) {
+    console.error("Error updating marketplace listing", error.message);
+    return res.status(500).json({ message: "Unable to update listing" });
   }
 }
 

@@ -16,6 +16,7 @@ import {
   MapPin,
   MessageCircle,
   PackageOpen,
+  Pencil,
   Plus,
   Search,
   Share2,
@@ -49,10 +50,18 @@ import {
   resolveMarketplaceModerationReport,
   saveMarketplaceListing,
   unsaveMarketplaceListing,
+  updateMarketplaceListing,
   updateMarketplaceListingStatus,
 } from "../../lib/api.js";
 import { useMarketplaceMedia } from "../../hooks/useMarketplaceMedia.js";
 import { getMarketplaceListingImages } from "./marketplaceMedia.js";
+import {
+  buildMarketplaceEditPayload,
+  canEditMarketplaceEvent,
+  createMarketplaceEditForm,
+  getMarketplaceEditMedia,
+  replaceMarketplaceListingInCache,
+} from "../../lib/marketplaceListingEdit.js";
 
 const listingTypes = [
   { value: "physical_product", label: "Physical Product", icon: ShoppingBag },
@@ -339,6 +348,9 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
   const [sellerSearch, setSellerSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingListingId, setEditingListingId] = useState("");
+  const [editForm, setEditForm] = useState(null);
+  const [editFormError, setEditFormError] = useState("");
   const [selectedListingState, setSelectedListing] = useState(null);
   const [selectedListingViewerId, setSelectedListingViewerId] = useState(null);
   const [showReportForm, setShowReportForm] = useState(false);
@@ -458,6 +470,12 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
   };
 
   const closeListing = () => {
+    if (editMutation.isPending) return;
+    if (editingListingId) {
+      setEditingListingId("");
+      setEditForm(null);
+      void media.resetMedia();
+    }
     setSelectedListing(null);
     setSelectedListingViewerId(null);
     setShowReportForm(false);
@@ -496,6 +514,34 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
           toast.error(
             "Unused uploads could not all be removed. They remain unattached to a listing.",
           ));
+    },
+  });
+  const editMutation = useMutation({
+    mutationFn: ({ id, payload }) => updateMarketplaceListing(id, payload),
+    onSuccess: async ({ listing }) => {
+      setSelectedListing(listing);
+      setSelectedListingViewerId(viewerId);
+      setEditingListingId("");
+      setEditForm(null);
+      setEditFormError("");
+      queryClient.setQueriesData({ queryKey: ["marketplace"] }, (current) =>
+        replaceMarketplaceListingInCache(current, listing._id, listing),
+      );
+      queryClient.setQueryData(
+        ["marketplace", "listing", viewerId, listing._id],
+        (current) => ({ ...current, listing }),
+      );
+      void queryClient.invalidateQueries({ queryKey: ["marketplace"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["globalSearch", "marketplace"],
+      });
+      await media.releasePreviews();
+      toast.success("Event updated");
+    },
+    onError: (error) => {
+      const message = errorMessage(error, "Unable to update event");
+      setEditFormError(message);
+      toast.error(message);
     },
   });
   const saveMutation = useMutation({
@@ -651,6 +697,54 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
     setShowCreateForm(false);
     setNewListing(createEmptyListing());
     void media.resetMedia();
+  };
+
+  const openEventEditor = async (listing) => {
+    if (!canEditMarketplaceEvent(listing, viewerId) || editMutation.isPending) {
+      return;
+    }
+    if (showCreateForm) {
+      setShowCreateForm(false);
+      setNewListing(createEmptyListing());
+    }
+    await media.resetMedia();
+    const existingMedia = getMarketplaceEditMedia(listing);
+    media.setExistingMedia(existingMedia);
+    setEditForm(createMarketplaceEditForm(listing));
+    setEditFormError("");
+    setEditingListingId(listing._id);
+  };
+
+  const cancelEventEditor = async () => {
+    if (editMutation.isPending) return;
+    setEditingListingId("");
+    setEditForm(null);
+    setEditFormError("");
+    await media.resetMedia();
+  };
+
+  const handleUpdateEvent = (event) => {
+    event.preventDefault();
+    if (
+      !selectedListing ||
+      !editForm ||
+      !canEditMarketplaceEvent(selectedListing, viewerId) ||
+      editMutation.isPending
+    ) {
+      return;
+    }
+    if (!media.isReady) {
+      const message = media.hasPendingUpload
+        ? "Wait for selected media uploads to finish."
+        : "Resolve or remove media errors before saving.";
+      setEditFormError(message);
+      return;
+    }
+    setEditFormError("");
+    editMutation.mutate({
+      id: selectedListing._id,
+      payload: buildMarketplaceEditPayload(editForm, media),
+    });
   };
 
   const renderEmpty = (title, description) => (
@@ -1417,15 +1511,258 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                     </span>
                   )}
               </div>
-              <button
-                type="button"
-                className="btn btn-ghost btn-square btn-sm"
-                onClick={closeListing}
-                aria-label="Close listing"
-              >
-                <X className="size-4" />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                {canEditMarketplaceEvent(selectedListing, viewerId) &&
+                  (editingListingId === selectedListing._id ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => void cancelEventEditor()}
+                      disabled={editMutation.isPending}
+                    >
+                      Cancel edit
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => void openEventEditor(selectedListing)}
+                      disabled={editMutation.isPending}
+                    >
+                      <Pencil className="size-4" /> Edit Event
+                    </button>
+                  ))}
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-square btn-sm"
+                  onClick={closeListing}
+                  aria-label="Close listing"
+                  disabled={editMutation.isPending}
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
             </div>
+            {editingListingId === selectedListing._id ? (
+              <form
+                className="space-y-4 rounded-2xl border border-base-300 bg-base-200 p-4 sm:p-5"
+                onSubmit={handleUpdateEvent}
+              >
+                <div>
+                  <h2
+                    id="marketplace-listing-title"
+                    className="text-xl font-bold"
+                  >
+                    Edit Event
+                  </h2>
+                  <p className="mt-1 text-sm opacity-65">
+                    Update this event listing. Its visibility and moderation status will not change.
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="form-control sm:col-span-2">
+                    <span className="label-text mb-1 font-semibold">Title</span>
+                    <input
+                      className="input input-bordered"
+                      value={editForm?.title || ""}
+                      onChange={(event) => {
+                        setEditForm((current) => ({
+                          ...current,
+                          title: event.target.value,
+                        }));
+                        setEditFormError("");
+                      }}
+                      minLength={3}
+                      maxLength={100}
+                      required
+                    />
+                  </label>
+                  <label className="form-control">
+                    <span className="label-text mb-1 font-semibold">
+                      Category
+                    </span>
+                    <input
+                      className="input input-bordered"
+                      value={editForm?.category || ""}
+                      onChange={(event) => {
+                        setEditForm((current) => ({
+                          ...current,
+                          category: event.target.value,
+                        }));
+                        setEditFormError("");
+                      }}
+                      maxLength={80}
+                      required
+                    />
+                  </label>
+                  <div className="grid grid-cols-[1fr_6rem] gap-2">
+                    <label className="form-control">
+                      <span className="label-text mb-1 font-semibold">
+                        Price (optional)
+                      </span>
+                      <input
+                        type="number"
+                        className="input input-bordered"
+                        value={editForm?.price ?? ""}
+                        onChange={(event) => {
+                          setEditForm((current) => ({
+                            ...current,
+                            price: event.target.value,
+                          }));
+                          setEditFormError("");
+                        }}
+                        min="0"
+                        step="0.01"
+                      />
+                    </label>
+                    <label className="form-control">
+                      <span className="label-text mb-1 font-semibold">
+                        Currency
+                      </span>
+                      <input
+                        className="input input-bordered uppercase"
+                        value={editForm?.currency || "USD"}
+                        onChange={(event) => {
+                          setEditForm((current) => ({
+                            ...current,
+                            currency: event.target.value.toUpperCase(),
+                          }));
+                          setEditFormError("");
+                        }}
+                        maxLength={3}
+                        required
+                      />
+                    </label>
+                  </div>
+                  <label className="form-control sm:col-span-2">
+                    <span className="label-text mb-1 font-semibold">
+                      Description
+                    </span>
+                    <textarea
+                      className="textarea textarea-bordered min-h-24"
+                      value={editForm?.description || ""}
+                      onChange={(event) => {
+                        setEditForm((current) => ({
+                          ...current,
+                          description: event.target.value,
+                        }));
+                        setEditFormError("");
+                      }}
+                      maxLength={2000}
+                    />
+                  </label>
+                  <label className="form-control">
+                    <span className="label-text mb-1 font-semibold">
+                      Location or service area (optional)
+                    </span>
+                    <input
+                      className="input input-bordered"
+                      value={editForm?.location || ""}
+                      onChange={(event) => {
+                        setEditForm((current) => ({
+                          ...current,
+                          location: event.target.value,
+                        }));
+                        setEditFormError("");
+                      }}
+                      maxLength={120}
+                    />
+                  </label>
+                  <label className="form-control">
+                    <span className="label-text mb-1 font-semibold">
+                      Contact action
+                    </span>
+                    <select
+                      className="select select-bordered"
+                      value={editForm?.contactMethod || "message"}
+                      onChange={(event) => {
+                        setEditForm((current) => ({
+                          ...current,
+                          contactMethod: event.target.value,
+                        }));
+                        setEditFormError("");
+                      }}
+                    >
+                      <option value="message">Message on HyeChat</option>
+                      <option value="external_link">
+                        External website or booking link
+                      </option>
+                    </select>
+                  </label>
+                  {editForm?.contactMethod === "external_link" && (
+                    <label className="form-control sm:col-span-2">
+                      <span className="label-text mb-1 font-semibold">
+                        External action URL
+                      </span>
+                      <input
+                        type="url"
+                        className="input input-bordered"
+                        value={editForm.contactUrl || ""}
+                        onChange={(event) => {
+                          setEditForm((current) => ({
+                            ...current,
+                            contactUrl: event.target.value,
+                          }));
+                          setEditFormError("");
+                        }}
+                        maxLength={2048}
+                        placeholder="https://..."
+                        required
+                      />
+                    </label>
+                  )}
+                  <div className="min-w-0 sm:col-span-2">
+                    <MarketplaceMediaUploader
+                      images={media.images}
+                      video={media.video}
+                      allowVideo
+                      disabled={editMutation.isPending}
+                      onAddImages={media.addImages}
+                      onReplaceImage={media.replaceImage}
+                      onRemoveImage={media.removeImage}
+                      onMoveImage={media.moveImage}
+                      onAddVideo={media.addVideo}
+                      onRetryVideo={media.addVideo}
+                      onRemoveVideo={media.removeVideo}
+                      errors={media.errors}
+                      onDismissError={media.clearError}
+                    />
+                  </div>
+                </div>
+                {editFormError && (
+                  <p role="alert" className="alert alert-error py-2 text-sm">
+                    {editFormError}
+                  </p>
+                )}
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => void cancelEventEditor()}
+                    disabled={editMutation.isPending}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-sm"
+                    disabled={
+                      editMutation.isPending ||
+                      media.hasPendingUpload ||
+                      media.hasUploadError
+                    }
+                  >
+                    {editMutation.isPending
+                      ? "Saving…"
+                      : media.hasPendingUpload
+                        ? "Uploading media…"
+                        : media.hasUploadError
+                          ? "Resolve media issues"
+                          : "Save changes"}
+                  </button>
+                </div>
+              </form>
+            ) : (
             <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
               <div>
                 <MarketplaceListingGallery
@@ -1676,6 +2013,7 @@ const MarketplacePanel = ({ searchQuery = "", isMarketplaceScope = true }) => {
                 )}
               </aside>
             </div>
+            )}
           </div>
         </div>
       )}

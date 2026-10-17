@@ -427,6 +427,41 @@ export const useMarketplaceMedia = (userId) => {
     await releaseItems([item]);
   }, [releaseItems, updateVideo]);
 
+  const setExistingMedia = useCallback(
+    ({ imageUrls = [], videoUrl = "" } = {}) => {
+      updateImages(
+        imageUrls.map((url, index) => ({
+          id: `existing-image-${index}`,
+          kind: "image",
+          file: { name: `Existing photo ${index + 1}` },
+          previewUrl: url,
+          status: "uploaded",
+          progress: 100,
+          path: "",
+          url,
+          error: "",
+        })),
+      );
+      updateVideo(
+        videoUrl
+          ? {
+              id: "existing-video",
+              kind: "video",
+              file: { name: "Existing listing video" },
+              previewUrl: videoUrl,
+              status: "uploaded",
+              progress: 100,
+              path: "",
+              url: videoUrl,
+              error: "",
+            }
+          : null,
+      );
+      setErrors([]);
+    },
+    [updateImages, updateVideo],
+  );
+
   const clearError = useCallback((errorId) => {
     setErrors((current) => current.filter((error) => error.id !== errorId));
   }, []);
@@ -505,6 +540,7 @@ export const useMarketplaceMedia = (userId) => {
     moveImage,
     addVideo,
     removeVideo,
+    setExistingMedia,
     clearError,
     resetMedia,
     cleanupUnattached,

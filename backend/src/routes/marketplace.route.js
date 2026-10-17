@@ -19,6 +19,7 @@ import {
   resolveMarketplaceModerationReport,
   saveMarketplaceListing,
   unsaveMarketplaceListing,
+  updateMarketplaceListing,
   updateMarketplaceListingStatus,
 } from "../controllers/marketplace.controller.js";
 
@@ -59,6 +60,7 @@ router.patch(
 router.get("/", getMarketplaceListings);
 router.post("/", createMarketplaceListing);
 router.get("/:id", getMarketplaceListing);
+router.patch("/:id", updateMarketplaceListing);
 router.patch("/:id/status", updateMarketplaceListingStatus);
 router.post("/:id/save", saveMarketplaceListing);
 router.delete("/:id/save", unsaveMarketplaceListing);
