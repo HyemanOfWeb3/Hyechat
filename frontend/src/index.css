@@ -191,6 +191,12 @@ select {
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.06);
 }
 
+@media (hover: none), (pointer: coarse) {
+  .chat-window-shell .str-chat__message-inner .str-chat__message-options {
+    display: flex;
+  }
+}
+
 .community-drawer-layer {
   animation: community-drawer-fade 160ms ease-out;
 }

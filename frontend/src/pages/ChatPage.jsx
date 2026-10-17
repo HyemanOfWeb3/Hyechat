@@ -31,6 +31,7 @@ import {
   Copy,
   Forward,
   Trash2,
+  UserRound,
 } from "lucide-react";
 
 import {
@@ -46,6 +47,10 @@ import {
   useChannelStateContext,
   WithComponents,
   MessageUI,
+  ContextMenuButton,
+  MessageActions as StreamMessageActions,
+  defaultMessageActionSet,
+  useContextMenuContext,
   useMessageContext,
 } from "stream-chat-react";
 import ChatLoader from "../components/ChatLoader.jsx";
@@ -55,6 +60,10 @@ import MediaViewer from "../components/MediaViewer.jsx";
 import UserAvatar from "../components/UserAvatar.jsx";
 import ChatImageGalleryUI from "../components/ChatImageGalleryUI.jsx";
 import { getHyeChatCallDetails } from "../lib/hyeChatCall.js";
+import {
+  buildContextualMessageActionSet,
+  getMessageMenuCapabilities,
+} from "../lib/chatMessageActions.js";
 import StoryReplyPreview from "../components/stories/StoryReplyPreview.jsx";
 import VoiceNoteTranslation from "../components/VoiceNoteTranslation.jsx";
 import UserProfileLink from "../components/UserProfileLink.jsx";
@@ -96,7 +105,162 @@ const highlightText = (text, query) => {
 
 const ChatMessageActionContext = createContext({
   onForwardMessage: () => {},
+  onViewProfile: () => {},
+  onVoiceCall: null,
+  onVideoCall: null,
+  currentUserId: "",
 });
+
+const CopyMessageAction = () => {
+  const { message } = useMessageContext();
+  const { closeMenu } = useContextMenuContext();
+
+  return (
+    <ContextMenuButton
+      aria-label="Copy message text"
+      Icon={Copy}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(message.text);
+          toast.success("Message copied");
+        } catch (error) {
+          console.error("Could not copy message text:", error);
+          toast.error("Could not copy this message.");
+        } finally {
+          closeMenu();
+        }
+      }}
+    >
+      Copy
+    </ContextMenuButton>
+  );
+};
+
+const ForwardMessageAction = () => {
+  const { message } = useMessageContext();
+  const { closeMenu } = useContextMenuContext();
+  const { onForwardMessage } = useContext(ChatMessageActionContext);
+
+  return (
+    <ContextMenuButton
+      aria-label="Forward message"
+      Icon={Forward}
+      onClick={() => {
+        onForwardMessage(message);
+        closeMenu();
+      }}
+    >
+      Forward
+    </ContextMenuButton>
+  );
+};
+
+const ViewProfileMessageAction = () => {
+  const { message } = useMessageContext();
+  const { closeMenu } = useContextMenuContext();
+  const { onViewProfile } = useContext(ChatMessageActionContext);
+
+  return (
+    <ContextMenuButton
+      aria-label={`View ${message.user?.name || "user"}'s profile`}
+      Icon={UserRound}
+      onClick={() => {
+        onViewProfile(message.user?.id);
+        closeMenu();
+      }}
+    >
+      View Profile
+    </ContextMenuButton>
+  );
+};
+
+const VoiceCallMessageAction = () => {
+  const { closeMenu } = useContextMenuContext();
+  const { onVoiceCall } = useContext(ChatMessageActionContext);
+
+  return (
+    <ContextMenuButton
+      aria-label="Start voice call"
+      Icon={Phone}
+      onClick={() => {
+        onVoiceCall?.();
+        closeMenu();
+      }}
+    >
+      Voice Call
+    </ContextMenuButton>
+  );
+};
+
+const VideoCallMessageAction = () => {
+  const { closeMenu } = useContextMenuContext();
+  const { onVideoCall } = useContext(ChatMessageActionContext);
+
+  return (
+    <ContextMenuButton
+      aria-label="Start video call"
+      Icon={Video}
+      onClick={() => {
+        onVideoCall?.();
+        closeMenu();
+      }}
+    >
+      Video Call
+    </ContextMenuButton>
+  );
+};
+
+const ForwardMessageActionItem = {
+  type: "forward",
+  placement: "dropdown",
+  Component: ForwardMessageAction,
+};
+const ViewProfileMessageActionItem = {
+  type: "viewProfile",
+  placement: "dropdown",
+  Component: ViewProfileMessageAction,
+};
+const VoiceCallMessageActionItem = {
+  type: "voiceCall",
+  placement: "dropdown",
+  Component: VoiceCallMessageAction,
+};
+const VideoCallMessageActionItem = {
+  type: "videoCall",
+  placement: "dropdown",
+  Component: VideoCallMessageAction,
+};
+
+const HyeChatMessageActions = () => {
+  const { message, getMessageActions } = useMessageContext();
+  const { currentUserId, onVoiceCall, onVideoCall } = useContext(
+    ChatMessageActionContext,
+  );
+  const capabilities = getMessageMenuCapabilities(message, currentUserId, {
+    isCallMessage: Boolean(getHyeChatCallDetails(message?.text)),
+  });
+  const customActions = [
+    ForwardMessageActionItem,
+    ViewProfileMessageActionItem,
+    ...(onVoiceCall ? [VoiceCallMessageActionItem] : []),
+    ...(onVideoCall ? [VideoCallMessageActionItem] : []),
+  ];
+  const defaultActions = defaultMessageActionSet
+    .filter((action) => action.placement !== "quick")
+    .map((action) =>
+      action.type === "copyMessageText"
+        ? { ...action, Component: CopyMessageAction }
+        : action,
+    );
+  const messageActionSet = buildContextualMessageActionSet({
+    defaultActionSet: defaultActions,
+    allowedActions: getMessageActions?.() || [],
+    customActions,
+    ...capabilities,
+  });
+
+  return <StreamMessageActions messageActionSet={messageActionSet} />;
+};
 
 const ChatMessageSearchResults = ({
   query,
@@ -417,7 +581,6 @@ const fingerprintTranslationText = (text) => {
 const StoryReplyMessage = ({ message: messageProp }) => {
   const { message: contextMessage } = useMessageContext();
   const message = messageProp || contextMessage;
-  const { onForwardMessage } = useContext(ChatMessageActionContext);
   const callDetails = message ? getHyeChatCallDetails(message.text) : null;
   const hasAudioAttachment = (message?.attachments || []).some((attachment) => {
     const mimeType = String(attachment?.mime_type || "").toLowerCase();
@@ -449,24 +612,6 @@ const StoryReplyMessage = ({ message: messageProp }) => {
     typeof message.text === "string" &&
     message.text.trim(),
   );
-  const canCopyOrForward = Boolean(
-    message?.user?.id &&
-    !["system", "deleted", "error", "ephemeral"].includes(message.type) &&
-    !message.deleted_at &&
-    !callDetails &&
-    (message.text?.trim() || message.attachments?.length),
-  );
-  const handleCopyMessage = async () => {
-    if (!message?.text?.trim()) return;
-
-    try {
-      await navigator.clipboard.writeText(message.text);
-      toast.success("Message copied");
-    } catch (error) {
-      console.error("Could not copy message text:", error);
-      toast.error("Could not copy this message.");
-    }
-  };
   const [selectedLanguage, setSelectedLanguage] = useState("");
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
   const [showingTranslationKey, setShowingTranslationKey] = useState("");
@@ -577,30 +722,6 @@ const StoryReplyMessage = ({ message: messageProp }) => {
       )}
       <div className="flex min-w-0 max-w-full flex-col gap-1">
         <MessageUI />
-        {canCopyOrForward && (
-          <div className="flex flex-wrap items-center gap-1">
-            {message.text?.trim() && (
-              <button
-                type="button"
-                onClick={() => void handleCopyMessage()}
-                className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                aria-label="Copy message text"
-              >
-                <Copy className="size-3.5" aria-hidden="true" />
-                Copy
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => onForwardMessage(message)}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-              aria-label="Forward message"
-            >
-              <Forward className="size-3.5" aria-hidden="true" />
-              Forward
-            </button>
-          </div>
-        )}
         {canTranslate && (
           <>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500">
@@ -1646,13 +1767,21 @@ const ChatPage = () => {
   return (
     <div className="chat-page-shell flex h-full min-h-0 min-w-0 w-full max-w-full overflow-hidden">
       <ChatMessageActionContext.Provider
-        value={{ onForwardMessage: setMessageToForward }}
+        value={{
+          currentUserId: authUser?._id,
+          onForwardMessage: setMessageToForward,
+          onViewProfile: (userId) =>
+            navigate(`/profile/${encodeURIComponent(userId)}`),
+          onVoiceCall: tokenData?.token ? handleVoiceCall : null,
+          onVideoCall: tokenData?.token ? handleVideoCall : null,
+        }}
       >
         <Chat client={chatClient} theme="str-chat__theme-light">
           <Channel channel={channel} Message={StoryReplyMessage}>
             <WithComponents
               overrides={{
                 GalleryUI: ChatImageGalleryUI,
+                MessageActions: HyeChatMessageActions,
                 Attachment: (attachmentProps) => (
                   <ChatAttachmentRenderer
                     {...attachmentProps}
